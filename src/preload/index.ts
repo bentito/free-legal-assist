@@ -5,10 +5,14 @@ import {
   AgentProgressEvent,
   AppBootstrapState,
   ChronologyFact,
+  CreateCustomLegalMcpServerPayload,
   DocumentCategory,
+  LegalMcpServerId,
+  LegalMcpTestResult,
   LLMProviderId,
   PracticeAreaId,
   PractitionerProfileId,
+  SaveLegalMcpServerPayload,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../shared/types';
@@ -65,6 +69,12 @@ export interface LexHarnessBridge {
     reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
     runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): Promise<AppBootstrapState>;
+  saveLegalMcpServer(payload: SaveLegalMcpServerPayload): Promise<AppBootstrapState>;
+  addCustomLegalMcpServer(
+    payload: CreateCustomLegalMcpServerPayload
+  ): Promise<AppBootstrapState>;
+  syncLegalMcpToAgents(): Promise<AppBootstrapState>;
+  testLegalMcpServer(serverId: LegalMcpServerId): Promise<LegalMcpTestResult>;
   createDocument(payload: {
     matterId: string;
     title: string;
@@ -104,6 +114,14 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.invoke('legal:save-adversarial-config', updated),
   saveProviderCredential: (payload) =>
     ipcRenderer.invoke('legal:save-provider-credential', payload),
+  saveLegalMcpServer: (payload) =>
+    ipcRenderer.invoke('legal:save-legal-mcp-server', payload),
+  addCustomLegalMcpServer: (payload) =>
+    ipcRenderer.invoke('legal:add-custom-legal-mcp-server', payload),
+  syncLegalMcpToAgents: () =>
+    ipcRenderer.invoke('legal:sync-legal-mcp-to-agents'),
+  testLegalMcpServer: (serverId) =>
+    ipcRenderer.invoke('legal:test-legal-mcp-server', serverId),
   createDocument: (payload) => ipcRenderer.invoke('legal:create-document', payload),
   addChronologyFact: (payload) =>
     ipcRenderer.invoke('legal:add-chronology-fact', payload),

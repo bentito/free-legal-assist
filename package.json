@@ -1,7 +1,7 @@
 {
   "name": "lexharness-desktop",
   "productName": "LexHarness",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Legal Agent Harness Control Surface for macOS and Windows",
   "main": "dist-electron/main/index.js",
   "private": true,

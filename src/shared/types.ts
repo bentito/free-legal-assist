@@ -35,6 +35,91 @@ export type AdversarialReviewMode =
   | 'single_critic'
   | 'direct_bypass';
 
+export type LegalMcpServerId =
+  | 'courtlistener-mcp'
+  | 'vt-statutes-mcp'
+  | 'govinfo-ecfr-mcp'
+  | 'commercial-lexis-westlaw-mcp'
+  | string;
+
+export type LegalMcpAuthTier =
+  | 'free_account_required'
+  | 'free_public'
+  | 'authenticated_pro'
+  | 'enterprise_key';
+
+export type LegalMcpTransport =
+  | 'stdio'
+  | 'http-rest-bridge'
+  | 'http-sse';
+
+export interface LegalMcpToolDescriptor {
+  name: string;
+  description: string;
+  requiresAuthToken: boolean;
+}
+
+export interface LegalMcpAgentSyncStatus {
+  agyAcpSynced: boolean;
+  codexCliSynced: boolean;
+  claudeCliSynced: boolean;
+  localLoopSynced: boolean;
+  lastSyncedAt: string;
+  configFilePath: string;
+}
+
+export interface LegalMcpServerConfig {
+  id: LegalMcpServerId;
+  name: string;
+  badgeText: string;
+  description: string;
+  transport: LegalMcpTransport;
+  authTier: LegalMcpAuthTier;
+  isDefault: boolean;
+  enabled: boolean;
+  endpointUrl: string;
+  signupOrDocsUrl: string;
+  command: string;
+  args: string[];
+  envVarName: string;
+  hasAuthToken: boolean;
+  maskedAuthToken: string;
+  tools: LegalMcpToolDescriptor[];
+  agentSyncStatus: LegalMcpAgentSyncStatus;
+}
+
+export interface SaveLegalMcpServerPayload {
+  serverId: LegalMcpServerId;
+  enabled?: boolean;
+  authToken?: string;
+  endpointUrl?: string;
+  command?: string;
+  args?: string[];
+  authTier?: LegalMcpAuthTier;
+}
+
+export interface CreateCustomLegalMcpServerPayload {
+  name: string;
+  description: string;
+  transport: LegalMcpTransport;
+  authTier: LegalMcpAuthTier;
+  endpointUrl: string;
+  command: string;
+  args: string[];
+  envVarName: string;
+  authToken?: string;
+  toolNames: string[];
+}
+
+export interface LegalMcpTestResult {
+  serverId: LegalMcpServerId;
+  ok: boolean;
+  authenticatedLive: boolean;
+  statusSummary: string;
+  samplePayload: string;
+  latencyMs: number;
+}
+
 export interface ProviderRuntimeStatus {
   installed: boolean;
   authenticated: boolean;
@@ -184,8 +269,14 @@ export interface ToolCallRecord {
     | 'search_matter_corpus'
     | 'read_document_pages'
     | 'verify_citation_lookup'
+    | 'courtlistener_lookup_citation'
+    | 'courtlistener_search_opinions'
+    | 'vt_statutes_lookup'
+    | 'govinfo_federal_lookup'
     | 'propose_document_redline'
     | 'record_chronology_fact';
+  mcpServerId?: string;
+  mcpServerName?: string;
   args: Record<string, unknown>;
   resultSummary: string;
   rawOutput: string;
@@ -287,5 +378,6 @@ export interface AppBootstrapState {
   promptSettings: SystemPromptSettings;
   adversarialConfig: AdversarialConfig;
   providers: ProviderConfig[];
+  legalMcpServers: LegalMcpServerConfig[];
   assembledPromptPreview: AssembledPromptPreview;
 }

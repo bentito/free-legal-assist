@@ -4,10 +4,14 @@ import {
   AgentProgressEvent,
   AppBootstrapState,
   ChronologyFact,
+  CreateCustomLegalMcpServerPayload,
   DocumentCategory,
+  LegalMcpServerId,
+  LegalMcpTestResult,
   LLMProviderId,
   PracticeAreaId,
   PractitionerProfileId,
+  SaveLegalMcpServerPayload,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../../shared/types';
@@ -66,6 +70,14 @@ declare global {
         reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
         runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
       }): Promise<AppBootstrapState>;
+      saveLegalMcpServer(
+        payload: SaveLegalMcpServerPayload
+      ): Promise<AppBootstrapState>;
+      addCustomLegalMcpServer(
+        payload: CreateCustomLegalMcpServerPayload
+      ): Promise<AppBootstrapState>;
+      syncLegalMcpToAgents(): Promise<AppBootstrapState>;
+      testLegalMcpServer(serverId: LegalMcpServerId): Promise<LegalMcpTestResult>;
       createDocument(payload: {
         matterId: string;
         title: string;
@@ -186,6 +198,28 @@ export const ipcBridge = {
     runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): Promise<AppBootstrapState> {
     return window.lexharness!.saveProviderCredential(payload);
+  },
+
+  async saveLegalMcpServer(
+    payload: SaveLegalMcpServerPayload
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.saveLegalMcpServer(payload);
+  },
+
+  async addCustomLegalMcpServer(
+    payload: CreateCustomLegalMcpServerPayload
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.addCustomLegalMcpServer(payload);
+  },
+
+  async syncLegalMcpToAgents(): Promise<AppBootstrapState> {
+    return window.lexharness!.syncLegalMcpToAgents();
+  },
+
+  async testLegalMcpServer(
+    serverId: LegalMcpServerId
+  ): Promise<LegalMcpTestResult> {
+    return window.lexharness!.testLegalMcpServer(serverId);
   },
 
   async createDocument(payload: {

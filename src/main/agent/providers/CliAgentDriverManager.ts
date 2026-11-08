@@ -308,6 +308,12 @@ export class CliAgentDriverManager {
     customArgs?: string;
     reasoningEffort?: string;
     cwd?: string;
+    mcpInjection?: {
+      claudeMcpConfigJson?: string;
+      codexConfigFlags?: string[];
+      mcpConfigFilePath?: string;
+      courtlistenerToken?: string;
+    };
   }): Promise<string> {
     const binary = this.resolveBinaryPath(params.providerId, params.binaryPath);
     if (!binary) {
@@ -316,7 +322,17 @@ export class CliAgentDriverManager {
       );
     }
 
-    const env = this.getExtendedPathEnv();
+    const baseEnv = this.getExtendedPathEnv();
+    const env: NodeJS.ProcessEnv = {
+      ...baseEnv,
+      ...(params.mcpInjection?.mcpConfigFilePath
+        ? { LEXHARNESS_MCP_CONFIG_PATH: params.mcpInjection.mcpConfigFilePath }
+        : {}),
+      ...(params.mcpInjection?.courtlistenerToken
+        ? { COURTLISTENER_API_TOKEN: params.mcpInjection.courtlistenerToken }
+        : {}),
+    };
+
     const effort = params.reasoningEffort || 'medium';
     const combinedPrompt = [
       `### MANDATORY LEGAL SYSTEM PROMPT & GOVERNANCE DIRECTIVE`,
@@ -334,6 +350,7 @@ export class CliAgentDriverManager {
         prompt: combinedPrompt,
         env,
         cwd: params.cwd,
+        codexConfigFlags: params.mcpInjection?.codexConfigFlags,
       });
     }
 
@@ -355,6 +372,7 @@ export class CliAgentDriverManager {
       userPrompt: params.userPrompt,
       env,
       cwd: params.cwd,
+      claudeMcpConfigJson: params.mcpInjection?.claudeMcpConfigJson,
     });
   }
 
@@ -365,17 +383,19 @@ export class CliAgentDriverManager {
     prompt: string;
     env: NodeJS.ProcessEnv;
     cwd?: string;
+    codexConfigFlags?: string[];
   }): Promise<string> {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lexharness-codex-'));
     const outputPath = path.join(tmpDir, 'last-message.txt');
 
-    // Replicates T3 Code's exact `CodexTextGeneration.ts` non-interactive invocation
+    // Replicates T3 Code's exact `CodexTextGeneration.ts` non-interactive invocation + Legal MCP server injection
     const args = [
       'exec',
       '--config',
       'features.plugins=false',
       '--config',
       'features.apps=false',
+      ...(input.codexConfigFlags || []),
       '--ephemeral',
       '--skip-git-repo-check',
       '-s',
@@ -448,6 +468,7 @@ export class CliAgentDriverManager {
     userPrompt: string;
     env: NodeJS.ProcessEnv;
     cwd?: string;
+    claudeMcpConfigJson?: string;
   }): Promise<string> {
     const args = [
       '-p',
@@ -457,6 +478,9 @@ export class CliAgentDriverManager {
       input.model,
       '--system-prompt',
       input.systemPrompt,
+      ...(input.claudeMcpConfigJson
+        ? ['--mcp-config', input.claudeMcpConfigJson]
+        : []),
       input.userPrompt,
     ];
 

@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LegalDatabase } from '../db/database';
 import { PromptAssembler } from '../agent/PromptAssembler';
 import { LegalAgentLoop } from '../agent/LegalAgentLoop';
+import { LegalMcpManager } from '../mcp/LegalMcpManager';
 
-describe('LexHarness: Practitioner Profiles, Matter Settings Editing & Multi-LLM Adversarial Loop', () => {
+describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets & Multi-LLM Loop', () => {
   let tmpDir: string;
   let db: LegalDatabase;
 
@@ -76,7 +77,7 @@ describe('LexHarness: Practitioner Profiles, Matter Settings Editing & Multi-LLM
     expect(assembled.primarySystemPrompt).toContain('State v. Sprague');
   });
 
-  it('executes local LegalAgentLoop under Vermont Criminal Defense profile with Multi-LLM Adversarial Gate and cures Article 11 / BWC objections', async () => {
+  it('executes local LegalAgentLoop under Vermont Criminal Defense profile with CourtListener MCP toolset and Multi-LLM Adversarial Gate', async () => {
     const loop = new LegalAgentLoop(db);
     const phasesSeen: string[] = [];
 
@@ -98,6 +99,12 @@ describe('LexHarness: Practitioner Profiles, Matter Settings Editing & Multi-LLM
     expect(phasesSeen).toContain('completed');
 
     expect(result.assistantMessage.toolCalls.length).toBeGreaterThanOrEqual(3);
+    const clToolCall = result.assistantMessage.toolCalls.find(
+      (tc) => tc.toolName === 'courtlistener_lookup_citation'
+    );
+    expect(clToolCall).toBeDefined();
+    expect(clToolCall?.mcpServerId).toBe('courtlistener-mcp');
+
     expect(result.assistantMessage.adversarialReviews.length).toBe(2);
     expect(result.assistantMessage.revisionRoundsCompleted).toBe(1);
     expect(result.assistantMessage.content).toContain('State v. Sprague');
@@ -136,5 +143,54 @@ describe('LexHarness: Practitioner Profiles, Matter Settings Editing & Multi-LLM
     expect(codexCfg?.binaryPath).toBe('/opt/homebrew/bin/codex');
     expect(codexCfg?.reasoningEffort).toBe('xhigh');
     expect(codexCfg?.runtimeMode).toBe('read-only');
+  });
+
+  it('defaults to CourtListener (free account required) as the primary Legal MCP toolset, supports authed & custom MCP toolsets, and syncs MCP config to agents', async () => {
+    const servers = LegalMcpManager.listServers(db);
+    expect(servers.length).toBeGreaterThanOrEqual(4);
+
+    const courtlistener = servers[0];
+    expect(courtlistener.id).toBe('courtlistener-mcp');
+    expect(courtlistener.isDefault).toBe(true);
+    expect(courtlistener.enabled).toBe(true);
+    expect(courtlistener.authTier).toBe('free_account_required');
+
+    // Save free CourtListener API token
+    const afterSave = LegalMcpManager.saveServerConfig(db, {
+      serverId: 'courtlistener-mcp',
+      enabled: true,
+      authToken: 'cl_free_token_9876543210abcdef',
+    });
+    const clUpdated = afterSave.find((s) => s.id === 'courtlistener-mcp');
+    expect(clUpdated?.hasAuthToken).toBe(true);
+    expect(db.getLegalMcpToken('courtlistener-mcp')).toBe(
+      'cl_free_token_9876543210abcdef'
+    );
+
+    // Add custom authenticated legal MCP server
+    const afterCustom = LegalMcpManager.addCustomServer(db, {
+      name: 'PACER / RECAP Direct Pro MCP',
+      description: 'Authenticated federal docket MCP server',
+      transport: 'stdio',
+      authTier: 'authenticated_pro',
+      endpointUrl: 'https://pacer-mcp.example.org/v1',
+      command: 'npx',
+      args: ['-y', '@legal/pacer-mcp'],
+      envVarName: 'PACER_API_KEY',
+      authToken: 'pacer_secret_123456',
+      toolNames: ['pacer_docket_query', 'pacer_document_fetch'],
+    });
+    expect(afterCustom.some((s) => s.name === 'PACER / RECAP Direct Pro MCP')).toBe(
+      true
+    );
+
+    // Verify CLI MCP injection payload for Claude (--mcp-config) and Codex (--config mcp_servers)
+    const injection = LegalMcpManager.getCliMcpInjectionArgs(db);
+    expect(injection.claudeMcpConfigJson).toContain('courtlistener-mcp');
+    expect(
+      injection.codexConfigFlags.some((f) =>
+        f.includes('mcp_servers.courtlistener_mcp')
+      )
+    ).toBe(true);
   });
 });

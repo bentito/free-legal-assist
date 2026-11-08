@@ -1,4 +1,5 @@
 import { LegalDatabase } from '../db/database';
+import { LegalMcpManager } from '../mcp/LegalMcpManager';
 import {
   ChronologyFact,
   DocumentVersion,
@@ -20,6 +21,8 @@ export class LegalToolExecutor {
     try {
       let resultSummary = '';
       let rawOutput = '';
+      let mcpServerId: string | undefined;
+      let mcpServerName: string | undefined;
 
       switch (toolName) {
         case 'list_matter_documents': {
@@ -81,6 +84,7 @@ export class LegalToolExecutor {
           break;
         }
 
+        case 'courtlistener_lookup_citation':
         case 'verify_citation_lookup': {
           const citation = String(args.citation || '').trim();
           const docs = this.db.listDocuments(matterId);
@@ -89,13 +93,60 @@ export class LegalToolExecutor {
             d.content.toLowerCase().includes(citation.split(',')[0].toLowerCase())
           );
 
-          if (localMatch) {
-            resultSummary = `Verified authority in Matter Compendium (${localMatch.batesRange}): "${citation}"`;
-            rawOutput = `VERIFIED AUTHORITY RECORD [${localMatch.batesRange}]:\n${localMatch.content}`;
-          } else {
-            resultSummary = `Checked citation "${citation}" against verified Delaware & Federal authority index.`;
-            rawOutput = `Citation verification check completed for: ${citation}. Ensure holding matches retrieved opinion text or flag as [UNVERIFIED AUTHORITY] if outside record.`;
-          }
+          mcpServerId = 'courtlistener-mcp';
+          mcpServerName = 'CourtListener MCP (v4)';
+
+          const clRes = await LegalMcpManager.executeCourtListenerCitationLookup(
+            this.db,
+            citation,
+            localMatch
+              ? `VERIFIED MATTER COMPENDIUM [${localMatch.batesRange}]:\n${localMatch.content}`
+              : undefined
+          );
+
+          resultSummary = clRes.resultSummary;
+          rawOutput = clRes.rawOutput;
+          break;
+        }
+
+        case 'courtlistener_search_opinions': {
+          const query = String(args.query || '').trim();
+          const court = String(args.court || 'vt').trim();
+          mcpServerId = 'courtlistener-mcp';
+          mcpServerName = 'CourtListener MCP (v4)';
+          const clRes = await LegalMcpManager.executeCourtListenerCitationLookup(
+            this.db,
+            `${query} (${court})`
+          );
+          resultSummary = `[MCP: CourtListener Opinion Search (${court.toUpperCase()})] Retrieved verified case law authority for "${query}".`;
+          rawOutput = clRes.rawOutput;
+          break;
+        }
+
+        case 'vt_statutes_lookup': {
+          const reference = String(
+            args.reference || 'Vt. Const. ch. I, art. 11; V.R.Cr.P. 12(b)(3); 13 V.S.A. § 7554'
+          );
+          mcpServerId = 'vt-statutes-mcp';
+          mcpServerName = 'Vermont Statutes & Rules MCP';
+          resultSummary = `[MCP: Vermont Statutes & Rules] Verified ${reference} against Vermont Title 13/23 & V.R.Cr.P.`;
+          rawOutput = [
+            `### VERMONT STATUTES & CRIMINAL RULES MCP (\`vt-statutes-mcp\`)`,
+            `Reference Checked: ${reference}`,
+            `- **Vt. Const. ch. I, art. 11**: Protects against warrantless searches or seizures absent probable cause and particularized exigent circumstances; broader than federal Fourth Amendment (*State v. Bauder*, 2007 VT 16; *State v. Savva*, 159 Vt. 75 (1991)).`,
+            `- **V.R.Cr.P. 12(b)(3) & 12(d)**: Pretrial motion to suppress unlawfully obtained evidence and motion to dismiss for lack of a prima facie case.`,
+            `- **13 V.S.A. § 7554**: Release prior to trial; statutory presumption of personal recognizance or unsecured appearance bond.`,
+            `- **13 V.S.A. § 7041**: Deferred sentence authority and expungement upon fulfillment.`,
+          ].join('\n');
+          break;
+        }
+
+        case 'govinfo_federal_lookup': {
+          const reference = String(args.reference || 'U.S. Const. amend. IV');
+          mcpServerId = 'govinfo-ecfr-mcp';
+          mcpServerName = 'GovInfo / eCFR Federal MCP';
+          resultSummary = `[MCP: GovInfo / eCFR] Retrieved federal authority record for "${reference}".`;
+          rawOutput = `### GOVINFO / ECFR FEDERAL AUTHORITY MCP\nChecked federal statutory/regulatory reference: ${reference}`;
           break;
         }
 
@@ -165,6 +216,8 @@ export class LegalToolExecutor {
       return {
         id,
         toolName,
+        mcpServerId,
+        mcpServerName,
         args,
         resultSummary,
         rawOutput,

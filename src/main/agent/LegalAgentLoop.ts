@@ -7,6 +7,7 @@ import {
   ToolCallRecord,
 } from '../../shared/types';
 import { LegalDatabase } from '../db/database';
+import { LegalMcpManager } from '../mcp/LegalMcpManager';
 import { LegalToolExecutor } from '../tools/LegalToolExecutor';
 import { AdversarialCoordinator } from './AdversarialCoordinator';
 import { PromptAssembler } from './PromptAssembler';
@@ -64,7 +65,12 @@ export class LegalAgentLoop {
     };
     this.db.insertMessage(userMessage);
 
-    // 2. Assemble 4-Layer User-Governed Legal System Prompt from Active Practitioner Profile
+    // 2. Ensure Legal MCP Configs (CourtListener Default + Enabled Toolsets) & Assemble Prompt
+    const mcpInjection = LegalMcpManager.getCliMcpInjectionArgs(this.db);
+    const enabledMcpServers = LegalMcpManager.listServers(this.db).filter(
+      (s) => s.enabled
+    );
+
     const promptSettings = this.db.getSystemPromptSettings();
     const advConfig = {
       ...this.db.getAdversarialConfig(),
@@ -74,20 +80,23 @@ export class LegalAgentLoop {
     const assembled = PromptAssembler.assembleForMatter(
       promptSettings,
       matter,
-      overridePracticeAreaId
+      overridePracticeAreaId,
+      mcpInjection.enabledServersSummary
     );
 
     emit({
       phase: 'assembling_prompt',
-      statusText: `Assembling ${assembled.profileName} System Prompt...`,
-      detailText: `Forum: ${matter.jurisdiction} • Citation Style: ${matter.citationStyle}`,
+      statusText: `Assembling ${assembled.profileName} System Prompt & Syncing ${enabledMcpServers.length} Legal MCP Toolset(s)...`,
+      detailText: `Forum: ${matter.jurisdiction} • Active MCPs: ${enabledMcpServers
+        .map((s) => s.id)
+        .join(', ')}`,
     });
 
     const assistantMessageId = `msg-assistant-${Date.now()}`;
     const toolCalls: ToolCallRecord[] = [];
     const docs = this.db.listDocuments(matterId);
 
-    // 3. Autonomous Local Legal Tool Loop
+    // 3. Autonomous Local Legal Tool & Legal MCP Execution Loop
     emit({
       phase: 'executing_tools',
       statusText: 'Searching local Matter / Discovery Corpus & Bates-stamped record...',
@@ -116,9 +125,13 @@ export class LegalAgentLoop {
       ? 'State v. Sprague, 2003 VT 20; State v. Bauder, 2007 VT 16; State v. Savva, 159 Vt. 75 (1991); State v. Oakes, 157 Vt. 171 (1991)'
       : 'Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006); Express Scripts, Inc. v. Bracket Holdings Corp., 248 A.3d 824 (Del. 2021)';
 
+    const courtlistenerEnabled = enabledMcpServers.some(
+      (s) => s.id === 'courtlistener-mcp'
+    );
+
     const verifyCall = await this.toolExecutor.executeTool(
       matterId,
-      'verify_citation_lookup',
+      courtlistenerEnabled ? 'courtlistener_lookup_citation' : 'verify_citation_lookup',
       {
         citation: defaultCitationToVerify,
       },
@@ -131,11 +144,32 @@ export class LegalAgentLoop {
       toolCall: verifyCall,
     });
 
+    if (
+      isVermontCriminal &&
+      enabledMcpServers.some((s) => s.id === 'vt-statutes-mcp')
+    ) {
+      const vtStatutesCall = await this.toolExecutor.executeTool(
+        matterId,
+        'vt_statutes_lookup',
+        {
+          reference:
+            'Vt. Const. ch. I, art. 11; V.R.Cr.P. 12(b)(3) & 12(d); 13 V.S.A. § 7554',
+        },
+        advConfig.primaryModel
+      );
+      toolCalls.push(vtStatutesCall);
+      emit({
+        phase: 'executing_tools',
+        statusText: vtStatutesCall.resultSummary,
+        toolCall: vtStatutesCall,
+      });
+    }
+
     // 4. Primary Model Drafting Pass
     emit({
       phase: 'drafting_primary',
       statusText: `Drafting initial legal analysis with ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel})...`,
-      detailText: `Applying ${assembled.profileName} instructions to retrieved evidence`,
+      detailText: `Applying ${assembled.profileName} instructions & CourtListener MCP verification to retrieved evidence`,
     });
 
     let candidateDraft = '';
@@ -151,7 +185,7 @@ export class LegalAgentLoop {
         provider: advConfig.primaryProvider,
         model: advConfig.primaryModel,
         systemPrompt: assembled.primarySystemPrompt,
-        userPrompt: `MATTER RECORD EVIDENCE:\n${toolContextStr}\n\nATTORNEY INSTRUCTION:\n${userPrompt}`,
+        userPrompt: `MATTER RECORD EVIDENCE & MCP AUTHORITY VERIFICATION:\n${toolContextStr}\n\nATTORNEY INSTRUCTION:\n${userPrompt}`,
       });
       candidateDraft = liveRes.text;
     } else {
