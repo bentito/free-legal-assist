@@ -103,4 +103,38 @@ describe('LexHarness: Practitioner Profiles, Matter Settings Editing & Multi-LLM
     expect(result.assistantMessage.content).toContain('State v. Sprague');
     expect(result.assistantMessage.content).toContain('V.R.Cr.P. 12(d)');
   });
+
+  it('deletes a Matter and cascades deletion of threads, documents, versions, and chronology facts', () => {
+    const initialMatters = db.listMatters();
+    expect(initialMatters.length).toBe(2);
+
+    const { remainingMatters, nextActiveMatterId } = db.deleteMatter(
+      'matter-apex-meridian'
+    );
+    expect(remainingMatters.length).toBe(1);
+    expect(nextActiveMatterId).toBe('matter-vt-state-v-thorne');
+    expect(db.listDocuments('matter-apex-meridian').length).toBe(0);
+    expect(db.listThreads('matter-apex-meridian').length).toBe(0);
+    expect(db.listChronologyFacts('matter-apex-meridian').length).toBe(0);
+  });
+
+  it('exposes T3-style CLI Agent Harnesses (agy-acp, codex-cli, claude-cli) and persists binary path, reasoning effort, and runtime mode overrides', () => {
+    const providers = db.listProviderConfigs();
+    const providerIds = providers.map((p) => p.id);
+    expect(providerIds).toContain('agy-acp');
+    expect(providerIds).toContain('codex-cli');
+    expect(providerIds).toContain('claude-cli');
+
+    const updatedProviders = db.saveProviderCredential({
+      providerId: 'codex-cli',
+      binaryPath: '/opt/homebrew/bin/codex',
+      reasoningEffort: 'xhigh',
+      runtimeMode: 'read-only',
+    });
+
+    const codexCfg = updatedProviders.find((p) => p.id === 'codex-cli');
+    expect(codexCfg?.binaryPath).toBe('/opt/homebrew/bin/codex');
+    expect(codexCfg?.reasoningEffort).toBe('xhigh');
+    expect(codexCfg?.runtimeMode).toBe('read-only');
+  });
 });

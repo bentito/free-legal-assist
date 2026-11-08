@@ -26,6 +26,7 @@ declare global {
         citationStyle: string;
       }): Promise<AppBootstrapState>;
       updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState>;
+      deleteMatter(matterId: string): Promise<AppBootstrapState>;
       updateMatterJurisdiction(payload: {
         matterId: string;
         jurisdiction: string;
@@ -60,6 +61,10 @@ declare global {
         apiKey?: string;
         baseUrl?: string;
         defaultModel?: string;
+        binaryPath?: string;
+        customArgs?: string;
+        reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+        runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
       }): Promise<AppBootstrapState>;
       createDocument(payload: {
         matterId: string;
@@ -111,6 +116,10 @@ export const ipcBridge = {
 
   async updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState> {
     return window.lexharness!.updateMatter(payload);
+  },
+
+  async deleteMatter(matterId: string): Promise<AppBootstrapState> {
+    return window.lexharness!.deleteMatter(matterId);
   },
 
   async updateMatterJurisdiction(payload: {
@@ -171,6 +180,10 @@ export const ipcBridge = {
     apiKey?: string;
     baseUrl?: string;
     defaultModel?: string;
+    binaryPath?: string;
+    customArgs?: string;
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+    runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): Promise<AppBootstrapState> {
     return window.lexharness!.saveProviderCredential(payload);
   },

@@ -5,6 +5,7 @@ import {
   Matter,
   MatterDocument,
 } from '../../../shared/types';
+import { CliAgentDriverManager } from './CliAgentDriverManager';
 
 export interface LLMCompletionRequest {
   provider: LLMProviderId;
@@ -24,8 +25,27 @@ export interface CriticStructuredVerdict {
 export class MultiLLMClient {
   constructor(private db: LegalDatabase) {}
 
+  private isCliAgentProvider(
+    provider: LLMProviderId
+  ): provider is 'agy-acp' | 'codex-cli' | 'claude-cli' {
+    return (
+      provider === 'agy-acp' ||
+      provider === 'codex-cli' ||
+      provider === 'claude-cli'
+    );
+  }
+
   hasLiveCredentials(provider: LLMProviderId): boolean {
     if (provider === 'legal-simulator') return false;
+    if (this.isCliAgentProvider(provider)) {
+      const overrides = this.db.getCliOverrides()[provider];
+      const status = CliAgentDriverManager.probeProviderStatusSync(
+        provider,
+        overrides?.binaryPath
+      );
+      const key = this.db.getDecryptedApiKey(provider);
+      return status.installed && (status.authenticated || Boolean(key));
+    }
     const key = this.db.getDecryptedApiKey(provider);
     return Boolean(key && key.trim().length > 0);
   }
@@ -36,9 +56,41 @@ export class MultiLLMClient {
     providerUsed: LLMProviderId;
     modelUsed: string;
   }> {
+    if (this.isCliAgentProvider(req.provider)) {
+      if (this.hasLiveCredentials(req.provider)) {
+        try {
+          const overrides = this.db.getCliOverrides()[req.provider];
+          const cliText = await CliAgentDriverManager.runCliTurn({
+            providerId: req.provider,
+            model: req.model,
+            systemPrompt: req.systemPrompt,
+            userPrompt: req.userPrompt,
+            binaryPath: overrides?.binaryPath,
+            customArgs: overrides?.customArgs,
+            reasoningEffort: overrides?.reasoningEffort || 'medium',
+          });
+          return {
+            text: cliText,
+            usedLiveApi: true,
+            providerUsed: req.provider,
+            modelUsed: req.model,
+          };
+        } catch (err) {
+          throw new Error(
+            `[${req.provider.toUpperCase()} CLI Harness Error (${req.model})]: ${(err as Error).message}`
+          );
+        }
+      }
+    }
+
     const apiKey = this.db.getDecryptedApiKey(req.provider);
 
-    if (req.provider !== 'legal-simulator' && apiKey && apiKey.trim().length > 0) {
+    if (
+      req.provider !== 'legal-simulator' &&
+      !this.isCliAgentProvider(req.provider) &&
+      apiKey &&
+      apiKey.trim().length > 0
+    ) {
       try {
         const liveText = await this.callLiveProvider(req, apiKey.trim());
         return {
@@ -58,7 +110,7 @@ export class MultiLLMClient {
       text: '',
       usedLiveApi: false,
       providerUsed: req.provider,
-      modelUsed: `${req.model} (Local Mac Test Harness)`,
+      modelUsed: `${req.model} (Local Legal Test Harness)`,
     };
   }
 

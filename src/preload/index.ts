@@ -25,6 +25,7 @@ export interface LexHarnessBridge {
     citationStyle: string;
   }): Promise<AppBootstrapState>;
   updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState>;
+  deleteMatter(matterId: string): Promise<AppBootstrapState>;
   updateMatterJurisdiction(payload: {
     matterId: string;
     jurisdiction: string;
@@ -59,6 +60,10 @@ export interface LexHarnessBridge {
     apiKey?: string;
     baseUrl?: string;
     defaultModel?: string;
+    binaryPath?: string;
+    customArgs?: string;
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+    runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): Promise<AppBootstrapState>;
   createDocument(payload: {
     matterId: string;
@@ -84,6 +89,7 @@ const bridge: LexHarnessBridge = {
   selectMatter: (matterId) => ipcRenderer.invoke('legal:select-matter', matterId),
   createMatter: (payload) => ipcRenderer.invoke('legal:create-matter', payload),
   updateMatter: (payload) => ipcRenderer.invoke('legal:update-matter', payload),
+  deleteMatter: (matterId) => ipcRenderer.invoke('legal:delete-matter', matterId),
   updateMatterJurisdiction: (payload) =>
     ipcRenderer.invoke('legal:update-matter-jurisdiction', payload),
   selectPractitionerProfile: (profileId) =>

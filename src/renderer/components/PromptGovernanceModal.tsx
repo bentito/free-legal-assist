@@ -40,6 +40,10 @@ interface PromptGovernanceModalProps {
     apiKey?: string;
     baseUrl?: string;
     defaultModel?: string;
+    binaryPath?: string;
+    customArgs?: string;
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+    runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }) => Promise<void>;
   onUpdateMatterJurisdiction: (payload: {
     matterId: string;
@@ -109,10 +113,33 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
     setMatterPracticeArea(activeMatter.practiceArea);
   }, [activeMatter]);
 
-  // Provider API key inputs
+  // Provider API key & CLI runtime inputs
   const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({});
   const [baseUrlInputs, setBaseUrlInputs] = useState<Record<string, string>>(
     Object.fromEntries(providers.map((p) => [p.id, p.baseUrl || '']))
+  );
+  const [binaryPathInputs, setBinaryPathInputs] = useState<Record<string, string>>(
+    Object.fromEntries(providers.map((p) => [p.id, p.binaryPath || '']))
+  );
+  const [effortInputs, setEffortInputs] = useState<
+    Record<string, 'low' | 'medium' | 'high' | 'xhigh' | 'max'>
+  >(
+    Object.fromEntries(
+      providers.map((p) => [p.id, p.reasoningEffort || 'medium'])
+    ) as Record<string, 'low' | 'medium' | 'high' | 'xhigh' | 'max'>
+  );
+  const [runtimeModeInputs, setRuntimeModeInputs] = useState<
+    Record<
+      string,
+      'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access'
+    >
+  >(
+    Object.fromEntries(
+      providers.map((p) => [p.id, p.runtimeMode || 'read-only'])
+    ) as Record<
+      string,
+      'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access'
+    >
   );
   const [saveBanner, setSaveBanner] = useState<string | null>(null);
 
@@ -683,88 +710,214 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   </div>
                 </div>
 
-                {/* Provider API Keys List */}
-                <div className="space-y-3">
-                  {providers.map((prov) => (
-                    <div
-                      key={prov.id}
-                      className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-100">
-                            {prov.name}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 text-[10px] rounded-full font-medium ${
-                              prov.hasApiKey
-                                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}
-                          >
-                            {prov.hasApiKey
-                              ? `Active (${prov.maskedApiKey})`
-                              : 'Using Local Mac Test Fallback'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {prov.description}
-                        </p>
-                      </div>
+                {/* Provider & Agent CLI Harness List */}\n                <div className="space-y-3">
+                  {providers.map((prov) => {
+                    const isCliHarness =
+                      prov.id === 'agy-acp' ||
+                      prov.id === 'codex-cli' ||
+                      prov.id === 'claude-cli';
 
-                      {prov.id !== 'legal-simulator' && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          {prov.id === 'openrouter' && (
-                            <input
-                              type="text"
-                              value={baseUrlInputs[prov.id] ?? ''}
-                              onChange={(e) =>
-                                setBaseUrlInputs((prev) => ({
-                                  ...prev,
-                                  [prov.id]: e.target.value,
-                                }))
-                              }
-                              placeholder="Base URL"
-                              className="w-44 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200"
-                            />
+                    return (
+                      <div
+                        key={prov.id}
+                        className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-semibold text-slate-100">
+                                {prov.name}
+                              </span>
+                              {isCliHarness && (
+                                <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                  T3 CLI Driver: {prov.driverKind}
+                                </span>
+                              )}
+                              <span
+                                className={`px-2 py-0.5 text-[10px] rounded-full font-medium ${
+                                  prov.hasApiKey
+                                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}
+                              >
+                                {prov.hasApiKey
+                                  ? `Ready (${prov.maskedApiKey})`
+                                  : isCliHarness
+                                    ? prov.runtimeStatus?.installed
+                                      ? `Installed (${prov.runtimeStatus.authLabel})`
+                                      : 'CLI Binary Not Detected (Fallback Active)'
+                                    : 'Using Local Legal Test Fallback'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {prov.description}
+                            </p>
+                            {isCliHarness && prov.runtimeStatus && (
+                              <div className="text-[10px] font-mono text-slate-500 mt-1">
+                                {prov.runtimeStatus.statusDetail}
+                              </div>
+                            )}
+                          </div>
+
+                          {prov.id !== 'legal-simulator' && !isCliHarness && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              {prov.id === 'openrouter' && (
+                                <input
+                                  type="text"
+                                  value={baseUrlInputs[prov.id] ?? ''}
+                                  onChange={(e) =>
+                                    setBaseUrlInputs((prev) => ({
+                                      ...prev,
+                                      [prov.id]: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Base URL"
+                                  className="w-44 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200"
+                                />
+                              )}
+                              <input
+                                type="password"
+                                value={apiKeyInputs[prov.id] ?? ''}
+                                onChange={(e) =>
+                                  setApiKeyInputs((prev) => ({
+                                    ...prev,
+                                    [prov.id]: e.target.value,
+                                  }))
+                                }
+                                placeholder={
+                                  prov.hasApiKey
+                                    ? 'Replace API Key...'
+                                    : 'Enter API Key (sk-...)'
+                                }
+                                className="w-56 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200"
+                              />
+                              <button
+                                onClick={async () => {
+                                  await onSaveProviderCredential({
+                                    providerId: prov.id,
+                                    apiKey: apiKeyInputs[prov.id],
+                                    baseUrl: baseUrlInputs[prov.id],
+                                  });
+                                  setApiKeyInputs((prev) => ({
+                                    ...prev,
+                                    [prov.id]: '',
+                                  }));
+                                  flashSaved(
+                                    `Saved encrypted key for ${prov.name}`
+                                  );
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition"
+                              >
+                                Save Key
+                              </button>
+                            </div>
                           )}
-                          <input
-                            type="password"
-                            value={apiKeyInputs[prov.id] ?? ''}
-                            onChange={(e) =>
-                              setApiKeyInputs((prev) => ({
-                                ...prev,
-                                [prov.id]: e.target.value,
-                              }))
-                            }
-                            placeholder={
-                              prov.hasApiKey
-                                ? 'Replace API Key...'
-                                : 'Enter API Key (sk-...)'
-                            }
-                            className="w-56 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200"
-                          />
-                          <button
-                            onClick={async () => {
-                              await onSaveProviderCredential({
-                                providerId: prov.id,
-                                apiKey: apiKeyInputs[prov.id],
-                                baseUrl: baseUrlInputs[prov.id],
-                              });
-                              setApiKeyInputs((prev) => ({
-                                ...prev,
-                                [prov.id]: '',
-                              }));
-                              flashSaved(`Saved encrypted key for ${prov.name}`);
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition"
-                          >
-                            Save Key
-                          </button>
                         </div>
-                      )}
-                    </div>
-                  ))}
+
+                        {isCliHarness && (
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800/80 text-xs">
+                            <div className="md:col-span-2">
+                              <label className="block text-[10px] text-slate-400 mb-1">
+                                Binary / ACP Executable Path (Auto-detected or Custom Override)
+                              </label>
+                              <input
+                                type="text"
+                                value={binaryPathInputs[prov.id] ?? ''}
+                                onChange={(e) =>
+                                  setBinaryPathInputs((prev) => ({
+                                    ...prev,
+                                    [prov.id]: e.target.value,
+                                  }))
+                                }
+                                placeholder={
+                                  prov.id === 'agy-acp'
+                                    ? '/opt/homebrew/bin/agy or ~/.t3/tools/antigravity-acp/.../agy_acp_server.par'
+                                    : prov.id === 'codex-cli'
+                                      ? '/opt/homebrew/bin/codex'
+                                      : 'claude or C:\\Users\\...\\claude.exe'
+                                }
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-200"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] text-slate-400 mb-1">
+                                Reasoning / Thinking Effort
+                              </label>
+                              <select
+                                value={effortInputs[prov.id] ?? 'medium'}
+                                onChange={(e) =>
+                                  setEffortInputs((prev) => ({
+                                    ...prev,
+                                    [prov.id]: e.target.value as
+                                      | 'low'
+                                      | 'medium'
+                                      | 'high'
+                                      | 'xhigh'
+                                      | 'max',
+                                  }))
+                                }
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200"
+                              >
+                                <option value="low">low</option>
+                                <option value="medium">medium (Default)</option>
+                                <option value="high">high</option>
+                                <option value="xhigh">xhigh</option>
+                                <option value="max">max</option>
+                              </select>
+                            </div>
+
+                            <div className="flex items-end gap-2">
+                              <div className="flex-1">
+                                <label className="block text-[10px] text-slate-400 mb-1">
+                                  Sandbox / Runtime Mode
+                                </label>
+                                <select
+                                  value={runtimeModeInputs[prov.id] ?? 'read-only'}
+                                  onChange={(e) =>
+                                    setRuntimeModeInputs((prev) => ({
+                                      ...prev,
+                                      [prov.id]: e.target.value as
+                                        | 'read-only'
+                                        | 'approval-required'
+                                        | 'auto-accept-edits'
+                                        | 'full-access',
+                                    }))
+                                  }
+                                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-200"
+                                >
+                                  <option value="read-only">read-only</option>
+                                  <option value="approval-required">
+                                    approval-required
+                                  </option>
+                                  <option value="auto-accept-edits">
+                                    auto-accept-edits
+                                  </option>
+                                  <option value="full-access">full-access</option>
+                                </select>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  await onSaveProviderCredential({
+                                    providerId: prov.id,
+                                    binaryPath: binaryPathInputs[prov.id],
+                                    reasoningEffort: effortInputs[prov.id],
+                                    runtimeMode: runtimeModeInputs[prov.id],
+                                  });
+                                  flashSaved(
+                                    `Saved CLI Agent config for ${prov.name}`
+                                  );
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-medium transition shrink-0"
+                              >
+                                Save Driver
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

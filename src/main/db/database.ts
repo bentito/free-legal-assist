@@ -17,6 +17,7 @@ import {
   ThreadMessage,
   UpdateMatterPayload,
 } from '../../shared/types';
+import { CliAgentDriverManager } from '../agent/providers/CliAgentDriverManager';
 import {
   DEFAULT_ADVERSARIAL_CONFIG,
   DEFAULT_PRACTITIONER_PROFILES,
@@ -41,9 +42,59 @@ const defaultEncryptor: SecretEncryptor = {
 
 export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'>[] = [
   {
+    id: 'agy-acp',
+    driverKind: 'antigravity-acp',
+    name: 'Antigravity ACP Harness (agy acp / T3 Driver)',
+    description:
+      'T3-managed Antigravity ACP agent harness (`agy acp` / `agy_acp_server.par`) supporting Gemini 4 Argon, Gemini 3.8 Flash, and Claude 5.5 models.',
+    reasoningEffort: 'medium',
+    runtimeMode: 'full-access',
+    defaultModel: 'gemini-4-argon',
+    availableModels: [
+      { id: 'gemini-4-argon', label: 'Gemini 4 Argon (Antigravity ACP)' },
+      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Antigravity ACP)' },
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (via Antigravity ACP)' },
+      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (via Antigravity ACP)' },
+    ],
+    enabled: true,
+  },
+  {
+    id: 'codex-cli',
+    driverKind: 'codex-cli',
+    name: 'OpenAI Codex Agent Harness (codex exec / app-server)',
+    description:
+      'T3-managed OpenAI Codex CLI harness (`codex exec` / `codex app-server`) with configurable reasoning effort (`low` to `max`) and read-only sandbox.',
+    reasoningEffort: 'medium',
+    runtimeMode: 'read-only',
+    defaultModel: 'gpt-6-luna',
+    availableModels: [
+      { id: 'gpt-6-luna', label: 'GPT-6 Luna (Codex Agent CLI)' },
+      { id: 'o3', label: 'OpenAI o3 (Codex Agent CLI)' },
+      { id: 'o4-mini', label: 'OpenAI o4-mini (Codex Agent CLI)' },
+    ],
+    enabled: true,
+  },
+  {
+    id: 'claude-cli',
+    driverKind: 'claude-agent-cli',
+    name: 'Claude Code Agent Harness (claude CLI / SDK)',
+    description:
+      'T3-style Anthropic Claude Code CLI driver (`claude -p` / Windows `claude.exe` shim resolver) with subscription or API key auth.',
+    reasoningEffort: 'high',
+    runtimeMode: 'approval-required',
+    defaultModel: 'claude-sonnet-5-5',
+    availableModels: [
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Claude Agent CLI)' },
+      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Claude Agent CLI)' },
+      { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet (Claude Agent CLI)' },
+    ],
+    enabled: true,
+  },
+  {
     id: 'anthropic',
-    name: 'Anthropic Claude',
-    description: 'Primary legal reasoning, brief drafting, and motion/contract analysis.',
+    driverKind: 'http-api',
+    name: 'Anthropic Claude (Direct HTTPS API)',
+    description: 'Primary legal reasoning, brief drafting, and motion/contract analysis via direct HTTPS API.',
     defaultModel: 'claude-3-7-sonnet-latest',
     availableModels: [
       { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet (Extended Legal Reasoning)' },
@@ -54,8 +105,9 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
   },
   {
     id: 'openai',
-    name: 'OpenAI (o-Series & GPT-4o)',
-    description: 'Adversarial Opposing Counsel / State’s Attorney critique & logic verification.',
+    driverKind: 'http-api',
+    name: 'OpenAI (o-Series & GPT-4o Direct API)',
+    description: 'Adversarial Opposing Counsel / State\u2019s Attorney critique & logic verification via direct HTTPS API.',
     defaultModel: 'o3-mini',
     availableModels: [
       { id: 'o3-mini', label: 'OpenAI o3-mini (Adversarial Logic Critic)' },
@@ -66,7 +118,8 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
   },
   {
     id: 'gemini',
-    name: 'Google Gemini Pro',
+    driverKind: 'http-api',
+    name: 'Google Gemini Pro (Direct HTTPS API)',
     description: 'Long-context discovery record & citation auditor across transcripts and affidavits.',
     defaultModel: 'gemini-2.5-pro',
     availableModels: [
@@ -77,6 +130,7 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
   },
   {
     id: 'openrouter',
+    driverKind: 'http-api',
     name: 'OpenRouter / Custom Local Endpoint',
     description: 'Connect OpenRouter or a local OpenAI-compatible server (e.g., Ollama / vLLM).',
     baseUrl: 'https://openrouter.ai/api/v1',
@@ -90,7 +144,8 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
   },
   {
     id: 'legal-simulator',
-    name: 'Built-In Legal Harness Simulator (Offline / Mac Test Mode)',
+    driverKind: 'local-simulator',
+    name: 'Built-In Legal Harness Simulator (Offline / Mac & Win Test Mode)',
     description:
       'Deterministic local legal agent & multi-critic engine for testing the full control surface without external API charges.',
     defaultModel: 'lexharness-local-v1',
@@ -100,6 +155,13 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
     enabled: true,
   },
 ];
+
+export interface CliRuntimeOverride {
+  binaryPath?: string;
+  customArgs?: string;
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
+}
 
 export class LegalDatabase {
   private db!: SqlJsDatabase;
@@ -229,11 +291,9 @@ export class LegalDatabase {
 
   private seedOrMigrate(): void {
     const existingMatters = this.listMatters();
-    const hasVtMatter = existingMatters.some(
-      (m) => m.id === 'matter-vt-state-v-thorne'
-    );
+    const hasSeededInitial = this.getKeyValue<boolean>('seeded_initial_matters');
 
-    if (existingMatters.length === 0 || !hasVtMatter) {
+    if (existingMatters.length === 0 && !hasSeededInitial) {
       for (const m of SEEDED_MATTERS) {
         this.insertMatter(m, false);
       }
@@ -252,6 +312,7 @@ export class LegalDatabase {
       for (const msg of SEEDED_MESSAGES) {
         this.insertMessage(msg, false);
       }
+      this.setKeyValue('seeded_initial_matters', true, false);
     }
 
     const promptSettings = this.getKeyValue<SystemPromptSettings>(
@@ -383,6 +444,50 @@ export class LegalDatabase {
       citationStyle: updates.citationStyle,
       folderPath: existing.folderPath,
     });
+  }
+
+  /**
+   * Deletes a Matter and cascades deletion to all associated threads, messages,
+   * documents, document versions, and chronology facts. If the last remaining
+   * Matter is deleted, creates a fresh default Matter so the workspace stays usable.
+   */
+  deleteMatter(matterId: string): { remainingMatters: Matter[]; nextActiveMatterId: string } {
+    const threads = this.listThreads(matterId);
+    for (const t of threads) {
+      this.db.run('DELETE FROM messages WHERE thread_id = ?', [t.id]);
+    }
+    this.db.run('DELETE FROM threads WHERE matter_id = ?', [matterId]);
+    this.db.run('DELETE FROM document_versions WHERE matter_id = ?', [matterId]);
+    this.db.run('DELETE FROM documents WHERE matter_id = ?', [matterId]);
+    this.db.run('DELETE FROM chronology_facts WHERE matter_id = ?', [matterId]);
+    this.db.run('DELETE FROM matters WHERE id = ?', [matterId]);
+
+    let remaining = this.listMatters();
+    if (remaining.length === 0) {
+      const now = new Date().toISOString();
+      const fallbackMatter: Matter = {
+        id: `matter-${Date.now()}`,
+        name: 'State of Vermont v. New Defense Matter',
+        clientName: 'Client / Defendant',
+        matterNumber: '26-CR-00001 (Chittenden Unit)',
+        practiceArea: 'vt_suppression_art11',
+        jurisdiction:
+          'Vermont Superior Court, Criminal Division (Vt. Const. ch. I, art. 11; 13 V.S.A.; V.R.Cr.P.)',
+        citationStyle:
+          'Vermont Supreme Court / Bluebook (e.g., 2007 VT 16, \u00b6 14; 13 V.S.A. \u00a7 ...; V.R.Cr.P. 12)',
+        folderPath: '~/Matters/26-CR-00001',
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.insertMatter(fallbackMatter, false);
+      remaining = [fallbackMatter];
+    }
+
+    this.persist();
+    return {
+      remainingMatters: remaining,
+      nextActiveMatterId: remaining[0].id,
+    };
   }
 
   // --- Documents & Versions ---
@@ -746,12 +851,21 @@ export class LegalDatabase {
     return merged;
   }
 
+  // --- CLI Runtime Overrides ---
+  getCliOverrides(): Record<string, CliRuntimeOverride> {
+    return this.getKeyValue<Record<string, CliRuntimeOverride>>('cli_runtime_overrides') ?? {};
+  }
+
   // --- Provider Credentials & Configuration ---
   saveProviderCredential(params: {
     providerId: LLMProviderId;
     apiKey?: string;
     baseUrl?: string;
     defaultModel?: string;
+    binaryPath?: string;
+    customArgs?: string;
+    reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+    runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): ProviderConfig[] {
     const existing = this.getRawProviderRow(params.providerId);
     const catalogEntry = PROVIDER_CATALOG.find((p) => p.id === params.providerId);
@@ -782,6 +896,24 @@ export class LegalDatabase {
         new Date().toISOString(),
       ]
     );
+
+    if (
+      params.binaryPath !== undefined ||
+      params.customArgs !== undefined ||
+      params.reasoningEffort !== undefined ||
+      params.runtimeMode !== undefined
+    ) {
+      const overrides = this.getCliOverrides();
+      const prev = overrides[params.providerId] ?? {};
+      overrides[params.providerId] = {
+        binaryPath: params.binaryPath !== undefined ? params.binaryPath.trim() : prev.binaryPath,
+        customArgs: params.customArgs !== undefined ? params.customArgs.trim() : prev.customArgs,
+        reasoningEffort: params.reasoningEffort ?? prev.reasoningEffort,
+        runtimeMode: params.runtimeMode ?? prev.runtimeMode,
+      };
+      this.setKeyValue('cli_runtime_overrides', overrides, false);
+    }
+
     this.persist();
     return this.listProviderConfigs();
   }
@@ -812,6 +944,9 @@ export class LegalDatabase {
 
   getDecryptedApiKey(providerId: LLMProviderId): string | null {
     const envMap: Record<LLMProviderId, string | undefined> = {
+      'agy-acp': process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+      'codex-cli': process.env.OPENAI_API_KEY,
+      'claude-cli': process.env.ANTHROPIC_API_KEY,
       anthropic: process.env.ANTHROPIC_API_KEY,
       openai: process.env.OPENAI_API_KEY,
       gemini: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
@@ -832,9 +967,35 @@ export class LegalDatabase {
   }
 
   listProviderConfigs(): ProviderConfig[] {
+    const cliOverrides = this.getCliOverrides();
+
     return PROVIDER_CATALOG.map((cat) => {
       const row = this.getRawProviderRow(cat.id);
       const rawKey = this.getDecryptedApiKey(cat.id);
+      const override = cliOverrides[cat.id];
+
+      if (cat.id === 'agy-acp' || cat.id === 'codex-cli' || cat.id === 'claude-cli') {
+        const runtimeStatus = CliAgentDriverManager.probeProviderStatusSync(
+          cat.id,
+          override?.binaryPath
+        );
+        const isReady = runtimeStatus.installed && (runtimeStatus.authenticated || Boolean(rawKey));
+        return {
+          ...cat,
+          hasApiKey: isReady,
+          maskedApiKey: runtimeStatus.installed
+            ? `${runtimeStatus.version} • ${runtimeStatus.authLabel}`
+            : 'CLI Not Detected on PATH',
+          baseUrl: row?.base_url || cat.baseUrl,
+          binaryPath: override?.binaryPath || runtimeStatus.resolvedBinaryPath,
+          customArgs: override?.customArgs || '',
+          reasoningEffort: override?.reasoningEffort || cat.reasoningEffort || 'medium',
+          runtimeMode: override?.runtimeMode || cat.runtimeMode || 'read-only',
+          defaultModel: row?.default_model || cat.defaultModel,
+          runtimeStatus,
+        };
+      }
+
       const hasApiKey =
         cat.id === 'legal-simulator'
           ? true
@@ -843,9 +1004,9 @@ export class LegalDatabase {
         cat.id === 'legal-simulator'
           ? 'Built-In Local Engine'
           : rawKey && rawKey.length > 8
-            ? `${rawKey.slice(0, 4)}••••••••${rawKey.slice(-4)}`
+            ? `${rawKey.slice(0, 4)}\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022${rawKey.slice(-4)}`
             : hasApiKey
-              ? '••••••••'
+              ? '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'
               : '';
 
       return {

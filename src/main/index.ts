@@ -185,6 +185,21 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    'legal:delete-matter',
+    async (_event, matterId: string) => {
+      const { nextActiveMatterId } = db.deleteMatter(matterId);
+      if (activeMatterId === matterId) {
+        activeMatterId = nextActiveMatterId;
+        const threads = db.listThreads(activeMatterId);
+        if (threads.length > 0) {
+          activeThreadId = threads[0].id;
+        }
+      }
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
     'legal:update-matter-jurisdiction',
     async (
       _event,
@@ -291,6 +306,10 @@ function registerIpcHandlers(): void {
         apiKey?: string;
         baseUrl?: string;
         defaultModel?: string;
+        binaryPath?: string;
+        customArgs?: string;
+        reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+        runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
       }
     ) => {
       db.saveProviderCredential(payload);

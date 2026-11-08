@@ -126,12 +126,12 @@ Provides a clean, general-purpose profile for civil, commercial, regulatory, and
 
 ---
 
-## 4. Re-Visiting & Editing Matter Settings (`legal:update-matter` & Matter Settings Dialog)
+## 4. Re-Visiting, Editing & Deleting Matter Settings (`legal:update-matter`, `legal:delete-matter` & Confirmation Dialog)
 
-Lawyers frequently need to revisit a Matter to update the case caption, docket number, client name, assigned court unit/forum, citation style, default task persona, or local folder path:
+Lawyers frequently need to revisit a Matter to update the case caption, docket number, client name, assigned court unit/forum, citation style, default task persona, or local folder path—or permanently delete a test/closed Matter:
 
 - **UI Entry Points**:
-  1. **Right-Click Context Menu**: Right-clicking any Matter card in the Left Sidebar (or the active Matter badge in the top header) opens a context menu with **`Matter Settings (Edit Name, Docket ID...)`**.
+  1. **Right-Click Context Menu**: Right-clicking any Matter card in the Left Sidebar opens a context menu with **`Matter Settings (Edit Name, Docket ID...)`** and **`Delete Matter...`**.
   2. **Settings Gear Icon**: Each Matter card in the Left Sidebar and the active Matter pill in the top header bar includes a direct **Settings gear icon** that opens the **Matter Settings Dialog**.
 - **Editable Fields in the Matter Settings Dialog (`UpdateMatterPayload`)**:
   - `name` (*Matter / Case Caption Name*, e.g., `State of Vermont v. Marcus Thorne`)
@@ -141,10 +141,28 @@ Lawyers frequently need to revisit a Matter to update the case caption, docket n
   - `citationStyle` (*Citation Style / Manual*)
   - `practiceArea` (*Default Task Persona*)
   - `folderPath` (*Local Matter Workspace Folder Path*)
+- **Matter Deletion with Confirmation Dialog (`legal:delete-matter`)**:
+  - Clicking **`Delete Matter...`** (either from the right-click context menu or inside the **Matter Settings Dialog**) opens a dedicated **Confirm Permanent Matter Deletion** modal dialog displaying the Matter name, Client name, and Docket ID, warning that all associated threads, messages, indexed discovery documents, redline versions, and chronology facts will be permanently removed.
+  - Only when the user clicks **`Yes, Permanently Delete Matter`** does `LegalDatabase.deleteMatter(matterId)` cascade-delete all associated records in SQLite and switch the active workspace to the next remaining Matter.
 
 ---
 
-## 5. Exact Repository File Structure
+## 5. Replicating T3 Code's Agent Harness Drivers (`Codex`, `Antigravity ACP / agy acp`, and `Claude Code`)
+
+LexHarness replicates T3 Code's local agent driver architecture (`CliAgentDriverManager` in `src/main/agent/providers/CliAgentDriverManager.ts`) so that any role in the Multi-LLM Adversarial Gate (**Primary Defense / Lead Counsel**, **Citation & Record Auditor**, or **State's Attorney / Opposing Critic**) can be assigned to either a local CLI/ACP Agent Harness or a direct HTTPS API provider:
+
+1. **`agy-acp` — Antigravity ACP Harness (`antigravity-acp` driver)**:
+   - Auto-detects `agy` on `PATH` (`/opt/homebrew/bin/agy`) or T3's managed ACP server binary (`~/.t3/tools/antigravity-acp/<platform>-<arch>/versions/<releaseId>/agy_acp_server.par` or `agy_acp_server.exe` on Windows).
+   - Supports `gemini-4-argon`, `gemini-3.8-flash`, `claude-opus-5-5`, and `claude-sonnet-5-5` with configurable thinking/reasoning effort (`low`, `medium`, `high`, `xhigh`, `max`) and environment isolation (`AGY_ACP_FORCE_FILE_STORAGE=1`, `PYTHONUNBUFFERED=1`).
+2. **`codex-cli` — OpenAI Codex Agent Harness (`codex-cli` driver)**:
+   - Replicates T3 Code's `CodexTextGeneration.ts` non-interactive execution pipeline (`codex exec --config features.plugins=false --config features.apps=false --ephemeral --skip-git-repo-check -s read-only --model <model> --config model_reasoning_effort="<effort>" --output-last-message <tempFile> -`).
+   - Supports `gpt-6-luna`, `o3`, and `o4-mini` using existing `~/.codex` authentication or `OPENAI_API_KEY`.
+3. **`claude-cli` — Anthropic Claude Code Agent Harness (`claude-agent-cli` driver)**:
+   - Replicates T3 Code's `ClaudeExecutable.ts` cross-platform binary & Windows shim resolution (resolving `node_modules/@anthropic-ai/claude-code/bin/claude.exe` or `cli.js` when Windows `.cmd`/`.bat`/`.ps1` shims are encountered) and runs `claude -p --output-format text --model <model> --system-prompt <assembledLegalPrompt>`.
+
+---
+
+## 6. Exact Repository File Structure
 
 To build or rebuild the application identically from this document, the repository is structured as follows:
 
@@ -163,41 +181,44 @@ free-legal-assist/
 │   └── PLAN.md                                   # Architectural & implementation specification (mirrors this document)
 └── src/
     ├── shared/
-    │   └── types.ts                              # Shared domain & IPC contracts (PractitionerProfile, UpdateMatterPayload, etc.)
+    │   └── types.ts                              # Shared domain & IPC contracts (PractitionerProfile, ProviderDriverKind, etc.)
     ├── preload/
     │   └── index.ts                              # Electron contextBridge exposing window.lexharness
     ├── main/
     │   ├── index.ts                              # Electron main process, BrowserWindow, safeStorage & IPC handlers
     │   ├── db/
     │   │   ├── defaultLegalData.ts               # Built-in Practitioner Profiles (1. VT Criminal Defense, 2. General Practice) & seeded matters
-    │   │   └── database.ts                       # SQLite (sql.js) persistence, profile switching, updateMatter & encrypted credentials
+    │   │   └── database.ts                       # SQLite (sql.js) persistence, profile switching, updateMatter, deleteMatter & CLI overrides
     │   ├── agent/
     │   │   ├── PromptAssembler.ts                # 4-layer dynamic legal system prompt composer
     │   │   ├── AdversarialCoordinator.ts         # Parallel Multi-LLM critic evaluation & JSON verdict parser
     │   │   ├── LegalAgentLoop.ts                 # Autonomous tool execution, primary draft, adversarial gate & revision loop
     │   │   └── providers/
-    │   │       └── MultiLLMClient.ts             # Anthropic, OpenAI, Gemini, OpenRouter HTTP clients + Local Legal Engine
+    │   │       ├── CliAgentDriverManager.ts      # T3-style CLI/ACP agent driver for Antigravity ACP, Codex CLI & Claude Code CLI
+    │   │       └── MultiLLMClient.ts             # Dispatches to CLI Agent Harnesses, direct HTTPS APIs, or Local Legal Engine
     │   ├── tools/
     │   │   └── LegalToolExecutor.ts              # 6 local legal tools operating against the Matter SQLite corpus
     │   └── __tests__/
-    │       └── legalHarness.test.ts              # Vitest suite verifying profiles, Matter Settings updates, prompt assembly & loop
+    │       └── legalHarness.test.ts              # Vitest suite verifying profiles, Matter Settings updates, deletion, CLI drivers & loop
     └── renderer/
         ├── main.tsx                              # React DOM root mount
         ├── styles.css                            # Tailwind directives + macOS -webkit-app-region drag rules
-        ├── App.tsx                               # Main 3-pane Legal Agent Control Surface UI + Right-Click & Matter Settings Dialog
+        ├── App.tsx                               # Main 3-pane Legal Agent Control Surface UI + Matter Settings & Delete Confirmation Dialogs
         ├── lib/
         │   └── bridge.ts                         # Typed renderer wrapper around window.lexharness
         └── components/
-            ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 6-tab modal for Layers 1–4 prompts, API keys & live preview
+            ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 6-tab modal for Layers 1–4 prompts, T3 CLI drivers & keys
             └── RightWorkspacePane.tsx            # 3-tab right pane: Work-Product Redline, Matter Corpus & Chronology
 ```
 
 ---
 
-## 6. Build, Verification & Cross-Platform Packaging Commands
+## 7. Build, Verification & Cross-Platform Packaging Commands (macOS & Windows GitHub Release)
 
 1. **Install Dependencies**: `npm install`
 2. **Typecheck & Unit Tests**: `npm run typecheck && npm test`
 3. **Production Build**: `npm run build`
 4. **Package Native macOS App Bundle (`release/mac-arm64/LexHarness.app`)**: `npm run package:mac`
-5. **Package Distributable Installers**: `npm run dist:mac` (macOS `.dmg`/`.zip`) or `npm run dist:win` (Windows NSIS `.exe`/`.zip`).
+5. **Package Distributable Installers (`release/`) & Publish GitHub Release**:
+   - `npm run dist:mac` (macOS `.dmg`/`.zip`)
+   - `npm run dist:win` (Windows x64 `.zip` / NSIS `.exe` published to GitHub Releases via `gh release create`).

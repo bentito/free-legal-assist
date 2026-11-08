@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Wrench,
 } from 'lucide-react';
 
@@ -79,13 +80,14 @@ export const App: React.FC = () => {
   const [newMatterPracticeArea, setNewMatterPracticeArea] =
     useState<PracticeAreaId>('vt_suppression_art11');
 
-  // Right-Click Context Menu & Edit Matter Settings Dialog state
+  // Right-Click Context Menu & Edit / Delete Matter Settings Dialog state
   const [matterContextMenu, setMatterContextMenu] = useState<{
     x: number;
     y: number;
     matter: Matter;
   } | null>(null);
   const [editingMatter, setEditingMatter] = useState<Matter | null>(null);
+  const [deletingMatter, setDeletingMatter] = useState<Matter | null>(null);
   const [editMatterName, setEditMatterName] = useState('');
   const [editClientName, setEditClientName] = useState('');
   const [editMatterNumber, setEditMatterNumber] = useState('');
@@ -104,6 +106,11 @@ export const App: React.FC = () => {
     setEditCitationStyle(matter.citationStyle);
     setEditPracticeArea(matter.practiceArea);
     setEditFolderPath(matter.folderPath);
+    setMatterContextMenu(null);
+  };
+
+  const openDeleteMatterConfirm = (matter: Matter) => {
+    setDeletingMatter(matter);
     setMatterContextMenu(null);
   };
 
@@ -876,7 +883,7 @@ export const App: React.FC = () => {
             top: matterContextMenu.y,
             left: matterContextMenu.x,
           }}
-          className="fixed z-50 w-56 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1.5 text-xs"
+          className="fixed z-50 w-60 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1.5 text-xs"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-mono text-slate-400 truncate">
@@ -889,10 +896,18 @@ export const App: React.FC = () => {
             <Settings className="w-3.5 h-3.5 text-amber-400" />
             <span>Matter Settings (Edit Name, Docket ID...)</span>
           </button>
+          <div className="my-1 border-t border-slate-800" />
+          <button
+            onClick={() => openDeleteMatterConfirm(matterContextMenu.matter)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 transition"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span>Delete Matter...</span>
+          </button>
         </div>
       )}
 
-      {/* Edit Matter Settings Dialog (Revisit Matter Name, Docket ID, Client, Forum, Citation Style, Folder) */}
+      {/* Edit Matter Settings Dialog (Revisit Matter Name, Docket ID, Client, Forum, Citation Style, Folder, or Delete Matter) */}
       {editingMatter && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-xl bg-slate-900 border border-slate-700 p-6 space-y-4 shadow-2xl">
@@ -1003,34 +1018,110 @@ export const App: React.FC = () => {
               </div>
             </div>
 
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  const target = editingMatter;
+                  setEditingMatter(null);
+                  openDeleteMatterConfirm(target);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-xs font-medium text-rose-300 transition"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Matter...</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setEditingMatter(null)}
+                  className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    const updated = await ipcBridge.updateMatter({
+                      matterId: editingMatter.id,
+                      name: editMatterName,
+                      clientName: editClientName,
+                      matterNumber: editMatterNumber,
+                      practiceArea: editPracticeArea,
+                      jurisdiction: editJurisdiction,
+                      citationStyle: editCitationStyle,
+                      folderPath: editFolderPath,
+                    });
+                    setState(updated);
+                    if (editingMatter.id === activeMatter.id) {
+                      setTurnPracticeArea(editPracticeArea);
+                    }
+                    setEditingMatter(null);
+                  }}
+                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
+                >
+                  Save Matter Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Matter Confirmation Dialog */}
+      {deletingMatter && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-xl bg-slate-900 border border-rose-500/50 p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-400">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100">
+                  Confirm Permanent Matter Deletion
+                </h3>
+                <p className="text-[11px] text-rose-300 font-mono">
+                  {deletingMatter.matterNumber}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-2 leading-relaxed">
+              <p>
+                Are you sure you want to permanently delete{' '}
+                <strong className="text-slate-100">{deletingMatter.name}</strong>{' '}
+                ({deletingMatter.clientName})?
+              </p>
+              <p className="text-[11px] text-slate-400">
+                This action will remove the Matter and all associated legal
+                threads, messages, indexed discovery documents, redline
+                versions, and chronology facts from the local database. This
+                cannot be undone.
+              </p>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
               <button
-                onClick={() => setEditingMatter(null)}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                onClick={() => setDeletingMatter(null)}
+                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition"
               >
-                Cancel
+                Cancel & Keep Matter
               </button>
               <button
                 onClick={async () => {
-                  const updated = await ipcBridge.updateMatter({
-                    matterId: editingMatter.id,
-                    name: editMatterName,
-                    clientName: editClientName,
-                    matterNumber: editMatterNumber,
-                    practiceArea: editPracticeArea,
-                    jurisdiction: editJurisdiction,
-                    citationStyle: editCitationStyle,
-                    folderPath: editFolderPath,
-                  });
+                  const targetId = deletingMatter.id;
+                  setDeletingMatter(null);
+                  const updated = await ipcBridge.deleteMatter(targetId);
                   setState(updated);
-                  if (editingMatter.id === activeMatter.id) {
-                    setTurnPracticeArea(editPracticeArea);
+                  const nextActive = updated.matters.find(
+                    (m) => m.id === updated.activeMatterId
+                  );
+                  if (nextActive) {
+                    setTurnPracticeArea(nextActive.practiceArea);
                   }
-                  setEditingMatter(null);
                 }}
-                className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition"
               >
-                Save Matter Settings
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Permanently Delete Matter</span>
               </button>
             </div>
           </div>

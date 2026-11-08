@@ -1,9 +1,19 @@
 export type LLMProviderId =
+  | 'agy-acp'
+  | 'codex-cli'
+  | 'claude-cli'
   | 'anthropic'
   | 'openai'
   | 'gemini'
   | 'openrouter'
   | 'legal-simulator';
+
+export type ProviderDriverKind =
+  | 'antigravity-acp'
+  | 'codex-cli'
+  | 'claude-agent-cli'
+  | 'http-api'
+  | 'local-simulator';
 
 export type PractitionerProfileId =
   | 'vt-criminal-defense'
@@ -25,16 +35,31 @@ export type AdversarialReviewMode =
   | 'single_critic'
   | 'direct_bypass';
 
+export interface ProviderRuntimeStatus {
+  installed: boolean;
+  authenticated: boolean;
+  version: string;
+  resolvedBinaryPath: string;
+  authLabel: string;
+  statusDetail: string;
+}
+
 export interface ProviderConfig {
   id: LLMProviderId;
+  driverKind: ProviderDriverKind;
   name: string;
   description: string;
   hasApiKey: boolean;
   maskedApiKey: string;
   baseUrl?: string;
+  binaryPath?: string;
+  customArgs?: string;
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   defaultModel: string;
   availableModels: { id: string; label: string }[];
   enabled: boolean;
+  runtimeStatus?: ProviderRuntimeStatus;
 }
 
 export interface PracticeAreaPreset {
