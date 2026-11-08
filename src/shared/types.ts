@@ -1,0 +1,229 @@
+export type LLMProviderId =
+  | 'anthropic'
+  | 'openai'
+  | 'gemini'
+  | 'openrouter'
+  | 'legal-simulator';
+
+export type PracticeAreaId =
+  | 'litigation_appellate'
+  | 'transactional_contracts'
+  | 'regulatory_compliance'
+  | 'discovery_investigation';
+
+export type AdversarialReviewMode =
+  | 'multi_llm_default'
+  | 'single_critic'
+  | 'direct_bypass';
+
+export interface ProviderConfig {
+  id: LLMProviderId;
+  name: string;
+  description: string;
+  hasApiKey: boolean;
+  maskedApiKey: string;
+  baseUrl?: string;
+  defaultModel: string;
+  availableModels: { id: string; label: string }[];
+  enabled: boolean;
+}
+
+export interface PracticeAreaPreset {
+  id: PracticeAreaId;
+  name: string;
+  shortLabel: string;
+  description: string;
+  systemPrompt: string;
+}
+
+export interface SystemPromptSettings {
+  id: string;
+  version: number;
+  coreLegalMandate: string;
+  practiceAreaPresets: PracticeAreaPreset[];
+  activePracticeAreaId: PracticeAreaId;
+  criticCitationAuditorPrompt: string;
+  criticOpposingCounselPrompt: string;
+  updatedAt: string;
+}
+
+export interface AdversarialConfig {
+  mode: AdversarialReviewMode;
+  primaryProvider: LLMProviderId;
+  primaryModel: string;
+  citationAuditorProvider: LLMProviderId;
+  citationAuditorModel: string;
+  opposingCounselProvider: LLMProviderId;
+  opposingCounselModel: string;
+  maxRevisionRounds: number;
+}
+
+export interface Matter {
+  id: string;
+  name: string;
+  clientName: string;
+  matterNumber: string;
+  practiceArea: PracticeAreaId;
+  jurisdiction: string;
+  citationStyle: string;
+  folderPath: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DocumentCategory =
+  | 'PLEADING'
+  | 'CONTRACT'
+  | 'EXHIBIT'
+  | 'DEPOSITION'
+  | 'STATUTE_AUTHORITY'
+  | 'WORK_PRODUCT';
+
+export interface MatterDocument {
+  id: string;
+  matterId: string;
+  title: string;
+  fileName: string;
+  category: DocumentCategory;
+  batesRange: string;
+  pageCount: number;
+  summary: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentVersion {
+  id: string;
+  documentId: string;
+  matterId: string;
+  versionNumber: number;
+  title: string;
+  content: string;
+  previousContent: string;
+  rationaleSummary: string;
+  createdByModel: string;
+  createdAt: string;
+}
+
+export interface ChronologyFact {
+  id: string;
+  matterId: string;
+  factDate: string;
+  eventDescription: string;
+  sourceCitation: string;
+  status: 'UNDISPUTED' | 'DISPUTED' | 'NEEDS_CORROBORATION';
+  createdAt: string;
+}
+
+export interface ToolCallRecord {
+  id: string;
+  toolName:
+    | 'list_matter_documents'
+    | 'search_matter_corpus'
+    | 'read_document_pages'
+    | 'verify_citation_lookup'
+    | 'propose_document_redline'
+    | 'record_chronology_fact';
+  args: Record<string, unknown>;
+  resultSummary: string;
+  rawOutput: string;
+  durationMs: number;
+  status: 'running' | 'completed' | 'error';
+}
+
+export interface AdversarialObjection {
+  category:
+    | 'UNVERIFIED_CITATION'
+    | 'RECORD_MISMATCH'
+    | 'LOGICAL_GAP'
+    | 'DRAFTING_RISK'
+    | 'PROMPT_NONCOMPLIANCE';
+  location: string;
+  critique: string;
+  requiredFix: string;
+}
+
+export interface AdversarialReviewRecord {
+  id: string;
+  messageId: string;
+  round: number;
+  criticRole: 'CITATION_AUDITOR' | 'OPPOSING_COUNSEL';
+  criticTitle: string;
+  provider: LLMProviderId;
+  model: string;
+  verdict: 'APPROVE' | 'REVISE';
+  severity: 'NONE' | 'LOW' | 'MEDIUM' | 'CRITICAL';
+  objections: AdversarialObjection[];
+  dissentingConsiderations: string;
+  createdAt: string;
+}
+
+export interface ThreadMessage {
+  id: string;
+  threadId: string;
+  role: 'user' | 'assistant';
+  content: string;
+  initialDraftBeforeReview?: string;
+  primaryProvider?: LLMProviderId;
+  primaryModel?: string;
+  reviewModeUsed?: AdversarialReviewMode;
+  assembledSystemPromptSnapshot?: string;
+  toolCalls: ToolCallRecord[];
+  adversarialReviews: AdversarialReviewRecord[];
+  revisionRoundsCompleted?: number;
+  createdAt: string;
+}
+
+export interface LegalThread {
+  id: string;
+  matterId: string;
+  title: string;
+  practiceArea: PracticeAreaId;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AgentLoopPhase =
+  | 'idle'
+  | 'assembling_prompt'
+  | 'executing_tools'
+  | 'drafting_primary'
+  | 'adversarial_review'
+  | 'revising_after_critique'
+  | 'completed'
+  | 'error';
+
+export interface AgentProgressEvent {
+  threadId: string;
+  phase: AgentLoopPhase;
+  statusText: string;
+  detailText?: string;
+  toolCall?: ToolCallRecord;
+  criticUpdate?: AdversarialReviewRecord;
+}
+
+export interface AssembledPromptPreview {
+  matterName: string;
+  jurisdiction: string;
+  citationStyle: string;
+  practiceAreaName: string;
+  primarySystemPrompt: string;
+  citationAuditorSystemPrompt: string;
+  opposingCounselSystemPrompt: string;
+}
+
+export interface AppBootstrapState {
+  matters: Matter[];
+  activeMatterId: string;
+  threads: LegalThread[];
+  activeThreadId: string;
+  messages: ThreadMessage[];
+  documents: MatterDocument[];
+  documentVersions: DocumentVersion[];
+  chronologyFacts: ChronologyFact[];
+  promptSettings: SystemPromptSettings;
+  adversarialConfig: AdversarialConfig;
+  providers: ProviderConfig[];
+  assembledPromptPreview: AssembledPromptPreview;
+}
