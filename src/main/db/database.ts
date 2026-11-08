@@ -10,16 +10,16 @@ import {
   Matter,
   MatterDocument,
   PracticeAreaId,
+  PractitionerProfile,
+  PractitionerProfileId,
   ProviderConfig,
   SystemPromptSettings,
   ThreadMessage,
+  UpdateMatterPayload,
 } from '../../shared/types';
 import {
   DEFAULT_ADVERSARIAL_CONFIG,
-  DEFAULT_CORE_LEGAL_MANDATE,
-  DEFAULT_CRITIC_CITATION_AUDITOR_PROMPT,
-  DEFAULT_CRITIC_OPPOSING_COUNSEL_PROMPT,
-  DEFAULT_PRACTICE_AREA_PRESETS,
+  DEFAULT_PRACTITIONER_PROFILES,
   DEFAULT_SYSTEM_PROMPT_SETTINGS,
   SEEDED_CHRONOLOGY_FACTS,
   SEEDED_DOCUMENTS,
@@ -43,7 +43,7 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
   {
     id: 'anthropic',
     name: 'Anthropic Claude',
-    description: 'Primary legal reasoning, brief drafting, and complex contract analysis.',
+    description: 'Primary legal reasoning, brief drafting, and motion/contract analysis.',
     defaultModel: 'claude-3-7-sonnet-latest',
     availableModels: [
       { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet (Extended Legal Reasoning)' },
@@ -55,7 +55,7 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
   {
     id: 'openai',
     name: 'OpenAI (o-Series & GPT-4o)',
-    description: 'Adversarial Opposing Counsel critique, logic verification, and redline stress-testing.',
+    description: 'Adversarial Opposing Counsel / State’s Attorney critique & logic verification.',
     defaultModel: 'o3-mini',
     availableModels: [
       { id: 'o3-mini', label: 'OpenAI o3-mini (Adversarial Logic Critic)' },
@@ -67,7 +67,7 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
   {
     id: 'gemini',
     name: 'Google Gemini Pro',
-    description: 'Long-context record & citation auditor across large discovery corpora.',
+    description: 'Long-context discovery record & citation auditor across transcripts and affidavits.',
     defaultModel: 'gemini-2.5-pro',
     availableModels: [
       { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Record & Citation Auditor)' },
@@ -124,7 +124,7 @@ export class LegalDatabase {
     }
 
     this.createTables();
-    this.seedIfEmpty();
+    this.seedOrMigrate();
     this.persist();
   }
 
@@ -227,14 +227,13 @@ export class LegalDatabase {
     `);
   }
 
-  private seedIfEmpty(): void {
-    const matterCountRes = this.db.exec('SELECT COUNT(*) as cnt FROM matters');
-    const count =
-      matterCountRes.length > 0 && matterCountRes[0].values.length > 0
-        ? Number(matterCountRes[0].values[0][0])
-        : 0;
+  private seedOrMigrate(): void {
+    const existingMatters = this.listMatters();
+    const hasVtMatter = existingMatters.some(
+      (m) => m.id === 'matter-vt-state-v-thorne'
+    );
 
-    if (count === 0) {
+    if (existingMatters.length === 0 || !hasVtMatter) {
       for (const m of SEEDED_MATTERS) {
         this.insertMatter(m, false);
       }
@@ -255,9 +254,19 @@ export class LegalDatabase {
       }
     }
 
-    const promptSettings = this.getKeyValue<SystemPromptSettings>('system_prompt_settings');
-    if (!promptSettings) {
-      this.setKeyValue('system_prompt_settings', DEFAULT_SYSTEM_PROMPT_SETTINGS, false);
+    const promptSettings = this.getKeyValue<SystemPromptSettings>(
+      'system_prompt_settings'
+    );
+    if (
+      !promptSettings ||
+      !Array.isArray(promptSettings.profiles) ||
+      promptSettings.profiles.length === 0
+    ) {
+      this.setKeyValue(
+        'system_prompt_settings',
+        DEFAULT_SYSTEM_PROMPT_SETTINGS,
+        false
+      );
     }
 
     const advConfig = this.getKeyValue<AdversarialConfig>('adversarial_config');
@@ -267,7 +276,9 @@ export class LegalDatabase {
   }
 
   private getKeyValue<T>(key: string): T | null {
-    const stmt = this.db.prepare('SELECT value_json FROM key_value_settings WHERE key = ?');
+    const stmt = this.db.prepare(
+      'SELECT value_json FROM key_value_settings WHERE key = ?'
+    );
     stmt.bind([key]);
     if (stmt.step()) {
       const row = stmt.getAsObject() as { value_json: string };
@@ -335,20 +346,43 @@ export class LegalDatabase {
     return matter;
   }
 
-  updateMatterJurisdiction(
-    matterId: string,
-    updates: { jurisdiction: string; citationStyle: string; practiceArea: PracticeAreaId }
-  ): Matter | null {
-    const existing = this.getMatter(matterId);
+  updateMatter(payload: UpdateMatterPayload): Matter | null {
+    const existing = this.getMatter(payload.matterId);
     if (!existing) return null;
     const updated: Matter = {
       ...existing,
-      jurisdiction: updates.jurisdiction,
-      citationStyle: updates.citationStyle,
-      practiceArea: updates.practiceArea,
+      name: payload.name.trim() || existing.name,
+      clientName: payload.clientName.trim() || existing.clientName,
+      matterNumber: payload.matterNumber.trim() || existing.matterNumber,
+      practiceArea: payload.practiceArea || existing.practiceArea,
+      jurisdiction: payload.jurisdiction.trim() || existing.jurisdiction,
+      citationStyle: payload.citationStyle.trim() || existing.citationStyle,
+      folderPath: payload.folderPath.trim() || existing.folderPath,
       updatedAt: new Date().toISOString(),
     };
     return this.insertMatter(updated, true);
+  }
+
+  updateMatterJurisdiction(
+    matterId: string,
+    updates: {
+      jurisdiction: string;
+      citationStyle: string;
+      practiceArea: PracticeAreaId;
+    }
+  ): Matter | null {
+    const existing = this.getMatter(matterId);
+    if (!existing) return null;
+    return this.updateMatter({
+      matterId,
+      name: existing.name,
+      clientName: existing.clientName,
+      matterNumber: existing.matterNumber,
+      practiceArea: updates.practiceArea,
+      jurisdiction: updates.jurisdiction,
+      citationStyle: updates.citationStyle,
+      folderPath: existing.folderPath,
+    });
   }
 
   // --- Documents & Versions ---
@@ -542,7 +576,9 @@ export class LegalDatabase {
         initialDraftBeforeReview: r.initial_draft_before_review
           ? String(r.initial_draft_before_review)
           : undefined,
-        primaryProvider: r.primary_provider ? (String(r.primary_provider) as LLMProviderId) : undefined,
+        primaryProvider: r.primary_provider
+          ? (String(r.primary_provider) as LLMProviderId)
+          : undefined,
         primaryModel: r.primary_model ? String(r.primary_model) : undefined,
         reviewModeUsed: r.review_mode_used
           ? (String(r.review_mode_used) as ThreadMessage['reviewModeUsed'])
@@ -588,16 +624,78 @@ export class LegalDatabase {
     return msg;
   }
 
-  // --- User-Governed System Prompts ---
+  // --- Practitioner Profiles & User-Governed System Prompts ---
   getSystemPromptSettings(): SystemPromptSettings {
-    return this.getKeyValue<SystemPromptSettings>('system_prompt_settings') ?? DEFAULT_SYSTEM_PROMPT_SETTINGS;
+    const stored = this.getKeyValue<SystemPromptSettings>('system_prompt_settings');
+    if (
+      !stored ||
+      !Array.isArray(stored.profiles) ||
+      stored.profiles.length === 0
+    ) {
+      return DEFAULT_SYSTEM_PROMPT_SETTINGS;
+    }
+    return stored;
   }
 
-  saveSystemPromptSettings(updated: Partial<SystemPromptSettings>): SystemPromptSettings {
+  selectPractitionerProfile(profileId: PractitionerProfileId): SystemPromptSettings {
     const current = this.getSystemPromptSettings();
+    const targetProfile: PractitionerProfile =
+      current.profiles.find((p) => p.id === profileId) ??
+      DEFAULT_PRACTITIONER_PROFILES.find((p) => p.id === profileId) ??
+      DEFAULT_PRACTITIONER_PROFILES[0];
+
+    const updated: SystemPromptSettings = {
+      ...current,
+      id: targetProfile.id,
+      activeProfileId: targetProfile.id,
+      coreLegalMandate: targetProfile.coreLegalMandate,
+      practiceAreaPresets: targetProfile.practiceAreaPresets,
+      activePracticeAreaId: targetProfile.activePracticeAreaId,
+      criticCitationAuditorPrompt: targetProfile.criticCitationAuditorPrompt,
+      criticOpposingCounselPrompt: targetProfile.criticOpposingCounselPrompt,
+      updatedAt: new Date().toISOString(),
+    };
+    this.setKeyValue('system_prompt_settings', updated, true);
+    return updated;
+  }
+
+  saveSystemPromptSettings(
+    updated: Partial<SystemPromptSettings>
+  ): SystemPromptSettings {
+    const current = this.getSystemPromptSettings();
+    const nextCore = updated.coreLegalMandate ?? current.coreLegalMandate;
+    const nextPresets = updated.practiceAreaPresets ?? current.practiceAreaPresets;
+    const nextActivePractice =
+      updated.activePracticeAreaId ?? current.activePracticeAreaId;
+    const nextAuditor =
+      updated.criticCitationAuditorPrompt ?? current.criticCitationAuditorPrompt;
+    const nextOpposing =
+      updated.criticOpposingCounselPrompt ?? current.criticOpposingCounselPrompt;
+    const activeProfileId = updated.activeProfileId ?? current.activeProfileId;
+
+    const updatedProfiles = current.profiles.map((prof) =>
+      prof.id === activeProfileId
+        ? {
+            ...prof,
+            coreLegalMandate: nextCore,
+            practiceAreaPresets: nextPresets,
+            activePracticeAreaId: nextActivePractice,
+            criticCitationAuditorPrompt: nextAuditor,
+            criticOpposingCounselPrompt: nextOpposing,
+          }
+        : prof
+    );
+
     const merged: SystemPromptSettings = {
       ...current,
       ...updated,
+      activeProfileId,
+      profiles: updatedProfiles,
+      coreLegalMandate: nextCore,
+      practiceAreaPresets: nextPresets,
+      activePracticeAreaId: nextActivePractice,
+      criticCitationAuditorPrompt: nextAuditor,
+      criticOpposingCounselPrompt: nextOpposing,
       version: current.version + 1,
       updatedAt: new Date().toISOString(),
     };
@@ -606,14 +704,24 @@ export class LegalDatabase {
   }
 
   resetSystemPromptSettingsToDefault(): SystemPromptSettings {
+    const current = this.getSystemPromptSettings();
+    const activeId = current.activeProfileId || 'vt-criminal-defense';
+    const defaultProfile =
+      DEFAULT_PRACTITIONER_PROFILES.find((p) => p.id === activeId) ??
+      DEFAULT_PRACTITIONER_PROFILES[0];
+
     const fresh: SystemPromptSettings = {
-      id: 'default-legal-prompt-profile',
+      id: defaultProfile.id,
       version: 1,
-      coreLegalMandate: DEFAULT_CORE_LEGAL_MANDATE,
-      practiceAreaPresets: DEFAULT_PRACTICE_AREA_PRESETS,
-      activePracticeAreaId: 'litigation_appellate',
-      criticCitationAuditorPrompt: DEFAULT_CRITIC_CITATION_AUDITOR_PROMPT,
-      criticOpposingCounselPrompt: DEFAULT_CRITIC_OPPOSING_COUNSEL_PROMPT,
+      activeProfileId: defaultProfile.id,
+      profiles: JSON.parse(JSON.stringify(DEFAULT_PRACTITIONER_PROFILES)),
+      coreLegalMandate: defaultProfile.coreLegalMandate,
+      practiceAreaPresets: JSON.parse(
+        JSON.stringify(defaultProfile.practiceAreaPresets)
+      ),
+      activePracticeAreaId: defaultProfile.activePracticeAreaId,
+      criticCitationAuditorPrompt: defaultProfile.criticCitationAuditorPrompt,
+      criticOpposingCounselPrompt: defaultProfile.criticOpposingCounselPrompt,
       updatedAt: new Date().toISOString(),
     };
     this.setKeyValue('system_prompt_settings', fresh, true);
@@ -622,7 +730,10 @@ export class LegalDatabase {
 
   // --- Adversarial Config ---
   getAdversarialConfig(): AdversarialConfig {
-    return this.getKeyValue<AdversarialConfig>('adversarial_config') ?? DEFAULT_ADVERSARIAL_CONFIG;
+    return (
+      this.getKeyValue<AdversarialConfig>('adversarial_config') ??
+      DEFAULT_ADVERSARIAL_CONFIG
+    );
   }
 
   saveAdversarialConfig(updated: Partial<AdversarialConfig>): AdversarialConfig {
@@ -645,19 +756,31 @@ export class LegalDatabase {
     const existing = this.getRawProviderRow(params.providerId);
     const catalogEntry = PROVIDER_CATALOG.find((p) => p.id === params.providerId);
     const defaultModel =
-      params.defaultModel ?? existing?.default_model ?? catalogEntry?.defaultModel ?? '';
-    const baseUrl = params.baseUrl ?? existing?.base_url ?? catalogEntry?.baseUrl ?? '';
+      params.defaultModel ??
+      existing?.default_model ??
+      catalogEntry?.defaultModel ??
+      '';
+    const baseUrl =
+      params.baseUrl ?? existing?.base_url ?? catalogEntry?.baseUrl ?? '';
 
     let encryptedKey = existing?.encrypted_api_key ?? '';
     if (params.apiKey !== undefined) {
       encryptedKey =
-        params.apiKey.trim().length > 0 ? this.encryptor.encrypt(params.apiKey.trim()) : '';
+        params.apiKey.trim().length > 0
+          ? this.encryptor.encrypt(params.apiKey.trim())
+          : '';
     }
 
     this.db.run(
       `INSERT OR REPLACE INTO provider_credentials (provider_id, encrypted_api_key, base_url, default_model, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
-      [params.providerId, encryptedKey, baseUrl, defaultModel, new Date().toISOString()]
+      [
+        params.providerId,
+        encryptedKey,
+        baseUrl,
+        defaultModel,
+        new Date().toISOString(),
+      ]
     );
     this.persist();
     return this.listProviderConfigs();
@@ -712,7 +835,10 @@ export class LegalDatabase {
     return PROVIDER_CATALOG.map((cat) => {
       const row = this.getRawProviderRow(cat.id);
       const rawKey = this.getDecryptedApiKey(cat.id);
-      const hasApiKey = cat.id === 'legal-simulator' ? true : Boolean(rawKey && rawKey.length > 0);
+      const hasApiKey =
+        cat.id === 'legal-simulator'
+          ? true
+          : Boolean(rawKey && rawKey.length > 0);
       const maskedApiKey =
         cat.id === 'legal-simulator'
           ? 'Built-In Local Engine'

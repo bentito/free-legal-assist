@@ -5,8 +5,11 @@
 **LexHarness** is a cross-platform (**macOS and Windows**) desktop application that provides lawyers with a dedicated **Agent Harness Control Surface**—an autonomous, multi-step workspace for legal research, record investigation, citation verification, and work-product drafting:
 
 1. **Local Client Agent Loop**: Runs natively on the lawyer's Mac or Windows machine inside the Electron main process, maintaining matter and thread state in a local SQLite database (`sql.js`), executing local legal tools (`list_matter_documents`, `search_matter_corpus`, `read_document_pages`, `verify_citation_lookup`, `propose_document_redline`, `record_chronology_fact`), and calling LLM provider APIs directly from the client.
-2. **User-Governed Legal System Prompts**: All system prompts are purpose-built for legal practice and exposed directly in the application's **Prompt Governance Studio** (Settings). Lawyers have full visibility and editorial control over the 4-layer prompt hierarchy: Core Legal Mandate & Ethical Guardrails, Practice Area Personas, Matter Jurisdiction & Citation Rules, and Adversarial Critic Prompts.
-3. **Default Multi-LLM Adversarial Review Gate**: Before any final answer or drafted legal artifact is presented to the user, the local agent loop automatically intercepts the candidate output and routes it in parallel through independent reviewer models (e.g., Anthropic Claude as Primary Counsel, Google Gemini 2.5 Pro as **Citation & Record Auditor**, and OpenAI o3-mini / GPT-4o as **Adversarial Opposing Counsel & Reviewing Partner**) to catch unsupported citations, record mismatches, logical gaps, and drafting risks, forcing an automatic revision pass when material objections are raised.
+2. **Practitioner Profiles & User-Governed Legal System Prompts**: All system prompts, task presets, default jurisdictions, and critic instructions are organized into selectable **Practitioner Profiles** and exposed directly in the application's **Prompt Governance Studio** (Settings).
+   - **1st in Pick List (Default Profile)**: **`Vermont Criminal Defense Lawyer`** — Pre-configured for Vermont Superior Court, Criminal Division practice, grounding analysis in the Vermont Constitution (specifically **Chapter I, Article 11** search-and-seizure protections, which are broader than the federal Fourth Amendment, and **Article 10** trial/due process rights), the **Vermont Rules of Criminal Procedure (V.R.Cr.P.)**, **Vermont Rules of Evidence (V.R.E.)**, **Title 13 (`13 V.S.A.`)** and **Title 23 (`23 V.S.A.`)**, and Vermont Supreme Court precedent.
+   - **2nd in Pick List**: **`General Legal Practice`** — A versatile civil, transactional, and regulatory profile with general practice presets.
+3. **Re-Visiting & Editing Matter / Docket Settings**: Lawyers can revisit and update any Matter's settings at any time by **right-clicking** the Matter in the left sidebar (or clicking the **Settings gear icon** on the Matter card or top header bar) to open the **Matter Settings Dialog** and edit the **Matter/Case Name**, **Docket ID / Matter Number**, **Client / Defendant Name**, **Governing Jurisdiction & Forum**, **Citation Style**, **Default Task Persona**, and **Local Folder Path**.
+4. **Default Multi-LLM Adversarial Review Gate**: Before any final answer or drafted legal artifact is presented to the user, the local agent loop automatically intercepts the candidate output and routes it in parallel through independent reviewer models (e.g., Anthropic Claude as Primary Defense/Lead Counsel, Google Gemini 2.5 Pro as **Citation & Record Auditor**, and OpenAI o3-mini / GPT-4o as **Adversarial Opposing Counsel / State's Attorney & Trial Judge Critic**) to catch unsupported citations, record mismatches, constitutional/procedural omissions, and drafting risks, forcing an automatic revision pass when material objections are raised.
 
 ---
 
@@ -18,11 +21,12 @@ The application is built on **Electron 33 + React 18 + Vite 6 + TypeScript 5 + T
 flowchart TB
     subgraph Desktop["Cross-Platform Desktop App (macOS & Windows - Electron)"]
         subgraph UI["Renderer Control Surface (src/renderer)"]
-            Header["macOS Inset Header Bar (Matter, Jurisdiction, Gate Badge, Studio Trigger)"]
-            LeftSidebar["Left Pane: Matters, Threads & Active Multi-LLM Gate Card"]
+            Header["macOS Inset Header Bar (Active Profile Badge, Matter/Docket + Gear, Forum, Gate Status)"]
+            LeftSidebar["Left Pane: Matters/Cases (Right-Click / Gear -> Matter Settings), Threads & Gate Card"]
             CenterStream["Center Pane: Agent Loop Stream, Tool Cards, Adversarial Scorecard & Composer"]
-            RightPane["Right Pane: Work-Product Redline Viewer, Matter Corpus & Fact Chronology"]
-            StudioModal["Prompt Governance Studio & Multi-LLM Provider Settings Modal"]
+            RightPane["Right Pane: Work-Product Redline Viewer, Discovery/Matter Corpus & Fact Chronology"]
+            StudioModal["Prompt Governance Studio (Profile Switcher, Layers 1–4 Prompts, API Keys & Live Preview)"]
+            MatterModal["Matter Settings Dialog (Edit Name, Docket ID, Client, Forum, Citation Style, Folder)"]
         end
 
         subgraph Core["Local Agent Harness Runtime (src/main)"]
@@ -37,9 +41,9 @@ flowchart TB
     end
 
     subgraph Providers["Multi-LLM API Providers + Local Mac Test Engine"]
-        Claude["Anthropic Claude API (Primary Counsel)"]
-        Gemini["Google Gemini API (Citation & Record Auditor)"]
-        OpenAI["OpenAI / OpenRouter API (Opposing Counsel Critic)"]
+        Claude["Anthropic Claude API (Primary Defense / Lead Counsel)"]
+        Gemini["Google Gemini API (Citation & Discovery Record Auditor)"]
+        OpenAI["OpenAI / OpenRouter API (Adversarial State's Attorney / Opposing Counsel Critic)"]
         Sim["Built-In Local Legal Harness Engine (Zero-Key Mac Test Mode)"]
     end
 
@@ -57,9 +61,92 @@ flowchart TB
 
 ---
 
-## 3. Exact Repository File Structure
+## 3. Practitioner Profiles Architecture (Default: Vermont Criminal Defense Lawyer)
 
-To rebuild the application identically from this document, the repository is structured as follows:
+> [!IMPORTANT]
+> **UI Badge & Naming Rule**: Never display meta-instructions like *"Profile v1 • Zero Software Prompts"* in UI badges or profile titles. The UI displays the active **Practitioner Profile** name (e.g., **`Profile: Vermont Criminal Defense Lawyer`** or **`Profile: General Legal Practice`**).
+
+The application ships with a **Practitioner Profile Pick List** in the **Prompt Governance Studio** (and visible in the top header bar). Switching profiles updates the active 4-layer system prompts, task presets, default jurisdiction/citation rules for new matters, and sample quick prompts.
+
+### Profile 1 (Default — 1st in Pick List): `Vermont Criminal Defense Lawyer` (`vt-criminal-defense`)
+
+Designed so a practicing Vermont criminal defense attorney immediately sees familiar procedural rules, constitutional doctrines, statutory titles, and defense workflows without surprise:
+
+- **Default Jurisdiction & Forum (Layer 3)**:
+  - **Forum**: `Vermont Superior Court, Criminal Division / Vermont Supreme Court (Vt. Const. ch. I, art. 11 & 10; V.R.Cr.P.)`
+  - **Citation Style**: `Vermont Supreme Court Public Domain / Bluebook (e.g., 2007 VT 16, ¶ 14; 13 V.S.A. § 7554; V.R.Cr.P. 12(b)(3))`
+- **Layer 1 — Core Legal Mandate & Ethical Guardrails (`coreLegalMandate`)**:
+  - Establishes the agent's role as rigorous **Vermont Criminal Defense Counsel & Research Harness**.
+  - **Vermont Constitutional Primacy (`Vt. Const. ch. I, art. 11` & `art. 10`)**: Instructs the agent to always analyze search, seizure, exit orders, canine sniffs, warrantless automobile searches, and digital privacy under **Article 11 of the Vermont Constitution** independently from and prior to the federal Fourth Amendment—recognizing that the Vermont Supreme Court rejects numerous federal doctrines (e.g., requiring a showing of exigency for warrantless vehicle seizures under *State v. Savva* / *State v. Bauder*, requiring reasonable suspicion for exit orders under *State v. Sprague*, and rejecting the federal *Leon* good-faith exception under *State v. Oakes*).
+  - **Strict Discovery & Record Grounding**: Every factual assertion must cite the exact page, timestamp, or Bates number from Law Enforcement Affidavits of Probable Cause, Body-Worn Camera (BWC) / Cruiser Dashcam transcripts, V.R.Cr.P. 15 deposition transcripts, or dispatch logs. Never invent a Vermont case citation (`20XX VT XX`), statute (`13 V.S.A.`, `23 V.S.A.`, `18 V.S.A.`), or record fact.
+- **Layer 2 — Task Presets (`practiceAreaPresets`) for `Vermont Criminal Defense Lawyer`**:
+  1. **`vt_suppression_art11` — Motion to Suppress & Dismiss (Art. 11 / 4th Amend. / V.R.Cr.P. 12)**:
+     - Focuses on challenging motor vehicle stops, expansion of stops/exit orders (*State v. Sprague*, 2003 VT 20), warrantless searches (*State v. Bauder*, 2007 VT 16), defective search warrants / lack of probable cause nexus, *Miranda* / Voluntariness / Public Defender Act (`13 V.S.A. § 5234`), and motions to dismiss for lack of a prima facie case under **V.R.Cr.P. 12(d)**.
+  2. **`vt_bail_conditions` — Bail, Hold-Without-Bail & Conditions of Release (`13 V.S.A. §§ 7553a, 7554`)**:
+     - Focuses on statutory presumption of release on personal recognizance or unsecured appearance bond (`13 V.S.A. § 7554`), challenging restrictive conditions unsupported by individualized record findings, weight-of-the-evidence analysis under `§ 7553` / `§ 7553a`, and expedited bail appeals to a single Justice of the Vermont Supreme Court (`13 V.S.A. § 7556`).
+  3. **`vt_discovery_impeachment` — Discovery Audit, V.R.Cr.P. 15 Depositions & BWC Impeachment**:
+     - Focuses on cross-referencing the Investigating Officer's Affidavit of Probable Cause against Body-Worn Camera (BWC) transcripts, dispatch CAD logs, V.R.Cr.P. 15 sworn depositions, and **V.R.Cr.P. 16** prosecutorial disclosure obligations to surface material omissions, timeline contradictions, and impeachment matrices.
+  4. **`vt_plea_sentencing` — Plea Negotiations, Deferred Sentences & Collateral Consequences (`13 V.S.A. § 7041`)**:
+     - Focuses on statutory maximums/minimums under Title 13/18/23, Deferred Sentence Agreements (`13 V.S.A. § 7041`), Youthful Offender status (`33 V.S.A. § 5280`), expungement/sealing eligibility (`13 V.S.A. § 7602`), and license suspension / immigration collateral consequences.
+- **Layer 4 — Adversarial Reviewer Prompts for `Vermont Criminal Defense Lawyer`**:
+  - **Critic #1 (`criticCitationAuditorPrompt` — Vermont Citation & Discovery Record Auditor)**:
+    - Audits every cited Vermont Supreme Court decision (`VT` public domain cites and `A.2d`/`A.3d` reporters), `V.S.A.` statutory section, `V.R.Cr.P.` rule, and factual pinpoint against the Affidavit of Probable Cause, BWC transcript, and V.R.Cr.P. 15 deposition record. Flags any conflation of federal Fourth Amendment standards with Vermont Article 11 jurisprudence.
+  - **Critic #2 (`criticOpposingCounselPrompt` — Deputy State's Attorney & Criminal Division Judge Critic)**:
+    - Simulates an experienced **Vermont Deputy State's Attorney** opposing the motion and a **Vermont Superior Court Criminal Division Judge** scrutinizing the filing. Attacks weak factual inferences, raises inevitable discovery / independent source / attenuation arguments, tests totality-of-the-circumstances articulable suspicion, and forces the defense draft to preemptively neutralize the State's strongest counterarguments.
+- **Default Seeded Matter for `Vermont Criminal Defense Lawyer`**:
+  - **Matter**: *State of Vermont v. Marcus Thorne* (`Docket No. 26-CR-04118 (Chittenden Unit)`, Vermont Superior Court, Criminal Division)
+  - **Indexed Discovery Corpus**:
+    1. `01_Affidavit_of_Probable_Cause_Trp_Keller.pdf` (`STATE-0001 to STATE-0005` — VSP Trooper Keller's sworn affidavit following an I-89 Southbound nighttime traffic stop in Colchester, exit order, and warrantless vehicle search).
+    2. `02_BWC_and_Cruiser_Audio_Transcript.pdf` (`STATE-BWC-0001 to 0014` — Body-Worn Camera transcript revealing timestamp discrepancies and showing the Trooper ordered Mr. Thorne out of the vehicle before observing any indicators of impairment, contradicting Paragraph 5 of the Affidavit).
+    3. `03_VRCrP15_Deposition_Trooper_Keller.pdf` (`DEF-DEP-0001 to 0032` — Rule 15 deposition where Trooper Keller concedes the exit order was based solely on out-of-state plates and refusal to answer itinerary questions, and no warrant or exigency existed prior to unlocking and searching the center console).
+    4. `04_Vermont_Article11_Authority_Compendium.md` (`AUTH-VT-0001 to 0008` — *State v. Sprague*, 2003 VT 20; *State v. Bauder*, 2007 VT 16; *State v. Savva*, 159 Vt. 75 (1991); *State v. Oakes*, 157 Vt. 171 (1991); V.R.Cr.P. 12(b)(3) & 12(d)).
+    5. `05_Draft_Motion_to_Suppress_and_Dismiss.md` (`WP-THORNE-0001` — Defense Motion to Suppress & Dismiss with Version 1 pre-review and Version 2 post-adversarial cured redline snapshots).
+
+---
+
+### Profile 2 (2nd in Pick List): `General Legal Practice` (`general-legal-practice`)
+
+Provides a clean, general-purpose profile for civil, commercial, regulatory, and general litigation practitioners:
+
+- **Default Jurisdiction & Forum (Layer 3)**:
+  - **Forum**: `State & Federal General Jurisdiction (Configurable per Matter)`
+  - **Citation Style**: `The Bluebook (21st Ed.)`
+- **Layer 1 — Core Legal Mandate & Ethical Guardrails**:
+  - General legal research and drafting discipline: strict citation and record grounding, mandatory pinpoint citations, explicit `[UNVERIFIED AUTHORITY]` flagging, distinction between binding and persuasive authority, and CRAC/IRAC structure.
+- **Layer 2 — Generic Task Presets (`practiceAreaPresets`)**:
+  1. **`general_litigation` — Civil Litigation & Motion Practice**: Pleadings, dispositive motions, standards of review, and record citations.
+  2. **`general_transactional` — Transactional & Contract Drafting**: Commercial agreements, risk allocation, indemnification, and redline explanations.
+  3. **`general_regulatory` — Statutory & Regulatory Compliance**: Statutory interpretation, administrative rules, and compliance checklists.
+  4. **`general_investigation` — Fact & Record Chronology Investigation**: Synthesizing exhibits, transcripts, and documents into chronological timelines.
+- **Layer 4 — Adversarial Reviewer Prompts**:
+  - **Critic #1**: *Independent Citation & Record Auditor*
+  - **Critic #2**: *Adversarial Opposing Counsel & Reviewing Partner*
+- **Secondary Seeded Matter**:
+  - *Apex Biometrics v. Meridian Cloud Systems* (`2026-CV-04192-DEL`) remains available in the Matter Switcher as a civil/commercial sample matter.
+
+---
+
+## 4. Re-Visiting & Editing Matter Settings (`legal:update-matter` & Matter Settings Dialog)
+
+Lawyers frequently need to revisit a Matter to update the case caption, docket number, client name, assigned court unit/forum, citation style, default task persona, or local folder path:
+
+- **UI Entry Points**:
+  1. **Right-Click Context Menu**: Right-clicking any Matter card in the Left Sidebar (or the active Matter badge in the top header) opens a context menu with **`Matter Settings (Edit Name, Docket ID...)`**.
+  2. **Settings Gear Icon**: Each Matter card in the Left Sidebar and the active Matter pill in the top header bar includes a direct **Settings gear icon** that opens the **Matter Settings Dialog**.
+- **Editable Fields in the Matter Settings Dialog (`UpdateMatterPayload`)**:
+  - `name` (*Matter / Case Caption Name*, e.g., `State of Vermont v. Marcus Thorne`)
+  - `clientName` (*Client / Defendant Name*, e.g., `Marcus Thorne (Defendant)`)
+  - `matterNumber` (*Docket ID / Matter Number*, e.g., `26-CR-04118 (Chittenden Unit)`)
+  - `jurisdiction` (*Governing Jurisdiction & Court Forum*)
+  - `citationStyle` (*Citation Style / Manual*)
+  - `practiceArea` (*Default Task Persona*)
+  - `folderPath` (*Local Matter Workspace Folder Path*)
+
+---
+
+## 5. Exact Repository File Structure
+
+To build or rebuild the application identically from this document, the repository is structured as follows:
 
 ```text
 free-legal-assist/
@@ -73,17 +160,17 @@ free-legal-assist/
 ├── index.html                                    # Renderer HTML entry point
 ├── README.md                                     # Launch & test instructions
 ├── docs/
-│   └── PLAN.md                                   # Architectural & implementation specification
+│   └── PLAN.md                                   # Architectural & implementation specification (mirrors this document)
 └── src/
     ├── shared/
-    │   └── types.ts                              # Shared domain & IPC contracts
+    │   └── types.ts                              # Shared domain & IPC contracts (PractitionerProfile, UpdateMatterPayload, etc.)
     ├── preload/
     │   └── index.ts                              # Electron contextBridge exposing window.lexharness
     ├── main/
     │   ├── index.ts                              # Electron main process, BrowserWindow, safeStorage & IPC handlers
     │   ├── db/
-    │   │   ├── defaultLegalData.ts               # Default 4-layer legal prompts & seeded matters/documents/messages
-    │   │   └── database.ts                       # SQLite (sql.js) persistence & encrypted provider credentials
+    │   │   ├── defaultLegalData.ts               # Built-in Practitioner Profiles (1. VT Criminal Defense, 2. General Practice) & seeded matters
+    │   │   └── database.ts                       # SQLite (sql.js) persistence, profile switching, updateMatter & encrypted credentials
     │   ├── agent/
     │   │   ├── PromptAssembler.ts                # 4-layer dynamic legal system prompt composer
     │   │   ├── AdversarialCoordinator.ts         # Parallel Multi-LLM critic evaluation & JSON verdict parser
@@ -91,118 +178,23 @@ free-legal-assist/
     │   │   └── providers/
     │   │       └── MultiLLMClient.ts             # Anthropic, OpenAI, Gemini, OpenRouter HTTP clients + Local Legal Engine
     │   ├── tools/
-    │   │       └── LegalToolExecutor.ts          # 6 local legal tools operating against the Matter SQLite corpus
+    │   │   └── LegalToolExecutor.ts              # 6 local legal tools operating against the Matter SQLite corpus
     │   └── __tests__/
-    │       └── legalHarness.test.ts              # Vitest suite verifying SQLite, prompt assembly & adversarial loop
+    │       └── legalHarness.test.ts              # Vitest suite verifying profiles, Matter Settings updates, prompt assembly & loop
     └── renderer/
         ├── main.tsx                              # React DOM root mount
         ├── styles.css                            # Tailwind directives + macOS -webkit-app-region drag rules
-        ├── App.tsx                               # Main 3-pane Legal Agent Control Surface UI
+        ├── App.tsx                               # Main 3-pane Legal Agent Control Surface UI + Right-Click & Matter Settings Dialog
         ├── lib/
         │   └── bridge.ts                         # Typed renderer wrapper around window.lexharness
         └── components/
-            ├── PromptGovernanceModal.tsx         # 6-tab modal for Layers 1–4 prompts, API keys & live preview
+            ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 6-tab modal for Layers 1–4 prompts, API keys & live preview
             └── RightWorkspacePane.tsx            # 3-tab right pane: Work-Product Redline, Matter Corpus & Chronology
 ```
 
 ---
 
-## 4. Domain Data Model & SQLite Schema (`src/shared/types.ts` & `src/main/db/database.ts`)
-
-### 4.1 SQLite Tables (`<userData>/lexharness-data/lexharness.sqlite`)
-1. **`matters`**: `id`, `name`, `client_name`, `matter_number`, `practice_area`, `jurisdiction`, `citation_style`, `folder_path`, `created_at`, `updated_at`
-2. **`documents`**: `id`, `matter_id`, `title`, `file_name`, `category` (`PLEADING` | `CONTRACT` | `EXHIBIT` | `DEPOSITION` | `STATUTE_AUTHORITY` | `WORK_PRODUCT`), `bates_range`, `page_count`, `summary`, `content`, `created_at`, `updated_at`
-3. **`document_versions`**: `id`, `document_id`, `matter_id`, `version_number`, `title`, `content`, `previous_content`, `rationale_summary`, `created_by_model`, `created_at`
-4. **`chronology_facts`**: `id`, `matter_id`, `fact_date`, `event_description`, `source_citation`, `status` (`UNDISPUTED` | `DISPUTED` | `NEEDS_CORROBORATION`), `created_at`
-5. **`threads`**: `id`, `matter_id`, `title`, `practice_area`, `created_at`, `updated_at`
-6. **`messages`**: `id`, `thread_id`, `role` (`user` | `assistant`), `content`, `initial_draft_before_review`, `primary_provider`, `primary_model`, `review_mode_used`, `assembled_system_prompt_snapshot`, `tool_calls_json`, `adversarial_reviews_json`, `revision_rounds_completed`, `created_at`
-7. **`key_value_settings`**: Stores JSON settings for `system_prompt_settings` (`SystemPromptSettings`) and `adversarial_config` (`AdversarialConfig`).
-8. **`provider_credentials`**: `provider_id`, `encrypted_api_key` (encrypted via Electron `safeStorage` using macOS Keychain / Windows DPAPI), `base_url`, `default_model`, `updated_at`.
-
-### 4.2 Pre-Seeded Legal Matters & Corpus (`src/main/db/defaultLegalData.ts`)
-On first launch, `LegalDatabase` seeds:
-- **Matter 1**: *Apex Biometrics v. Meridian Cloud Systems* (`2026-CV-04192-DEL`, Delaware Court of Chancery, Bluebook 21st Ed.) with 4 indexed documents:
-  1. `01_Master_Services_Agreement_Executed.pdf` (`APEX-0001 to APEX-0024` — §§ 4.1–4.2 biometric HSM encryption, § 8.2 10-Business-Day notice with material-prejudice proviso, § 9.2 $1.8M General Cap, $5.4M 3x Super-Cap for Gross Negligence/Willful Misconduct, and Uncapped tier for Reckless Disregard of Known Cryptographic Vulnerabilities).
-  2. `02_Deposition_Marcus_Vance_2026-10-18.pdf` (`MERIDIAN-DEP-0001 to 0088` — Rule 30(b)(6) admissions at pp. 41 & 59).
-  3. `03_Delaware_Authority_Compendium.md` (`AUTH-DEL-0001 to 0012` — *Abry Partners*, *Jardel Co. v. Hughes*, *Express Scripts v. Bracket Holdings*, *Salamone v. Gorman*).
-  4. `04_Draft_SJ_Brief_Liability_Cap_Analysis.md` (`WP-APEX-0001` — Work product with Version 1 pre-review and Version 2 post-adversarial cured snapshots).
-- **Matter 2**: *Helios Energy — Series C & Commercial Licensing* (`2026-TX-08814-NY`, New York Commercial Division).
-
----
-
-## 5. Core Pillar 1: 4-Layer User-Governed Legal System Prompts (`PromptAssembler.ts`)
-
-Every agent turn dynamically composes the system prompts from four user-editable layers managed in `PromptGovernanceModal.tsx`:
-
-1. **Layer 1 — Core Legal Mandate & Ethical Guardrails**:
-   - Strict anti-hallucination and grounding mandate; mandatory Bates/section/page:line source pinpoints; explicit `[UNVERIFIED AUTHORITY]` flagging; distinction between binding and persuasive authority; candid risk assessment; CRAC/IRAC analytical structure.
-2. **Layer 2 — Practice Area Personas (`PracticeAreaPreset[]`)**:
-   - `litigation_appellate` (*Litigation & Appellate Brief Counsel*)
-   - `transactional_contracts` (*Transactional & Commercial Contracts Counsel*)
-   - `regulatory_compliance` (*Regulatory & Statutory Compliance Counsel*)
-   - `discovery_investigation` (*Discovery & Fact Chronology Investigator*)
-3. **Layer 3 — Matter Jurisdiction, Forum & Citation Rules**:
-   - Injects the active Matter's `name`, `clientName`, `matterNumber`, `jurisdiction`, `citationStyle`, and `folderPath`.
-4. **Layer 4 — Adversarial Reviewer System Prompts**:
-   - **Layer 4A (`criticCitationAuditorPrompt`)**: Instructions for the Independent Citation & Record Auditor.
-   - **Layer 4B (`criticOpposingCounselPrompt`)**: Instructions for the Adversarial Opposing Counsel & Senior Reviewing Partner.
-
----
-
-## 6. Core Pillar 2: Default Multi-LLM Adversarial Review Loop (`LegalAgentLoop.ts` & `AdversarialCoordinator.ts`)
-
-```mermaid
-sequenceDiagram
-    participant Lawyer as Supervising Attorney (UI)
-    participant Loop as LegalAgentLoop (Main Process)
-    participant Tools as LegalToolExecutor (SQLite Corpus)
-    participant Primary as Primary Model (e.g. Claude)
-    participant Critics as Parallel Critics (Gemini Auditor + OpenAI Opposing Counsel)
-
-    Lawyer->>Loop: Run Turn (userPrompt, reviewMode, practiceArea)
-    Loop->>Loop: Assemble 4-Layer Legal System Prompts (PromptAssembler)
-    Loop->>Tools: Execute search_matter_corpus & verify_citation_lookup
-    Tools-->>Loop: Grounded excerpts + Bates pinpoints
-    Loop->>Primary: Generate Initial Candidate Legal Draft
-    Primary-->>Loop: initialDraftBeforeReview
-    alt reviewMode != 'direct_bypass'
-        par Parallel Independent Critique
-            Loop->>Critics: Critic #1 (Citation & Record Auditor)
-            Loop->>Critics: Critic #2 (Opposing Counsel & Reviewing Partner)
-        end
-        Critics-->>Loop: Structured JSON Verdicts (APPROVE | REVISE + Objections)
-        alt Any Critic Returns REVISE (MEDIUM/CRITICAL)
-            Loop->>Primary: Revision Pass with Critic Objections + Tool Evidence
-            Primary-->>Loop: Cured Final Legal Work Product
-            Loop->>Tools: propose_document_redline (Save Version Snapshot)
-        end
-    end
-    Loop-->>Lawyer: Persist & Render Final Work Product + Adversarial Scorecard + Redline Diff
-```
-
-### Supported Multi-LLM Providers (`MultiLLMClient.ts`)
-- `anthropic` (`https://api.anthropic.com/v1/messages`)
-- `openai` (`https://api.openai.com/v1/chat/completions`)
-- `gemini` (`https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`)
-- `openrouter` (`https://openrouter.ai/api/v1/chat/completions` or custom local base URL)
-- `legal-simulator`: Built-in deterministic local legal engine that grounds drafts in the active Matter's SQLite corpus and executes a realistic 2-critic adversarial audit + revision pass when external API keys are not yet configured.
-
----
-
-## 7. Core Pillar 3: Scoped Local Legal Tool Suite (`LegalToolExecutor.ts`)
-
-| Tool Name | Execution Behavior |
-| :--- | :--- |
-| `list_matter_documents` | Lists all documents in the active Matter with category, Bates range, page count, and summary. |
-| `search_matter_corpus` | Keyword/term scoring search across all documents in the active Matter, returning matched excerpts with Bates ranges. |
-| `read_document_pages` | Reads full text and Bates pinpoints for a specified `documentId` or filename. |
-| `verify_citation_lookup` | Cross-checks cited authorities against the Matter's `STATUTE_AUTHORITY` compendium and flags any unverified authority. |
-| `propose_document_redline` | Saves a new `DocumentVersion` snapshot in SQLite (`previousContent` vs. `content`) and updates the work-product document so the right-hand Redline Viewer displays struck and inserted paragraphs. |
-| `record_chronology_fact` | Inserts a dated `ChronologyFact` with source pinpoint citation and `UNDISPUTED` / `DISPUTED` / `NEEDS_CORROBORATION` status. |
-
----
-
-## 8. Build, Verification & Cross-Platform Packaging Commands
+## 6. Build, Verification & Cross-Platform Packaging Commands
 
 1. **Install Dependencies**: `npm install`
 2. **Typecheck & Unit Tests**: `npm run typecheck && npm test`

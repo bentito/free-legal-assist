@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AdversarialConfig,
   AssembledPromptPreview,
@@ -6,6 +6,7 @@ import {
   Matter,
   PracticeAreaId,
   PracticeAreaPreset,
+  PractitionerProfileId,
   ProviderConfig,
   SystemPromptSettings,
 } from '../../shared/types';
@@ -18,6 +19,7 @@ import {
   ShieldAlert,
   Sliders,
   Sparkles,
+  UserCheck,
   X,
 } from 'lucide-react';
 
@@ -29,6 +31,7 @@ interface PromptGovernanceModalProps {
   providers: ProviderConfig[];
   activeMatter: Matter;
   assembledPromptPreview: AssembledPromptPreview;
+  onSelectPractitionerProfile: (profileId: PractitionerProfileId) => Promise<void>;
   onSavePromptSettings: (updated: Partial<SystemPromptSettings>) => Promise<void>;
   onResetPromptSettings: () => Promise<void>;
   onSaveAdversarialConfig: (updated: Partial<AdversarialConfig>) => Promise<void>;
@@ -62,6 +65,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   providers,
   activeMatter,
   assembledPromptPreview,
+  onSelectPractitionerProfile,
   onSavePromptSettings,
   onResetPromptSettings,
   onSaveAdversarialConfig,
@@ -74,7 +78,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
     promptSettings.practiceAreaPresets
   );
   const [selectedPresetId, setSelectedPresetId] = useState<PracticeAreaId>(
-    activeMatter.practiceArea || promptSettings.activePracticeAreaId
+    promptSettings.activePracticeAreaId
   );
   const [auditorPrompt, setAuditorPrompt] = useState(
     promptSettings.criticCitationAuditorPrompt
@@ -90,6 +94,21 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
     activeMatter.practiceArea
   );
 
+  // Sync local editor state when active profile or matter changes
+  useEffect(() => {
+    setCoreMandate(promptSettings.coreLegalMandate);
+    setPresets(promptSettings.practiceAreaPresets);
+    setSelectedPresetId(promptSettings.activePracticeAreaId);
+    setAuditorPrompt(promptSettings.criticCitationAuditorPrompt);
+    setOpposingPrompt(promptSettings.criticOpposingCounselPrompt);
+  }, [promptSettings]);
+
+  useEffect(() => {
+    setJurisdiction(activeMatter.jurisdiction);
+    setCitationStyle(activeMatter.citationStyle);
+    setMatterPracticeArea(activeMatter.practiceArea);
+  }, [activeMatter]);
+
   // Provider API key inputs
   const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({});
   const [baseUrlInputs, setBaseUrlInputs] = useState<Record<string, string>>(
@@ -99,12 +118,22 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
   if (!isOpen) return null;
 
+  const activeProfile =
+    promptSettings.profiles.find((p) => p.id === promptSettings.activeProfileId) ??
+    promptSettings.profiles[0];
+
   const selectedPreset =
     presets.find((p) => p.id === selectedPresetId) ?? presets[0];
 
   const flashSaved = (msg: string) => {
     setSaveBanner(msg);
     setTimeout(() => setSaveBanner(null), 2800);
+  };
+
+  const handleProfileChange = async (newProfileId: PractitionerProfileId) => {
+    await onSelectPractitionerProfile(newProfileId);
+    const chosen = promptSettings.profiles.find((p) => p.id === newProfileId);
+    flashSaved(`Switched Active Profile to ${chosen?.name ?? newProfileId}`);
   };
 
   const handleSavePrompts = async () => {
@@ -115,12 +144,12 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
       criticCitationAuditorPrompt: auditorPrompt,
       criticOpposingCounselPrompt: opposingPrompt,
     });
-    flashSaved(`Saved Legal System Prompt Profile (v${promptSettings.version + 1})`);
+    flashSaved(`Saved ${activeProfile.name} System Prompts`);
   };
 
   const handleResetPrompts = async () => {
     await onResetPromptSettings();
-    flashSaved('Reset all Legal System Prompts to curated defaults');
+    flashSaved(`Reset ${activeProfile.name} Prompts to Defaults`);
   };
 
   const handleSaveLayer3 = async () => {
@@ -130,14 +159,16 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
       citationStyle,
       practiceArea: matterPracticeArea,
     });
-    flashSaved(`Updated Matter Jurisdiction & Citation Rules for ${activeMatter.name}`);
+    flashSaved(
+      `Updated Matter Jurisdiction & Citation Rules for ${activeMatter.name}`
+    );
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-6">
-      <div className="flex flex-col w-full max-w-6xl h-[86vh] bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-slate-950 border-b border-slate-800">
+      <div className="flex flex-col w-full max-w-6xl h-[88vh] bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl overflow-hidden">
+        {/* Header with Practitioner Profile Pick List */}
+        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 bg-slate-950 border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
               <Scale className="w-5 h-5" />
@@ -145,19 +176,40 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             <div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-base font-semibold text-slate-100">
-                  Legal System Prompt Governance Studio & Multi-LLM Harness Settings
+                  Legal System Prompt Governance Studio & Practitioner Profiles
                 </h2>
-                <span className="px-2 py-0.5 text-[11px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  Profile v{promptSettings.version} • Zero Software Prompts
+                <span className="px-2.5 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  Active Profile: {activeProfile.name}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Govern every instruction layer sent to the Primary Legal Model and the Multi-LLM Adversarial Review Critics.
+                {activeProfile.description}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Practitioner Profile Pick List */}
+            <div className="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-700">
+              <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-xs text-slate-300 font-medium">
+                Practitioner Profile:
+              </span>
+              <select
+                value={promptSettings.activeProfileId}
+                onChange={(e) =>
+                  handleProfileChange(e.target.value as PractitionerProfileId)
+                }
+                className="bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs font-semibold text-amber-300 focus:outline-none focus:border-amber-500"
+              >
+                {promptSettings.profiles.map((prof, idx) => (
+                  <option key={prof.id} value={prof.id}>
+                    {idx + 1}. {prof.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {saveBanner && (
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs">
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -193,7 +245,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div>
                   <div>Layer 1: Core Legal Mandate</div>
                   <div className="text-[10px] text-slate-400 font-normal">
-                    Ethical & evidentiary guardrails
+                    Constitutional & evidentiary rules
                   </div>
                 </div>
               </button>
@@ -208,9 +260,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               >
                 <Sliders className="w-4 h-4 shrink-0" />
                 <div>
-                  <div>Layer 2: Practice Area Personas</div>
+                  <div>Layer 2: Task & Practice Presets</div>
                   <div className="text-[10px] text-slate-400 font-normal">
-                    Litigation, M&A, Regulatory, Discovery
+                    Profile-specific legal workflows
                   </div>
                 </div>
               </button>
@@ -227,7 +279,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div>
                   <div>Layer 3: Matter Jurisdiction</div>
                   <div className="text-[10px] text-slate-400 font-normal">
-                    Forum & Bluebook/ALWD rules
+                    Court forum & citation rules
                   </div>
                 </div>
               </button>
@@ -244,7 +296,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div>
                   <div>Layer 4: Adversarial Critics</div>
                   <div className="text-[10px] text-slate-400 font-normal">
-                    Citation Auditor & Opposing Counsel
+                    Record Auditor & Opposing Counsel
                   </div>
                 </div>
               </button>
@@ -294,7 +346,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 text-xs text-slate-300 transition"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset Prompts to Defaults</span>
+                <span>Reset Profile to Defaults</span>
               </button>
             </div>
           </div>
@@ -306,10 +358,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 1 — Core Legal Mandate & Ethical Guardrails
+                      Layer 1 — Core Legal Mandate ({activeProfile.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Applied globally to every turn. Enforces strict citation grounding, Bates pinpoints, and candid legal risk analysis.
+                      Governs foundational constitutional rules, citation grounding, discovery/record pinpoints, and candid legal risk analysis.
                     </p>
                   </div>
                   <button
@@ -333,17 +385,17 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 2 — Practice Area & Task Personas
+                      Layer 2 — Task & Practice Area Presets ({activeProfile.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Customize the specialized legal instructions for each practice area preset.
+                      Customize the specialized legal instructions for each task preset in the {activeProfile.name} profile.
                     </p>
                   </div>
                   <button
                     onClick={handleSavePrompts}
                     className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
                   >
-                    Save Practice Area Presets
+                    Save Task Presets
                   </button>
                 </div>
 
@@ -396,18 +448,30 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 3 — Matter Jurisdiction, Forum & Citation Manual ({activeMatter.name})
+                      Layer 3 — Matter Jurisdiction, Forum & Citation Rules ({activeMatter.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Injected into both the Primary Legal Model and Adversarial Critics to enforce controlling forum law and citation style.
                     </p>
                   </div>
-                  <button
-                    onClick={handleSaveLayer3}
-                    className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
-                  >
-                    Save Matter Jurisdiction Rules
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setJurisdiction(activeProfile.defaultJurisdiction);
+                        setCitationStyle(activeProfile.defaultCitationStyle);
+                        setMatterPracticeArea(activeProfile.activePracticeAreaId);
+                      }}
+                      className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-amber-300 border border-slate-700 transition"
+                    >
+                      Apply {activeProfile.name} Defaults
+                    </button>
+                    <button
+                      onClick={handleSaveLayer3}
+                      className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
+                    >
+                      Save Matter Jurisdiction Rules
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 bg-slate-950 p-5 rounded-xl border border-slate-800">
@@ -420,26 +484,24 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       value={jurisdiction}
                       onChange={(e) => setJurisdiction(e.target.value)}
                       className="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
-                      placeholder="e.g., Delaware Court of Chancery / U.S. District Court S.D.N.Y."
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Mandatory Legal Citation Manual
+                      Mandatory Legal Citation Manual / Format
                     </label>
                     <input
                       type="text"
                       value={citationStyle}
                       onChange={(e) => setCitationStyle(e.target.value)}
                       className="w-full px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-amber-500"
-                      placeholder="e.g., The Bluebook (21st Ed.) / California Style Manual / ALWD"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Default Practice Area Persona for Matter
+                      Default Task Persona for Matter
                     </label>
                     <select
                       value={matterPracticeArea}
@@ -464,7 +526,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 4 — Multi-LLM Adversarial Reviewer Prompts
+                      Layer 4 — Multi-LLM Adversarial Reviewer Prompts ({activeProfile.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Govern the system prompts for the independent reviewer models that audit every candidate response before completion.
@@ -480,7 +542,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-emerald-400">
-                    Critic #1: Independent Citation & Record Auditor System Prompt
+                    Critic #1: Citation & Discovery Record Auditor System Prompt
                   </label>
                   <textarea
                     value={auditorPrompt}
@@ -492,7 +554,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-rose-400">
-                    Critic #2: Adversarial Opposing Counsel & Reviewing Partner System Prompt
+                    Critic #2: Adversarial Opposing Counsel / Prosecutor & Judge System Prompt
                   </label>
                   <textarea
                     value={opposingPrompt}
@@ -511,7 +573,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                     Multi-LLM Adversarial Role Assignment & Provider Credentials
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Assign distinct model families to Primary Drafting, Citation Auditing, and Opposing Counsel Critique. API keys are encrypted via macOS Keychain / Windows DPAPI (`safeStorage`).
+                    Assign distinct model families to Primary Drafting, Citation Auditing, and Opposing Critique. API keys are encrypted via macOS Keychain / Windows DPAPI (`safeStorage`).
                   </p>
                 </div>
 
@@ -519,7 +581,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="grid grid-cols-3 gap-4 p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <div>
                     <div className="text-xs font-semibold text-amber-300 mb-2">
-                      1. Primary Legal Counsel Model
+                      1. Primary Defense / Lead Counsel
                     </div>
                     <select
                       value={adversarialConfig.primaryProvider}
@@ -587,7 +649,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
                   <div>
                     <div className="text-xs font-semibold text-rose-300 mb-2">
-                      3. Opposing Counsel Critic
+                      3. State's Attorney / Opposing Critic
                     </div>
                     <select
                       value={adversarialConfig.opposingCounselProvider}
@@ -598,7 +660,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                           opposingCounselProvider: prov,
                           opposingCounselModel: cat?.defaultModel || '',
                         });
-                        flashSaved('Updated Opposing Counsel Critic Model');
+                        flashSaved('Updated Opposing Critic Model');
                       }}
                       className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 mb-2"
                     >
@@ -711,7 +773,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-100">
-                    Live Assembled Legal System Prompts (Sent on Every Turn)
+                    Live Assembled Legal System Prompts ({assembledPromptPreview.profileName})
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Inspect the exact composed system prompts assembled from Layers 1–4 for{' '}
@@ -743,7 +805,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                     </div>
                     <div>
                       <div className="text-xs font-semibold text-rose-300 mb-1">
-                        Critic #2: Opposing Counsel Critic Prompt (Layer 4B)
+                        Critic #2: Opposing Counsel / State's Attorney Prompt (Layer 4B)
                       </div>
                       <pre className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto">
                         {assembledPromptPreview.opposingCounselSystemPrompt}

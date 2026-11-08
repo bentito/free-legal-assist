@@ -64,13 +64,7 @@ export class LegalAgentLoop {
     };
     this.db.insertMessage(userMessage);
 
-    // 2. Assemble 4-Layer User-Governed Legal System Prompt
-    emit({
-      phase: 'assembling_prompt',
-      statusText: 'Assembling 4-Layer User-Governed Legal System Prompt...',
-      detailText: `Jurisdiction: ${matter.jurisdiction} • Citation Style: ${matter.citationStyle}`,
-    });
-
+    // 2. Assemble 4-Layer User-Governed Legal System Prompt from Active Practitioner Profile
     const promptSettings = this.db.getSystemPromptSettings();
     const advConfig = {
       ...this.db.getAdversarialConfig(),
@@ -83,6 +77,12 @@ export class LegalAgentLoop {
       overridePracticeAreaId
     );
 
+    emit({
+      phase: 'assembling_prompt',
+      statusText: `Assembling ${assembled.profileName} System Prompt...`,
+      detailText: `Forum: ${matter.jurisdiction} • Citation Style: ${matter.citationStyle}`,
+    });
+
     const assistantMessageId = `msg-assistant-${Date.now()}`;
     const toolCalls: ToolCallRecord[] = [];
     const docs = this.db.listDocuments(matterId);
@@ -90,7 +90,7 @@ export class LegalAgentLoop {
     // 3. Autonomous Local Legal Tool Loop
     emit({
       phase: 'executing_tools',
-      statusText: 'Searching local Matter Corpus & Bates-stamped record...',
+      statusText: 'Searching local Matter / Discovery Corpus & Bates-stamped record...',
       detailText: `Executing search_matter_corpus across ${docs.length} matter documents`,
     });
 
@@ -107,12 +107,20 @@ export class LegalAgentLoop {
       toolCall: searchCall,
     });
 
+    const isVermontCriminal =
+      matter.jurisdiction.toLowerCase().includes('vermont') ||
+      matter.id.includes('vt') ||
+      matter.practiceArea.startsWith('vt_');
+
+    const defaultCitationToVerify = isVermontCriminal
+      ? 'State v. Sprague, 2003 VT 20; State v. Bauder, 2007 VT 16; State v. Savva, 159 Vt. 75 (1991); State v. Oakes, 157 Vt. 171 (1991)'
+      : 'Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006); Express Scripts, Inc. v. Bracket Holdings Corp., 248 A.3d 824 (Del. 2021)';
+
     const verifyCall = await this.toolExecutor.executeTool(
       matterId,
       'verify_citation_lookup',
       {
-        citation:
-          'Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006); Express Scripts, Inc. v. Bracket Holdings Corp., 248 A.3d 824 (Del. 2021)',
+        citation: defaultCitationToVerify,
       },
       advConfig.primaryModel
     );
@@ -127,11 +135,13 @@ export class LegalAgentLoop {
     emit({
       phase: 'drafting_primary',
       statusText: `Drafting initial legal analysis with ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel})...`,
-      detailText: 'Applying Layer 1–3 Legal System Prompts to retrieved tool evidence',
+      detailText: `Applying ${assembled.profileName} instructions to retrieved evidence`,
     });
 
     let candidateDraft = '';
-    const hasLivePrimary = this.llmClient.hasLiveCredentials(advConfig.primaryProvider);
+    const hasLivePrimary = this.llmClient.hasLiveCredentials(
+      advConfig.primaryProvider
+    );
 
     if (hasLivePrimary) {
       const toolContextStr = toolCalls
@@ -141,7 +151,7 @@ export class LegalAgentLoop {
         provider: advConfig.primaryProvider,
         model: advConfig.primaryModel,
         systemPrompt: assembled.primarySystemPrompt,
-        userPrompt: `MATTER RECORD EVIDENCE:\n${toolContextStr}\n\nSUPERVISING ATTORNEY INSTRUCTION:\n${userPrompt}`,
+        userPrompt: `MATTER RECORD EVIDENCE:\n${toolContextStr}\n\nATTORNEY INSTRUCTION:\n${userPrompt}`,
       });
       candidateDraft = liveRes.text;
     } else {
@@ -164,7 +174,9 @@ export class LegalAgentLoop {
         phase: 'adversarial_review',
         statusText:
           advConfig.mode === 'multi_llm_default'
-            ? `Running Multi-LLM Adversarial Gate: ${advConfig.citationAuditorModel} (Citation Auditor) + ${advConfig.opposingCounselModel} (Opposing Counsel)...`
+            ? `Running Multi-LLM Adversarial Gate: ${advConfig.citationAuditorModel} (Citation Auditor) + ${advConfig.opposingCounselModel} (${
+                isVermontCriminal ? "Deputy State's Attorney Critic" : 'Opposing Counsel'
+              })...`
             : `Running Single-Critic Citation Audit (${advConfig.citationAuditorModel})...`,
         detailText:
           'Auditing citations, record pinpoints, and legal reasoning before presenting final answer',
@@ -197,7 +209,7 @@ export class LegalAgentLoop {
           phase: 'revising_after_critique',
           statusText: `Revising draft to cure ${gateResult.combinedObjections.length} adversarial objection(s)...`,
           detailText:
-            'Primary model is incorporating Citation Auditor & Opposing Counsel critiques and generating redline snapshot',
+            'Primary model is incorporating Record Auditor & Opposing Critic objections and generating redline snapshot',
         });
 
         let revisedRedlineContent: string | undefined;

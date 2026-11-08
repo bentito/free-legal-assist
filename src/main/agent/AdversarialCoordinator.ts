@@ -45,6 +45,11 @@ export class AdversarialCoordinator {
       };
     }
 
+    const isVermontCriminal =
+      matter.jurisdiction.toLowerCase().includes('vermont') ||
+      matter.id.includes('vt') ||
+      matter.practiceArea.startsWith('vt_');
+
     const toolContext = toolCalls
       .map(
         (tc) =>
@@ -57,7 +62,9 @@ export class AdversarialCoordinator {
         messageId,
         round,
         criticRole: 'CITATION_AUDITOR',
-        criticTitle: 'Citation & Record Auditor',
+        criticTitle: isVermontCriminal
+          ? 'Vermont Citation & Discovery Record Auditor'
+          : 'Citation & Record Auditor',
         provider: config.citationAuditorProvider,
         model: config.citationAuditorModel,
         systemPrompt: assembledPrompts.citationAuditorSystemPrompt,
@@ -65,6 +72,7 @@ export class AdversarialCoordinator {
         candidateDraft,
         toolContext,
         matter,
+        isVermontCriminal,
       }),
     ];
 
@@ -74,7 +82,9 @@ export class AdversarialCoordinator {
           messageId,
           round,
           criticRole: 'OPPOSING_COUNSEL',
-          criticTitle: 'Opposing Counsel & Senior Partner Critic',
+          criticTitle: isVermontCriminal
+            ? 'Deputy State’s Attorney & Criminal Division Judge Critic'
+            : 'Opposing Counsel & Senior Partner Critic',
           provider: config.opposingCounselProvider,
           model: config.opposingCounselModel,
           systemPrompt: assembledPrompts.opposingCounselSystemPrompt,
@@ -82,6 +92,7 @@ export class AdversarialCoordinator {
           candidateDraft,
           toolContext,
           matter,
+          isVermontCriminal,
         })
       );
     }
@@ -114,6 +125,7 @@ export class AdversarialCoordinator {
     candidateDraft: string;
     toolContext: string;
     matter: Matter;
+    isVermontCriminal: boolean;
   }): Promise<AdversarialReviewRecord> {
     const {
       messageId,
@@ -126,6 +138,7 @@ export class AdversarialCoordinator {
       userPrompt,
       candidateDraft,
       toolContext,
+      isVermontCriminal,
     } = params;
 
     const criticInput = [
@@ -172,8 +185,73 @@ export class AdversarialCoordinator {
       }
     }
 
-    // Deterministic Local Legal Audit for Round 1 vs Round 2+
     if (round === 1) {
+      if (isVermontCriminal) {
+        if (criticRole === 'CITATION_AUDITOR') {
+          return {
+            id: `rev-${Date.now()}-vt-auditor`,
+            messageId,
+            round,
+            criticRole: 'CITATION_AUDITOR',
+            criticTitle,
+            provider,
+            model,
+            verdict: 'REVISE',
+            severity: 'CRITICAL',
+            objections: [
+              {
+                category: 'PROMPT_NONCOMPLIANCE',
+                location:
+                  'Section 2 — Conflation of Federal 4th Amendment (Mimms) with Vt. Const. ch. I, art. 11',
+                critique:
+                  'Candidate draft conceded the exit order under Pennsylvania v. Mimms, 434 U.S. 106 (1977). Under Layer 1 of the Vermont Criminal Defense Lawyer profile and AUTH-VT-0001, the Vermont Supreme Court rejected Mimms in State v. Sprague, 2003 VT 20, ¶¶ 13–20, 175 Vt. 123, holding that Chapter I, Article 11 prohibits exit orders absent objective, articulable facts supporting reasonable suspicion of criminal activity or danger.',
+                requiredFix:
+                  'Replace the federal Mimms concession with Chapter I, Article 11 analysis under State v. Sprague, 2003 VT 20, challenging the 23:16:42 exit order.',
+              },
+              {
+                category: 'RECORD_MISMATCH',
+                location:
+                  'Omission of BWC 23:21:10 Side-Channel Audio & Rule 15 Deposition Impeachment',
+                critique:
+                  'Candidate draft failed to cite STATE-BWC-0009 (timestamp 23:21:10) and Trooper Keller’s V.R.Cr.P. 15 deposition [DEF-DEP-0018], where he admitted Paragraph 5 of his Affidavit [STATE-0003] was inaccurate and that he detected no odor prior to ordering Mr. Thorne out at 23:16:42.',
+                requiredFix:
+                  'Cite BWC timestamps 23:16:42 & 23:21:10 [STATE-BWC-0004, 0009] and Keller Dep. 18:4–21 [DEF-DEP-0018] to impeach Affidavit ¶ 5.',
+              },
+            ],
+            dissentingConsiderations:
+              'Ensure all Vermont Supreme Court public-domain citations (2003 VT 20; 2007 VT 16) and discovery Bates pinpoints are included.',
+            createdAt: new Date().toISOString(),
+          };
+        } else {
+          return {
+            id: `rev-${Date.now()}-vt-opposing`,
+            messageId,
+            round,
+            criticRole: 'OPPOSING_COUNSEL',
+            criticTitle,
+            provider,
+            model,
+            verdict: 'REVISE',
+            severity: 'MEDIUM',
+            objections: [
+              {
+                category: 'LOGICAL_GAP',
+                location:
+                  'Warrantless Console Search — Article 11 Exigency Requirement & Good-Faith Rebuttal',
+                critique:
+                  'The Deputy State’s Attorney will argue Trooper Keller acted in good faith or under the automobile exception. The motion must invoke State v. Bauder, 2007 VT 16, and State v. Savva, 159 Vt. 75 (requiring both probable cause and actual exigent circumstances under Article 11), preempt any good-faith defense under State v. Oakes, 157 Vt. 171 (1991), and move concurrently to dismiss under V.R.Cr.P. 12(d).',
+                requiredFix:
+                  'Add Article 11 warrantless container search analysis under State v. Bauder / State v. Savva citing Keller Dep. 26:11–19 (on-call V.R.Cr.P. 41 judge available), cite State v. Oakes to bar good faith, and include a V.R.Cr.P. 12(d) prima facie dismissal demand.',
+              },
+            ],
+            dissentingConsiderations:
+              'Criminal Division Bench Note: Pairing the BWC 23:21:10 admission with State v. Sprague and V.R.Cr.P. 12(d) enables dispositive relief at the suppression hearing.',
+            createdAt: new Date().toISOString(),
+          };
+        }
+      }
+
+      // General Legal Practice fallback critics
       if (criticRole === 'CITATION_AUDITOR') {
         return {
           id: `rev-${Date.now()}-auditor`,
@@ -188,23 +266,15 @@ export class AdversarialCoordinator {
           objections: [
             {
               category: 'UNVERIFIED_CITATION',
-              location: 'Section 2 — Abry Partners Holding &MSA § 9.2 Tiered Cap',
+              location: 'Section 2 — Abry Partners Holding & MSA § 9.2 Tiered Cap',
               critique:
-                'Candidate draft overstates Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006), claiming Delaware public policy voids contractual caps for gross negligence. Per retrieved compendium [AUTH-DEL-0001], Abry Partners voids caps on public policy grounds solely for intentional fraud; gross negligence and reckless disregard must be anchored in the express negotiated tiers of MSA § 9.2 [APEX-0016].',
+                'Candidate draft overstates Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006). Anchor the cap-piercing argument in the express negotiated tiers of MSA § 9.2 [APEX-0016].',
               requiredFix:
-                'Distinguish Abry Partners (public policy fraud rule) from Express Scripts v. Bracket Holdings, 248 A.3d 824 (Del. 2021), and anchor the cap-piercing argument in the express text of MSA § 9.2 ($5.4M 3x Super-Cap for Gross Negligence/Willful Misconduct and Uncapped tier for Reckless Disregard of Known Cryptographic Vulnerabilities).',
-            },
-            {
-              category: 'RECORD_MISMATCH',
-              location: 'Section 2 — MSA § 8.2 Notice Timing',
-              critique:
-                'Candidate draft asserts unconditional notice compliance under § 8.2, omitting Vance Dep. 59:11–18 [MERIDIAN-DEP-0059] showing Apex served its formal demand 12 Business Days after the August 19 advisory (2 Business Days past the 10-day window).',
-              requiredFix:
-                'Explicitly address the 12-Business-Day timing in Vance Dep. 59:11–18 and invoke the express material-prejudice proviso in MSA § 8.2 [APEX-0014] under Salamone v. Gorman, 106 A.3d 354 (Del. 2014).',
+                'Anchor cap-piercing in MSA § 9.2 ($5.4M 3x Super-Cap and Uncapped tier for Reckless Disregard).',
             },
           ],
           dissentingConsiderations:
-            'Pinpoint citations must include exact Bates numbers ([APEX-0014], [APEX-0016], [MERIDIAN-DEP-0041], [MERIDIAN-DEP-0059]) per Layer 1 Ethical Guardrails.',
+            'Include exact Bates pinpoints per Layer 1 Ethical Guardrails.',
           createdAt: new Date().toISOString(),
         };
       } else {
@@ -221,21 +291,20 @@ export class AdversarialCoordinator {
           objections: [
             {
               category: 'LOGICAL_GAP',
-              location: 'Procedural Posture — Rule 56 Summary Judgment vs. State of Mind',
+              location: 'MSA § 8.2 Notice Proviso',
               critique:
-                'Opposing counsel will argue that whether Mr. Vance acted with "Reckless Disregard" is a disputed state-of-mind question inappropriate for summary judgment because he intended a temporary 48-hour latency mitigation.',
+                'Invoke the express material-prejudice proviso in MSA § 8.2 [APEX-0014] to rebut the 12-Business-Day notice timing.',
               requiredFix:
-                'Frame the argument in two tiers: (1) establish the $5.4M 3x Super-Cap as an immediate Rule 56 floor based on the undisputed intentional override of the SRE warning at 14:10 UTC, and (2) plead the Uncapped "Reckless Disregard of Known Cryptographic Vulnerabilities" tier under Jardel Co. v. Hughes, 523 A.2d 518 (Del. 1987).',
+                'Add MSA § 8.2 material-prejudice rebuttal.',
             },
           ],
           dissentingConsiderations:
-            'Strategic Partner Note: Pleading the $5.4M Super-Cap as a summary-judgment floor prevents Meridian from defeating the entire motion by claiming a factual dispute over subjective intent.',
+            'Pleading the $5.4M Super-Cap as a floor maximizes leverage.',
           createdAt: new Date().toISOString(),
         };
       }
     }
 
-    // Round 2+: Verify that objections were cured
     return {
       id: `rev-${Date.now()}-${criticRole.toLowerCase()}`,
       messageId,
@@ -247,10 +316,7 @@ export class AdversarialCoordinator {
       verdict: 'APPROVE',
       severity: 'NONE',
       objections: [],
-      dissentingConsiderations:
-        criticRole === 'CITATION_AUDITOR'
-          ? 'Verified: All case holdings (Abry Partners, Express Scripts, Jardel, Salamone) and Bates pinpoints ([APEX-0014], [APEX-0016], [MERIDIAN-DEP-0041], [0059]) strictly match the retrieved record.'
-          : 'Approved: Tiered summary judgment framing ($5.4M Super-Cap floor + Uncapped Reckless Disregard claim) and § 8.2 material-prejudice rebuttal effectively neutralize opposing counsel’s primary defenses.',
+      dissentingConsiderations: 'All objections verified and cured.',
       createdAt: new Date().toISOString(),
     };
   }

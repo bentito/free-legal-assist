@@ -14,14 +14,16 @@ import {
   Matter,
   MatterDocument,
   PracticeAreaId,
+  PractitionerProfileId,
   SystemPromptSettings,
+  UpdateMatterPayload,
 } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
 let db: LegalDatabase;
 let agentLoop: LegalAgentLoop;
-let activeMatterId = 'matter-apex-meridian';
-let activeThreadId = 'thread-apex-cap-analysis';
+let activeMatterId = 'matter-vt-state-v-thorne';
+let activeThreadId = 'thread-vt-suppression';
 
 function createSafeStorageEncryptor(): SecretEncryptor {
   return {
@@ -153,7 +155,7 @@ function registerIpcHandlers(): void {
         batesRange: 'WP-0001',
         pageCount: 1,
         summary: `Initial work-product memorandum for ${newMatter.name} (${newMatter.jurisdiction}).`,
-        content: `# INITIAL MATTER MEMORANDUM: ${newMatter.name.toUpperCase()}\n\n- **Client**: ${newMatter.clientName}\n- **Matter No.**: ${newMatter.matterNumber}\n- **Governing Jurisdiction**: ${newMatter.jurisdiction}\n- **Citation Manual**: ${newMatter.citationStyle}\n`,
+        content: `# INITIAL MATTER MEMORANDUM: ${newMatter.name.toUpperCase()}\n\n- **Client**: ${newMatter.clientName}\n- **Matter / Docket No.**: ${newMatter.matterNumber}\n- **Governing Jurisdiction**: ${newMatter.jurisdiction}\n- **Citation Manual**: ${newMatter.citationStyle}\n`,
         createdAt: now,
         updatedAt: now,
       };
@@ -175,6 +177,14 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    'legal:update-matter',
+    async (_event, payload: UpdateMatterPayload) => {
+      db.updateMatter(payload);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
     'legal:update-matter-jurisdiction',
     async (
       _event,
@@ -190,6 +200,14 @@ function registerIpcHandlers(): void {
         citationStyle: payload.citationStyle,
         practiceArea: payload.practiceArea,
       });
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:select-practitioner-profile',
+    async (_event, profileId: PractitionerProfileId) => {
+      db.selectPractitionerProfile(profileId);
       return buildBootstrapState();
     }
   );

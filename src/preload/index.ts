@@ -8,7 +8,9 @@ import {
   DocumentCategory,
   LLMProviderId,
   PracticeAreaId,
+  PractitionerProfileId,
   SystemPromptSettings,
+  UpdateMatterPayload,
 } from '../shared/types';
 
 export interface LexHarnessBridge {
@@ -22,12 +24,16 @@ export interface LexHarnessBridge {
     jurisdiction: string;
     citationStyle: string;
   }): Promise<AppBootstrapState>;
+  updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState>;
   updateMatterJurisdiction(payload: {
     matterId: string;
     jurisdiction: string;
     citationStyle: string;
     practiceArea: PracticeAreaId;
   }): Promise<AppBootstrapState>;
+  selectPractitionerProfile(
+    profileId: PractitionerProfileId
+  ): Promise<AppBootstrapState>;
   createThread(payload: {
     matterId: string;
     title: string;
@@ -41,9 +47,13 @@ export interface LexHarnessBridge {
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
   }): Promise<AppBootstrapState>;
-  savePromptSettings(updated: Partial<SystemPromptSettings>): Promise<AppBootstrapState>;
+  savePromptSettings(
+    updated: Partial<SystemPromptSettings>
+  ): Promise<AppBootstrapState>;
   resetPromptSettings(): Promise<AppBootstrapState>;
-  saveAdversarialConfig(updated: Partial<AdversarialConfig>): Promise<AppBootstrapState>;
+  saveAdversarialConfig(
+    updated: Partial<AdversarialConfig>
+  ): Promise<AppBootstrapState>;
   saveProviderCredential(payload: {
     providerId: LLMProviderId;
     apiKey?: string;
@@ -73,8 +83,11 @@ const bridge: LexHarnessBridge = {
   bootstrap: () => ipcRenderer.invoke('legal:bootstrap'),
   selectMatter: (matterId) => ipcRenderer.invoke('legal:select-matter', matterId),
   createMatter: (payload) => ipcRenderer.invoke('legal:create-matter', payload),
+  updateMatter: (payload) => ipcRenderer.invoke('legal:update-matter', payload),
   updateMatterJurisdiction: (payload) =>
     ipcRenderer.invoke('legal:update-matter-jurisdiction', payload),
+  selectPractitionerProfile: (profileId) =>
+    ipcRenderer.invoke('legal:select-practitioner-profile', profileId),
   createThread: (payload) => ipcRenderer.invoke('legal:create-thread', payload),
   selectThread: (threadId) => ipcRenderer.invoke('legal:select-thread', threadId),
   runTurn: (payload) => ipcRenderer.invoke('legal:run-turn', payload),

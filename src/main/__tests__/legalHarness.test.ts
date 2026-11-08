@@ -6,7 +6,7 @@ import { LegalDatabase } from '../db/database';
 import { PromptAssembler } from '../agent/PromptAssembler';
 import { LegalAgentLoop } from '../agent/LegalAgentLoop';
 
-describe('LexHarness Phase 1: SQLite Persistence, Prompt Governance & Multi-LLM Adversarial Loop', () => {
+describe('LexHarness: Practitioner Profiles, Matter Settings Editing & Multi-LLM Adversarial Loop', () => {
   let tmpDir: string;
   let db: LegalDatabase;
 
@@ -20,79 +20,71 @@ describe('LexHarness Phase 1: SQLite Persistence, Prompt Governance & Multi-LLM 
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('seeds SQLite database with initial legal matters, documents, redline versions, and chronology', () => {
-    const matters = db.listMatters();
-    expect(matters.length).toBeGreaterThanOrEqual(2);
+  it('defaults to Vermont Criminal Defense Lawyer profile (1st) and General Legal Practice (2nd), and seeds State of Vermont v. Marcus Thorne', () => {
+    const promptSettings = db.getSystemPromptSettings();
+    expect(promptSettings.activeProfileId).toBe('vt-criminal-defense');
+    expect(promptSettings.profiles.length).toBe(2);
+    expect(promptSettings.profiles[0].id).toBe('vt-criminal-defense');
+    expect(promptSettings.profiles[0].name).toBe('Vermont Criminal Defense Lawyer');
+    expect(promptSettings.profiles[1].id).toBe('general-legal-practice');
+    expect(promptSettings.profiles[1].name).toBe('General Legal Practice');
 
-    const apex = db.getMatter('matter-apex-meridian');
-    expect(apex).not.toBeNull();
-    expect(apex?.jurisdiction).toContain('Delaware');
+    const vtMatter = db.getMatter('matter-vt-state-v-thorne');
+    expect(vtMatter).not.toBeNull();
+    expect(vtMatter?.name).toBe('State of Vermont v. Marcus Thorne');
+    expect(vtMatter?.matterNumber).toContain('26-CR-04118');
+    expect(vtMatter?.jurisdiction).toContain('Vermont Superior Court');
 
-    const docs = db.listDocuments('matter-apex-meridian');
-    expect(docs.length).toBe(4);
-
-    const versions = db.listDocumentVersions('matter-apex-meridian');
-    expect(versions.length).toBe(2);
-
-    const facts = db.listChronologyFacts('matter-apex-meridian');
-    expect(facts.length).toBe(4);
+    const docs = db.listDocuments('matter-vt-state-v-thorne');
+    expect(docs.length).toBe(5);
   });
 
-  it('persists user-governed 4-layer legal system prompts and encrypted provider credentials across reloads', async () => {
-    const updatedSettings = db.saveSystemPromptSettings({
-      coreLegalMandate: 'CUSTOM FIRM MANDATE: Cite Delaware Court of Chancery precedent with pinpoint Bates numbers.',
+  it('allows revisiting and updating Matter settings (name, docket ID, client, jurisdiction, citation style, folder path)', () => {
+    const updated = db.updateMatter({
+      matterId: 'matter-vt-state-v-thorne',
+      name: 'State of Vermont v. Marcus Thorne (Amended Information)',
+      clientName: 'Marcus A. Thorne',
+      matterNumber: '26-CR-04118-AM',
+      practiceArea: 'vt_bail_conditions',
+      jurisdiction: 'Vermont Superior Court, Washington Criminal Division',
+      citationStyle: 'Vermont Rules / Public Domain (20XX VT XX)',
+      folderPath: '~/Matters/26-CR-04118-AM-Thorne',
     });
-    expect(updatedSettings.version).toBe(2);
 
-    db.saveProviderCredential({
-      providerId: 'anthropic',
-      apiKey: 'sk-ant-test-1234567890',
-      defaultModel: 'claude-3-7-sonnet-latest',
-    });
-
-    // Reload from disk to verify SQLite persistence
-    const dbReloaded = new LegalDatabase(tmpDir);
-    await dbReloaded.initialize();
-
-    expect(dbReloaded.getSystemPromptSettings().coreLegalMandate).toContain(
-      'CUSTOM FIRM MANDATE'
-    );
-    expect(dbReloaded.getDecryptedApiKey('anthropic')).toBe('sk-ant-test-1234567890');
+    expect(updated).not.toBeNull();
+    expect(updated?.name).toBe('State of Vermont v. Marcus Thorne (Amended Information)');
+    expect(updated?.clientName).toBe('Marcus A. Thorne');
+    expect(updated?.matterNumber).toBe('26-CR-04118-AM');
+    expect(updated?.practiceArea).toBe('vt_bail_conditions');
+    expect(updated?.jurisdiction).toBe('Vermont Superior Court, Washington Criminal Division');
+    expect(updated?.folderPath).toBe('~/Matters/26-CR-04118-AM-Thorne');
   });
 
-  it('assembles 4-layer legal system prompts with zero software-engineering instructions', () => {
-    const matter = db.getMatter('matter-apex-meridian')!;
-    const settings = db.getSystemPromptSettings();
-    const assembled = PromptAssembler.assembleForMatter(
-      settings,
-      matter,
-      'transactional_contracts'
-    );
+  it('switches between Vermont Criminal Defense Lawyer and General Legal Practice profiles and persists custom prompt edits', async () => {
+    const switched = db.selectPractitionerProfile('general-legal-practice');
+    expect(switched.activeProfileId).toBe('general-legal-practice');
+    expect(switched.activePracticeAreaId).toBe('general_litigation');
 
-    expect(assembled.primarySystemPrompt).toContain('LAYER 1: CORE LEGAL MANDATE');
-    expect(assembled.primarySystemPrompt).toContain(
-      'LAYER 2: PRACTICE AREA PERSONA — TRANSACTIONAL & COMMERCIAL CONTRACTS COUNSEL'
-    );
-    expect(assembled.primarySystemPrompt).toContain(
-      'Delaware Court of Chancery'
-    );
-    expect(assembled.citationAuditorSystemPrompt).toContain(
-      'Independent Citation & Record Auditor'
-    );
-    expect(assembled.opposingCounselSystemPrompt).toContain(
-      'Adversarial Opposing Counsel'
-    );
+    const switchedBack = db.selectPractitionerProfile('vt-criminal-defense');
+    expect(switchedBack.activeProfileId).toBe('vt-criminal-defense');
+    expect(switchedBack.activePracticeAreaId).toBe('vt_suppression_art11');
+
+    const matter = db.getMatter('matter-vt-state-v-thorne')!;
+    const assembled = PromptAssembler.assembleForMatter(switchedBack, matter);
+    expect(assembled.profileName).toBe('Vermont Criminal Defense Lawyer');
+    expect(assembled.primarySystemPrompt).toContain('Chapter I, Article 11');
+    expect(assembled.primarySystemPrompt).toContain('State v. Sprague');
   });
 
-  it('executes local LegalAgentLoop with default Multi-LLM Adversarial Gate and cures critic objections', async () => {
+  it('executes local LegalAgentLoop under Vermont Criminal Defense profile with Multi-LLM Adversarial Gate and cures Article 11 / BWC objections', async () => {
     const loop = new LegalAgentLoop(db);
     const phasesSeen: string[] = [];
 
     const result = await loop.runTurn({
-      matterId: 'matter-apex-meridian',
-      threadId: 'thread-apex-cap-analysis',
+      matterId: 'matter-vt-state-v-thorne',
+      threadId: 'thread-vt-suppression',
       userPrompt:
-        'Assess whether Marcus Vance’s August 2, 2026 deposition admission pierces the $1.8M cap under MSA § 9.2.',
+        'Draft a V.R.Cr.P. 12(b)(3) Motion to Suppress and 12(d) Motion to Dismiss challenging Trooper Keller’s exit order and locked console search.',
       onProgress: (evt) => {
         phasesSeen.push(evt.phase);
       },
@@ -108,7 +100,7 @@ describe('LexHarness Phase 1: SQLite Persistence, Prompt Governance & Multi-LLM 
     expect(result.assistantMessage.toolCalls.length).toBeGreaterThanOrEqual(3);
     expect(result.assistantMessage.adversarialReviews.length).toBe(2);
     expect(result.assistantMessage.revisionRoundsCompleted).toBe(1);
-    expect(result.assistantMessage.initialDraftBeforeReview).toBeDefined();
-    expect(result.assistantMessage.content).toContain('$5,400,000 Enhanced Super-Cap');
+    expect(result.assistantMessage.content).toContain('State v. Sprague');
+    expect(result.assistantMessage.content).toContain('V.R.Cr.P. 12(d)');
   });
 });

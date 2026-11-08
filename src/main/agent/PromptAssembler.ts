@@ -11,6 +11,12 @@ export class PromptAssembler {
     matter: Matter,
     overridePracticeAreaId?: PracticeAreaId
   ): AssembledPromptPreview {
+    const activeProfile =
+      settings.profiles?.find((p) => p.id === settings.activeProfileId) ??
+      settings.profiles?.[0];
+    const profileName =
+      activeProfile?.name ?? 'Vermont Criminal Defense Lawyer';
+
     const activePracticeId =
       overridePracticeAreaId ?? matter.practiceArea ?? settings.activePracticeAreaId;
     const preset =
@@ -18,42 +24,44 @@ export class PromptAssembler {
       settings.practiceAreaPresets[0];
 
     const primarySystemPrompt = [
-      `# LAYER 1: CORE LEGAL MANDATE & ETHICAL GUARDRAILS (USER-GOVERNED v${settings.version})`,
+      `# PRACTITIONER PROFILE: ${profileName.toUpperCase()}`,
+      `# LAYER 1: CORE LEGAL MANDATE & ETHICAL GUARDRAILS`,
       settings.coreLegalMandate.trim(),
       '',
-      `# LAYER 2: PRACTICE AREA PERSONA — ${preset.name.toUpperCase()}`,
+      `# LAYER 2: TASK & PRACTICE AREA DIRECTIVE — ${preset.name.toUpperCase()}`,
       preset.systemPrompt.trim(),
       '',
-      `# LAYER 3: MATTER JURISDICTION, FORUM & CITATION RULES`,
-      `- **Active Matter**: ${matter.name} (${matter.matterNumber})`,
-      `- **Client**: ${matter.clientName}`,
+      `# LAYER 3: MATTER / DOCKET JURISDICTION, FORUM & CITATION RULES`,
+      `- **Active Matter / Case**: ${matter.name} (${matter.matterNumber})`,
+      `- **Client / Represented Party**: ${matter.clientName}`,
       `- **Governing Jurisdiction & Forum**: ${matter.jurisdiction}`,
       `- **Mandatory Citation Manual**: ${matter.citationStyle}`,
-      `- **Local Matter Corpus Scope**: All factual claims and contractual citations must be grounded in the documents indexed in \`${matter.folderPath}\` or verified via external legal authority lookup.`,
+      `- **Local Matter Corpus Scope**: All factual claims, record pinpoints, and citations must be grounded in the discovery/matter files indexed in \`${matter.folderPath}\` or verified via external legal authority lookup.`,
     ].join('\n');
 
     const citationAuditorSystemPrompt = [
-      `# LAYER 4A: ADVERSARIAL CITATION & RECORD AUDITOR SYSTEM PROMPT`,
+      `# LAYER 4A: ADVERSARIAL CITATION & RECORD AUDITOR SYSTEM PROMPT (${profileName.toUpperCase()})`,
       settings.criticCitationAuditorPrompt.trim(),
       '',
       `### ACTIVE MATTER CONTEXT FOR AUDIT`,
-      `- Matter: ${matter.name} (${matter.matterNumber})`,
+      `- Matter / Docket: ${matter.name} (${matter.matterNumber})`,
       `- Governing Jurisdiction: ${matter.jurisdiction}`,
       `- Required Citation Format: ${matter.citationStyle}`,
     ].join('\n');
 
     const opposingCounselSystemPrompt = [
-      `# LAYER 4B: ADVERSARIAL OPPOSING COUNSEL & REVIEWING PARTNER SYSTEM PROMPT`,
+      `# LAYER 4B: ADVERSARIAL OPPOSING COUNSEL / REVIEWING CRITIC SYSTEM PROMPT (${profileName.toUpperCase()})`,
       settings.criticOpposingCounselPrompt.trim(),
       '',
       `### ACTIVE MATTER CONTEXT FOR CRITIQUE`,
-      `- Matter: ${matter.name} (${matter.matterNumber})`,
+      `- Matter / Docket: ${matter.name} (${matter.matterNumber})`,
       `- Client Position Being Stress-Tested: ${matter.clientName}`,
       `- Governing Jurisdiction: ${matter.jurisdiction}`,
-      `- Active Practice Area Directive: ${preset.name}`,
+      `- Active Task Directive: ${preset.name}`,
     ].join('\n');
 
     return {
+      profileName,
       matterName: matter.name,
       jurisdiction: matter.jurisdiction,
       citationStyle: matter.citationStyle,

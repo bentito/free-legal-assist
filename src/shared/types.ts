@@ -5,11 +5,20 @@ export type LLMProviderId =
   | 'openrouter'
   | 'legal-simulator';
 
+export type PractitionerProfileId =
+  | 'vt-criminal-defense'
+  | 'general-legal-practice';
+
 export type PracticeAreaId =
-  | 'litigation_appellate'
-  | 'transactional_contracts'
-  | 'regulatory_compliance'
-  | 'discovery_investigation';
+  | 'vt_suppression_art11'
+  | 'vt_bail_conditions'
+  | 'vt_discovery_impeachment'
+  | 'vt_plea_sentencing'
+  | 'general_litigation'
+  | 'general_transactional'
+  | 'general_regulatory'
+  | 'general_investigation'
+  | string;
 
 export type AdversarialReviewMode =
   | 'multi_llm_default'
@@ -36,9 +45,25 @@ export interface PracticeAreaPreset {
   systemPrompt: string;
 }
 
+export interface PractitionerProfile {
+  id: PractitionerProfileId;
+  name: string;
+  description: string;
+  defaultJurisdiction: string;
+  defaultCitationStyle: string;
+  coreLegalMandate: string;
+  practiceAreaPresets: PracticeAreaPreset[];
+  activePracticeAreaId: PracticeAreaId;
+  criticCitationAuditorPrompt: string;
+  criticOpposingCounselPrompt: string;
+  samplePrompts: string[];
+}
+
 export interface SystemPromptSettings {
   id: string;
   version: number;
+  activeProfileId: PractitionerProfileId;
+  profiles: PractitionerProfile[];
   coreLegalMandate: string;
   practiceAreaPresets: PracticeAreaPreset[];
   activePracticeAreaId: PracticeAreaId;
@@ -69,6 +94,17 @@ export interface Matter {
   folderPath: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UpdateMatterPayload {
+  matterId: string;
+  name: string;
+  clientName: string;
+  matterNumber: string;
+  practiceArea: PracticeAreaId;
+  jurisdiction: string;
+  citationStyle: string;
+  folderPath: string;
 }
 
 export type DocumentCategory =
@@ -204,6 +240,7 @@ export interface AgentProgressEvent {
 }
 
 export interface AssembledPromptPreview {
+  profileName: string;
   matterName: string;
   jurisdiction: string;
   citationStyle: string;

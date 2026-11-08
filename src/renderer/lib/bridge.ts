@@ -7,7 +7,9 @@ import {
   DocumentCategory,
   LLMProviderId,
   PracticeAreaId,
+  PractitionerProfileId,
   SystemPromptSettings,
+  UpdateMatterPayload,
 } from '../../shared/types';
 
 declare global {
@@ -23,12 +25,16 @@ declare global {
         jurisdiction: string;
         citationStyle: string;
       }): Promise<AppBootstrapState>;
+      updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState>;
       updateMatterJurisdiction(payload: {
         matterId: string;
         jurisdiction: string;
         citationStyle: string;
         practiceArea: PracticeAreaId;
       }): Promise<AppBootstrapState>;
+      selectPractitionerProfile(
+        profileId: PractitionerProfileId
+      ): Promise<AppBootstrapState>;
       createThread(payload: {
         matterId: string;
         title: string;
@@ -42,9 +48,13 @@ declare global {
         overrideReviewMode?: AdversarialReviewMode;
         overridePracticeAreaId?: PracticeAreaId;
       }): Promise<AppBootstrapState>;
-      savePromptSettings(updated: Partial<SystemPromptSettings>): Promise<AppBootstrapState>;
+      savePromptSettings(
+        updated: Partial<SystemPromptSettings>
+      ): Promise<AppBootstrapState>;
       resetPromptSettings(): Promise<AppBootstrapState>;
-      saveAdversarialConfig(updated: Partial<AdversarialConfig>): Promise<AppBootstrapState>;
+      saveAdversarialConfig(
+        updated: Partial<AdversarialConfig>
+      ): Promise<AppBootstrapState>;
       saveProviderCredential(payload: {
         providerId: LLMProviderId;
         apiKey?: string;
@@ -99,6 +109,10 @@ export const ipcBridge = {
     return window.lexharness!.createMatter(payload);
   },
 
+  async updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState> {
+    return window.lexharness!.updateMatter(payload);
+  },
+
   async updateMatterJurisdiction(payload: {
     matterId: string;
     jurisdiction: string;
@@ -106,6 +120,12 @@ export const ipcBridge = {
     practiceArea: PracticeAreaId;
   }): Promise<AppBootstrapState> {
     return window.lexharness!.updateMatterJurisdiction(payload);
+  },
+
+  async selectPractitionerProfile(
+    profileId: PractitionerProfileId
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.selectPractitionerProfile(profileId);
   },
 
   async createThread(payload: {
