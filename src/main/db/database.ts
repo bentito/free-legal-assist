@@ -5,8 +5,6 @@ import {
   AdversarialConfig,
   ChronologyFact,
   DocumentVersion,
-  LegalMcpAuthTier,
-  LegalMcpServerConfig,
   LegalThread,
   LLMProviderId,
   Matter,
@@ -15,7 +13,6 @@ import {
   PractitionerProfile,
   PractitionerProfileId,
   ProviderConfig,
-  SaveLegalMcpServerPayload,
   SystemPromptSettings,
   ThreadMessage,
   UpdateMatterPayload,
@@ -1020,87 +1017,6 @@ export class LegalDatabase {
         defaultModel: row?.default_model || cat.defaultModel,
       };
     });
-  }
-
-  // --- Legal MCP Toolsets & CourtListener Default Persistence ---
-  getLegalMcpSavedState(): {
-    overrides: Record<
-      string,
-      {
-        enabled?: boolean;
-        encryptedToken?: string;
-        endpointUrl?: string;
-        command?: string;
-        args?: string[];
-        authTier?: LegalMcpAuthTier;
-      }
-    >;
-    customServers: Omit<
-      LegalMcpServerConfig,
-      'hasAuthToken' | 'maskedAuthToken' | 'agentSyncStatus'
-    >[];
-    lastSyncedAt?: string;
-  } {
-    return (
-      this.getKeyValue('legal_mcp_saved_state') ?? {
-        overrides: {},
-        customServers: [],
-        lastSyncedAt: new Date().toISOString(),
-      }
-    );
-  }
-
-  saveLegalMcpOverride(payload: SaveLegalMcpServerPayload): void {
-    const state = this.getLegalMcpSavedState();
-    const prev = state.overrides[payload.serverId] ?? {};
-    let encryptedToken = prev.encryptedToken;
-    if (payload.authToken !== undefined) {
-      encryptedToken =
-        payload.authToken.trim().length > 0
-          ? this.encryptor.encrypt(payload.authToken.trim())
-          : '';
-    }
-
-    state.overrides[payload.serverId] = {
-      enabled: payload.enabled !== undefined ? payload.enabled : prev.enabled,
-      encryptedToken,
-      endpointUrl:
-        payload.endpointUrl !== undefined ? payload.endpointUrl.trim() : prev.endpointUrl,
-      command: payload.command !== undefined ? payload.command.trim() : prev.command,
-      args: payload.args !== undefined ? payload.args : prev.args,
-      authTier: payload.authTier ?? prev.authTier,
-    };
-    state.lastSyncedAt = new Date().toISOString();
-    this.setKeyValue('legal_mcp_saved_state', state, true);
-  }
-
-  addCustomLegalMcpServer(
-    serverTemplate: Omit<
-      LegalMcpServerConfig,
-      'hasAuthToken' | 'maskedAuthToken' | 'agentSyncStatus'
-    >
-  ): void {
-    const state = this.getLegalMcpSavedState();
-    state.customServers = [...(state.customServers || []), serverTemplate];
-    state.lastSyncedAt = new Date().toISOString();
-    this.setKeyValue('legal_mcp_saved_state', state, true);
-  }
-
-  getLegalMcpToken(serverId: string): string | null {
-    const state = this.getLegalMcpSavedState();
-    const enc = state.overrides[serverId]?.encryptedToken;
-    if (!enc) return null;
-    try {
-      return this.encryptor.decrypt(enc);
-    } catch {
-      return null;
-    }
-  }
-
-  markLegalMcpSynced(): void {
-    const state = this.getLegalMcpSavedState();
-    state.lastSyncedAt = new Date().toISOString();
-    this.setKeyValue('legal_mcp_saved_state', state, true);
   }
 
   // --- T3-Style Agent Onboarding & Multi-Account Codex Instances ---

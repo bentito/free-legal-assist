@@ -5,7 +5,6 @@ import {
   Matter,
   MatterDocument,
 } from '../../../shared/types';
-import { LegalMcpManager } from '../../mcp/LegalMcpManager';
 import { CliAgentDriverManager } from './CliAgentDriverManager';
 
 export interface LLMCompletionRequest {
@@ -61,11 +60,6 @@ export class MultiLLMClient {
       if (this.hasLiveCredentials(req.provider)) {
         try {
           const overrides = this.db.getCliOverrides()[req.provider];
-          const mcpInjection = LegalMcpManager.getCliMcpInjectionArgs(this.db);
-          const courtlistenerToken =
-            this.db.getLegalMcpToken('courtlistener-mcp') ||
-            process.env.COURTLISTENER_API_TOKEN ||
-            undefined;
           const cliText = await CliAgentDriverManager.runCliTurn({
             providerId: req.provider,
             model: req.model,
@@ -74,10 +68,6 @@ export class MultiLLMClient {
             binaryPath: overrides?.binaryPath,
             customArgs: overrides?.customArgs,
             reasoningEffort: overrides?.reasoningEffort || 'medium',
-            mcpInjection: {
-              ...mcpInjection,
-              courtlistenerToken,
-            },
           });
           return {
             text: cliText,

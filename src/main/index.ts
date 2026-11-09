@@ -4,22 +4,18 @@ import { LegalDatabase, SecretEncryptor } from './db/database';
 import { LegalAgentLoop } from './agent/LegalAgentLoop';
 import { PromptAssembler } from './agent/PromptAssembler';
 import { CliAgentDriverManager } from './agent/providers/CliAgentDriverManager';
-import { LegalMcpManager } from './mcp/LegalMcpManager';
 import {
   AdversarialConfig,
   AdversarialReviewMode,
   AppBootstrapState,
   ChronologyFact,
-  CreateCustomLegalMcpServerPayload,
   DocumentCategory,
-  LegalMcpServerId,
   LegalThread,
   LLMProviderId,
   Matter,
   MatterDocument,
   PracticeAreaId,
   PractitionerProfileId,
-  SaveLegalMcpServerPayload,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../shared/types';
@@ -86,13 +82,10 @@ function buildBootstrapState(): AppBootstrapState {
   const promptSettings = db.getSystemPromptSettings();
   const adversarialConfig = db.getAdversarialConfig();
   const providers = db.listProviderConfigs();
-  const legalMcpServers = LegalMcpManager.ensureAndSyncAgentMcpConfigs(db);
-  const mcpInjection = LegalMcpManager.getCliMcpInjectionArgs(db);
   const assembledPromptPreview = PromptAssembler.assembleForMatter(
     promptSettings,
     currentMatter,
-    currentThread.practiceArea,
-    mcpInjection.enabledServersSummary
+    currentThread.practiceArea
   );
 
   const onboardingSaved = db.getAgentOnboardingSavedState();
@@ -115,7 +108,6 @@ function buildBootstrapState(): AppBootstrapState {
     promptSettings,
     adversarialConfig,
     providers,
-    legalMcpServers,
     assembledPromptPreview,
     agentOnboarding,
   };
@@ -332,34 +324,6 @@ function registerIpcHandlers(): void {
     ) => {
       db.saveProviderCredential(payload);
       return buildBootstrapState();
-    }
-  );
-
-  ipcMain.handle(
-    'legal:save-legal-mcp-server',
-    async (_event, payload: SaveLegalMcpServerPayload) => {
-      LegalMcpManager.saveServerConfig(db, payload);
-      return buildBootstrapState();
-    }
-  );
-
-  ipcMain.handle(
-    'legal:add-custom-legal-mcp-server',
-    async (_event, payload: CreateCustomLegalMcpServerPayload) => {
-      LegalMcpManager.addCustomServer(db, payload);
-      return buildBootstrapState();
-    }
-  );
-
-  ipcMain.handle('legal:sync-legal-mcp-to-agents', async () => {
-    LegalMcpManager.ensureAndSyncAgentMcpConfigs(db);
-    return buildBootstrapState();
-  });
-
-  ipcMain.handle(
-    'legal:test-legal-mcp-server',
-    async (_event, serverId: LegalMcpServerId) => {
-      return LegalMcpManager.testServerConnection(db, serverId);
     }
   );
 

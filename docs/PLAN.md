@@ -4,12 +4,12 @@
 
 **LexHarness** is a cross-platform (**macOS and Windows**) desktop application that provides lawyers with a dedicated **Agent Harness Control Surface**—an autonomous, multi-step workspace for legal research, record investigation, citation verification, and work-product drafting:
 
-1. **Local Client Agent Loop**: Runs natively on the lawyer's Mac or Windows machine inside the Electron main process, maintaining matter and thread state in a local SQLite database (`sql.js`), executing local legal tools and **Legal Model Context Protocol (MCP) Toolsets** (`courtlistener_lookup_citation`, `courtlistener_search_opinions`, `vt_statutes_lookup`, `list_matter_documents`, `search_matter_corpus`, `read_document_pages`, `propose_document_redline`, `record_chronology_fact`), and calling LLM provider APIs or T3-style CLI/ACP agent harnesses directly from the client.
+1. **Local Client Agent Loop**: Runs natively on the lawyer's Mac or Windows machine inside the Electron main process, maintaining matter and thread state in a local SQLite database (`sql.js`), executing local matter evidence tools (`search_matter_corpus`, `verify_citation_lookup`, `read_document_pages`, `propose_document_redline`, `record_chronology_fact`), and calling LLM provider APIs or T3-style CLI/ACP agent harnesses directly from the client.
 2. **Practitioner Profiles & User-Governed Legal System Prompts**: All system prompts, task presets, default jurisdictions, and critic instructions are organized into selectable **Practitioner Profiles** and exposed directly in the application's **Prompt Governance Studio** (Settings).
    - **1st in Pick List (Default Profile)**: **`Vermont Criminal Defense Lawyer`** — Pre-configured for Vermont Superior Court, Criminal Division practice, grounding analysis in the Vermont Constitution (specifically **Chapter I, Article 11** search-and-seizure protections, which are broader than the federal Fourth Amendment, and **Article 10** trial/due process rights), the **Vermont Rules of Criminal Procedure (V.R.Cr.P.)**, **Vermont Rules of Evidence (V.R.E.)**, **Title 13 (`13 V.S.A.`)** and **Title 23 (`23 V.S.A.`)**, and Vermont Supreme Court precedent.
    - **2nd in Pick List**: **`General Legal Practice`** — A versatile civil, transactional, and regulatory profile with general practice presets.
 3. **Re-Visiting, Editing & Deleting Matter / Docket Settings**: Lawyers can revisit and update any Matter's settings at any time by **right-clicking** the Matter in the left sidebar (or clicking the **Settings gear icon** on the Matter card or top header bar) to open the **Matter Settings Dialog** and edit the **Matter/Case Name**, **Docket ID / Matter Number**, **Client / Defendant Name**, **Governing Jurisdiction & Forum**, **Citation Style**, **Default Task Persona**, and **Local Folder Path**, or permanently delete a Matter through a **Confirm Permanent Matter Deletion** dialog.
-4. **Default Legal MCP Toolsets (CourtListener Free-Account Default + Configurable Free & Authenticated MCPs)**: Every agent in LexHarness (including `Antigravity ACP`, `OpenAI Codex CLI`, `Anthropic Claude Code CLI`, and the `Local Legal Agent Loop`) is automatically provisioned and synced with legal MCP tooling—defaulting to **CourtListener (Free Law Project REST API v4 / MCP — Free Account Required)** alongside **Vermont Statutes & Rules MCP**, **U.S. GovInfo / eCFR MCP**, **Authenticated Commercial Citator MCP (Westlaw / Lexis+ AI / Fastcase)**, and custom user-registered MCP servers.
+4. **Separation of Concerns: Agent-Native MCP Toolsets**: Model Context Protocol (MCP) tooling is fundamentally a capability and function of the agents (e.g., Anthropic Claude Code, OpenAI Codex, Antigravity ACP), which natively configure, authenticate, and run their own MCP servers (such as CourtListener, PACER/RECAP, or custom bar citators). LexHarness intentionally avoids centrally managing, configuring, or hosting MCP servers on their behalf, preserving agent autonomy while focusing the harness on client privilege, matter evidence isolation, and multi-LLM adversarial review.
 5. **Default Multi-LLM Adversarial Review Gate**: Before any final answer or drafted legal artifact is presented to the user, the local agent loop automatically intercepts the candidate output and routes it in parallel through independent reviewer models (e.g., Anthropic Claude as Primary Defense/Lead Counsel, Google Gemini 2.5 Pro as **Citation & Record Auditor**, and OpenAI o3-mini / GPT-4o as **Adversarial Opposing Counsel / State's Attorney & Trial Judge Critic**) to catch unsupported citations, record mismatches, constitutional/procedural omissions, and drafting risks, forcing an automatic revision pass when material objections are raised.
 6. **Phase 2 — On-Device Local Model Router & Privileged PII Scrubbing Gateway**: A local small-model router running on the same computer as LexHarness (via Ollama / `llama.cpp` / ONNX) that (a) classifies request complexity to route simple tasks to fast/low-cost or local models and complex motions to frontier reasoning models, and (b) strips and pseudonymizes client PII and privileged identifiers before any payload is sent to external frontier models, re-hydrating the real client details locally upon return.
 
@@ -17,17 +17,17 @@
 
 ## 2. Clean-Slate Desktop Architecture
 
-The application is built on **Electron 33 + React 18 + Vite 6 + TypeScript 5 + Tailwind CSS + SQLite (`sql.js`)**, running a local orchestration engine, Legal MCP manager, and tool runner directly in the Electron Main Process and communicating with the React Control Surface over a typed `contextBridge` IPC layer.
+The application is built on **Electron 33 + React 18 + Vite 6 + TypeScript 5 + Tailwind CSS + SQLite (`sql.js`)**, running a local orchestration engine, prompt assembler, and tool runner directly in the Electron Main Process and communicating with the React Control Surface over a typed `contextBridge` IPC layer.
 
 ```mermaid
 flowchart TB
     subgraph Desktop["Cross-Platform Desktop App (macOS & Windows - Electron)"]
         subgraph UI["Renderer Control Surface (src/renderer)"]
-            Header["macOS Inset Header Bar (Active Profile Badge, Matter/Docket + Gear, CourtListener MCP Pill, Gate Status)"]
-            LeftSidebar["Left Pane: Matters/Cases, Threads, Legal MCP Toolsets Status Card & Multi-LLM Gate Card"]
-            CenterStream["Center Pane: Agent Loop Stream, MCP & Local Tool Cards, Privacy/Routing Badge, Adversarial Scorecard & Composer"]
+            Header["macOS Inset Header Bar (Active Profile Badge, Matter/Docket + Gear, Connected Agents Pill, Gate Status)"]
+            LeftSidebar["Left Pane: Matters/Cases, Threads & Multi-LLM Gate Card"]
+            CenterStream["Center Pane: Agent Loop Stream, Grounded Tool Cards, Privacy/Routing Badge, Adversarial Scorecard & Composer"]
             RightPane["Right Pane: Work-Product Redline Viewer, Discovery/Matter Corpus & Fact Chronology"]
-            StudioModal["Prompt Governance Studio (Profiles, Layers 1–4 Prompts, Legal MCP Toolsets, Local Router & PII Policy, CLI Agents)"]
+            StudioModal["Prompt Governance Studio (Profiles, Layers 1–4 Prompts, Model Roles & Credentials, Local Router & PII Policy)"]
             MatterModal["Matter Settings & Delete Confirmation Dialogs"]
         end
 
@@ -36,7 +36,6 @@ flowchart TB
             Orchestrator["LegalAgentLoop (src/main/agent/LegalAgentLoop.ts)"]
             PromptAssembler["PromptAssembler (src/main/agent/PromptAssembler.ts)"]
             RouterGateway["Phase 2: LocalPrivacyModelRouter & PiiScrubber (On-Device SLM + Deterministic Vault)"]
-            McpManager["LegalMcpManager + Embedded MCP Stdio Server (src/main/mcp/)"]
             CliDrivers["CliAgentDriverManager (src/main/agent/providers/CliAgentDriverManager.ts)"]
             AdversarialEngine["AdversarialCoordinator (src/main/agent/AdversarialCoordinator.ts)"]
             LLMClient["MultiLLMClient (src/main/agent/providers/MultiLLMClient.ts)"]
@@ -47,7 +46,6 @@ flowchart TB
 
     subgraph Providers["Local On-Device SLM + Multi-LLM Frontier Providers & Legal MCP Endpoints"]
         LocalSLM["On-Device Local Model (Ollama / llama.cpp: Qwen-2.5-3B / Llama-3.2-3B / Phi-4-mini)"]
-        CourtListener["CourtListener REST API v4 / MCP (Default — Free Account Token)"]
         CLI["T3 CLI Agent Harnesses: Antigravity ACP (agy), Codex CLI (codex exec), Claude Code (claude --mcp-config)"]
         CloudAPIs["Direct HTTPS APIs: Anthropic Claude, Google Gemini, OpenAI, OpenRouter"]
         Sim["Built-In Local Legal Harness Engine (Zero-Key Mac/Win Test Mode)"]
@@ -56,11 +54,8 @@ flowchart TB
     UI <-->|window.lexharness IPC| IPC
     IPC <--> DB
     IPC --> Orchestrator
-    IPC <--> McpManager
     Orchestrator --> PromptAssembler
     Orchestrator <--> ToolRunner
-    ToolRunner <--> McpManager
-    McpManager <--> CourtListener
     ToolRunner <--> DB
     Orchestrator <--> RouterGateway
     RouterGateway <--> LocalSLM
@@ -69,7 +64,6 @@ flowchart TB
     Orchestrator <--> AdversarialEngine
     AdversarialEngine <--> RouterGateway
     LLMClient <--> CliDrivers
-    CliDrivers <--> McpManager
     CliDrivers <--> CLI
     LLMClient <--> CloudAPIs
     LLMClient <--> Sim
@@ -183,26 +177,21 @@ LexHarness replicates T3 Code's local agent driver architecture (`CliAgentDriver
 
 ---
 
-## 6. Legal MCP Toolset Provisioning & CourtListener Default Integration (`LegalMcpManager`)
+## 6. Architectural Separation of Concerns: Agent-Native MCP Tooling & Local Matter Evidence Tools
 
-To guarantee that every legal agent (`Antigravity ACP`, `OpenAI Codex CLI`, `Anthropic Claude Code CLI`, and the `Local Legal Agent Loop`) is properly equipped with legal-specific Model Context Protocol (MCP) tooling, LexHarness includes an embedded **JSON-RPC 2.0 Legal MCP Stdio Server** (`src/main/mcp/lexharness-legal-mcp-stdio.ts`) and **Legal MCP Manager** (`src/main/mcp/LegalMcpManager.ts`):
+A core architectural principle in LexHarness is the clean **Separation of Concerns between Agent Capabilities and Harness Governance**:
 
-1. **Default Legal MCP Toolset — `courtlistener-mcp` (`CourtListener Legal Research MCP — Free Account Required`)**:
-   - Enabled by default (`isDefault: true`, `enabled: true`, `authTier: 'free_account_required'`).
-   - Connects to Free Law Project's **CourtListener REST API v4** (`https://www.courtlistener.com/api/rest/v4/citation-lookup/` and `/api/rest/v4/search/`).
-   - Exposes `courtlistener_lookup_citation`, `courtlistener_search_opinions`, `courtlistener_search_dockets_recap`, and `courtlistener_get_opinion_cluster`.
-   - Lawyers can paste their free CourtListener account token (`COURTLISTENER_API_TOKEN` from `https://www.courtlistener.com/help/api/rest/`) in **Prompt Governance Studio → Legal MCP Toolsets**, encrypt it via OS `safeStorage`, and click **`Test MCP Toolset`** to verify live API v4 connectivity.
-2. **Additional Configurable Free & Authenticated Legal MCP Toolsets**:
-   - **`vt-statutes-mcp` (`Vermont Statutes, Art. 11 & V.R.Cr.P. Rules MCP`)**: Public/free toolset enabled by default (`vt_statutes_lookup`, `vt_article11_constitutional_audit`).
-   - **`govinfo-ecfr-mcp` (`U.S. GovInfo, U.S. Code & eCFR Federal Regulatory MCP`)**: Free `api.data.gov` key or `DEMO_KEY` default (`govinfo_federal_lookup`, `ecfr_lookup_regulation`).
-   - **`commercial-lexis-westlaw-mcp` (`Commercial Citator & Treatise MCP — Westlaw Precision / Lexis+ AI / Fastcase`)**: Authenticated enterprise connector (`commercial_citator_shepardize_keycite`, `commercial_secondary_treatise_search`).
-   - **Custom Legal MCP Registration (`+ Add Custom Legal MCP`)**: Allows adding any custom `stdio`, `http-sse`, or `http-rest-bridge` legal MCP toolset with free or authenticated credentials.
-3. **Automatic Agent Harness MCP Config Sync (`ensureAndSyncAgentMcpConfigs`)**:
-   - Automatically writes `~/.lexharness/mcp-legal-servers.json` and injects the active MCP configuration into:
-     - **Claude Code CLI**: Passes `--mcp-config <json>` on every turn (matching T3 Code's `sdk.mjs` behavior).
-     - **OpenAI Codex CLI**: Passes `--config mcp_servers.<id>.command="node" --config mcp_servers.<id>.args=[...]` on every turn.
-     - **Antigravity ACP (`agy`)**: Injects `LEXHARNESS_MCP_CONFIG_PATH` and `COURTLISTENER_API_TOKEN`.
-     - **Local Legal Agent Loop**: Executes `courtlistener_lookup_citation` and `vt_statutes_lookup` directly during the `executing_tools` phase and displays `[MCP: CourtListener MCP (v4)]` badges on tool execution cards in the center stream.
+### 6.1 MCP is a Function of the Agents, Not the Harness
+- **Agent-Native Discovery & Lifecycle**: Model Context Protocol (MCP) tooling (such as CourtListener legal search, SEC EDGAR, or state bar citators) belongs to the agents themselves (`claude`, `codex`, `agy` ACP). Each agent runtime maintains its own configuration file, discovery mechanism, and transport bindings (e.g. `claude mcp add`, `~/.codex/config.toml` or `codex mcp`, and Antigravity tool descriptors).
+- **No Harness Proxying or Central Re-Implementation**: The harness does not interpose, proxy, or centrally host MCP servers on behalf of agents. Attempting to manage or inject agent-internal MCP tooling from the outer harness creates redundant configuration drift, credential duplication, and brittle runtime dependencies.
+- **Agent Autonomy**: When agents are launched (via CLI harness, ACP, or direct API), they independently execute their own configured MCP tools with full agentic autonomy.
+
+### 6.2 The Harness Role: Local Matter Evidence Grounding & Adversarial Governance
+LexHarness focuses exclusively on the governance layer that agents cannot provide themselves:
+1. **Confidential Matter Corpus & Bates Isolation**: Providing sandboxed, client-side tools (`search_matter_corpus`, `read_document_pages`, `record_chronology_fact`) strictly grounded in the local matter discovery folder (`~/Matters/<Docket>`).
+2. **4-Layer Legal Prompt Hierarchy**: Composing Constitutional Mandate, Practice Presets, Forum & Citation Rules, and Critic Personas.
+3. **Multi-Agent Adversarial Review Gates**: Running parallel, multi-family LLM critics (Citation & Record Auditor, Opposing Counsel / Judge Critic) with automatic rejection and revision loops.
+4. **Local Model Routing & Privileged PII Stripping (Phase 2)**: Scrubbing client-identifying data before anything reaches cloud endpoints.
 
 ---
 
@@ -315,32 +304,29 @@ free-legal-assist/
     │   ├── db/
     │   │   ├── defaultLegalData.ts               # Built-in Practitioner Profiles (1. VT Criminal Defense, 2. General Practice) & seeded matters
     │   │   └── database.ts                       # SQLite (sql.js) persistence, profile switching, updateMatter, deleteMatter, CLI & MCP state
-    │   ├── mcp/
-    │   │   ├── lexharness-legal-mcp-stdio.ts     # Embedded JSON-RPC 2.0 Legal MCP Stdio Server for CourtListener & VT Statutes
-    │   │   └── LegalMcpManager.ts                # Manages CourtListener default MCP, custom/authed MCPs, live tests & agent config sync
     │   ├── agent/
-    │   │   ├── PromptAssembler.ts                # 4-layer dynamic legal system prompt composer (+ Layer 3B Legal MCP inventory)
+    │   │   ├── PromptAssembler.ts                # 4-layer dynamic legal system prompt composer 
     │   │   ├── AdversarialCoordinator.ts         # Parallel Multi-LLM critic evaluation & JSON verdict parser
-    │   │   ├── LegalAgentLoop.ts                 # Autonomous tool & CourtListener MCP execution, primary draft, adversarial gate & revision loop
+    │   │   ├── LegalAgentLoop.ts                 # Autonomous grounded tool execution, primary draft, adversarial gate & revision loop
     │   │   ├── router/                           # [Phase 2 Planned] On-Device Local Model Router & PII Scrubbing Gateway
     │   │   │   ├── LocalPrivacyModelRouter.ts    # [Phase 2 Planned] Complexity/cost classifier & routing orchestrator (Ollama / llama.cpp)
     │   │   │   └── PiiScrubberVault.ts           # [Phase 2 Planned] Bidirectional PII pseudonymizer & local safeStorage re-hydration vault
     │   │   └── providers/
-    │   │       ├── CliAgentDriverManager.ts      # T3-style CLI/ACP agent driver for Antigravity ACP, Codex CLI & Claude Code CLI (+ MCP flags)
+    │   │       ├── CliAgentDriverManager.ts      # T3-style CLI/ACP agent driver for Antigravity ACP, Codex CLI & Claude Code CLI 
     │   │       └── MultiLLMClient.ts             # Dispatches to CLI Agent Harnesses, direct HTTPS APIs, or Local Legal Engine
     │   ├── tools/
-    │   │   └── LegalToolExecutor.ts              # Local legal & CourtListener MCP tools operating against Matter corpus & CourtListener v4
+    │   │   └── LegalToolExecutor.ts              # Local legal evidence tools operating against Matter corpus
     │   └── __tests__/
-    │       └── legalHarness.test.ts              # Vitest suite verifying profiles, Matter Settings, deletion, CLI drivers, Legal MCPs & loop
+    │       └── legalHarness.test.ts              # Vitest suite verifying profiles, Matter Settings, deletion, CLI drivers, agent onboarding & loop
     └── renderer/
         ├── main.tsx                              # React DOM root mount
         ├── styles.css                            # Tailwind directives + macOS -webkit-app-region drag rules
-        ├── App.tsx                               # Main 3-pane Legal Agent Control Surface UI + MCP status cards + Matter Settings & Delete Dialogs
+        ├── App.tsx                               # Main 3-pane Legal Agent Control Surface UI + Matter Settings & Delete Dialogs
         ├── lib/
         │   └── bridge.ts                         # Typed renderer wrapper around window.lexharness
         └── components/
             ├── ConnectAgentsModal.tsx            # T3-style "Connect your agents" onboarding, multi-account ChatGPT & auth terminal modal
-            ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 7-tab modal (Layers 1–4, Legal MCP Toolsets, CLI Agents & Preview)
+            ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 7-tab modal (Layers 1–4, CLI Agents & Preview)
             └── RightWorkspacePane.tsx            # 3-tab right pane: Work-Product Redline, Matter Corpus & Chronology
 ```
 

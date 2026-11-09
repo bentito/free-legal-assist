@@ -5,14 +5,10 @@ import {
   AgentSetupTerminalEvent,
   AppBootstrapState,
   ChronologyFact,
-  CreateCustomLegalMcpServerPayload,
   DocumentCategory,
-  LegalMcpServerId,
-  LegalMcpTestResult,
   LLMProviderId,
   PracticeAreaId,
   PractitionerProfileId,
-  SaveLegalMcpServerPayload,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../../shared/types';
@@ -71,14 +67,6 @@ declare global {
         reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
         runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
       }): Promise<AppBootstrapState>;
-      saveLegalMcpServer(
-        payload: SaveLegalMcpServerPayload
-      ): Promise<AppBootstrapState>;
-      addCustomLegalMcpServer(
-        payload: CreateCustomLegalMcpServerPayload
-      ): Promise<AppBootstrapState>;
-      syncLegalMcpToAgents(): Promise<AppBootstrapState>;
-      testLegalMcpServer(serverId: LegalMcpServerId): Promise<LegalMcpTestResult>;
       completeAgentOnboarding(): Promise<AppBootstrapState>;
       refreshAgentConnections(): Promise<AppBootstrapState>;
       addCodexAccount(payload: { accountName: string }): Promise<{
@@ -217,28 +205,6 @@ export const ipcBridge = {
     runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): Promise<AppBootstrapState> {
     return window.lexharness!.saveProviderCredential(payload);
-  },
-
-  async saveLegalMcpServer(
-    payload: SaveLegalMcpServerPayload
-  ): Promise<AppBootstrapState> {
-    return window.lexharness!.saveLegalMcpServer(payload);
-  },
-
-  async addCustomLegalMcpServer(
-    payload: CreateCustomLegalMcpServerPayload
-  ): Promise<AppBootstrapState> {
-    return window.lexharness!.addCustomLegalMcpServer(payload);
-  },
-
-  async syncLegalMcpToAgents(): Promise<AppBootstrapState> {
-    return window.lexharness!.syncLegalMcpToAgents();
-  },
-
-  async testLegalMcpServer(
-    serverId: LegalMcpServerId
-  ): Promise<LegalMcpTestResult> {
-    return window.lexharness!.testLegalMcpServer(serverId);
   },
 
   async completeAgentOnboarding(): Promise<AppBootstrapState> {

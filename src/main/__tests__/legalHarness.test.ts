@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LegalDatabase } from '../db/database';
 import { PromptAssembler } from '../agent/PromptAssembler';
 import { LegalAgentLoop } from '../agent/LegalAgentLoop';
-import { LegalMcpManager } from '../mcp/LegalMcpManager';
 import { CliAgentDriverManager } from '../agent/providers/CliAgentDriverManager';
 
 describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets & Multi-LLM Loop', () => {
@@ -99,12 +98,12 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(phasesSeen).toContain('revising_after_critique');
     expect(phasesSeen).toContain('completed');
 
-    expect(result.assistantMessage.toolCalls.length).toBeGreaterThanOrEqual(3);
-    const clToolCall = result.assistantMessage.toolCalls.find(
-      (tc) => tc.toolName === 'courtlistener_lookup_citation'
+    expect(result.assistantMessage.toolCalls.length).toBeGreaterThanOrEqual(2);
+    const searchToolCall = result.assistantMessage.toolCalls.find(
+      (tc) => tc.toolName === 'search_matter_corpus'
     );
-    expect(clToolCall).toBeDefined();
-    expect(clToolCall?.mcpServerId).toBe('courtlistener-mcp');
+    expect(searchToolCall).toBeDefined();
+    expect(searchToolCall?.status).toBe('completed');
 
     expect(result.assistantMessage.adversarialReviews.length).toBe(2);
     expect(result.assistantMessage.revisionRoundsCompleted).toBe(1);
@@ -146,53 +145,21 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(codexCfg?.runtimeMode).toBe('read-only');
   });
 
-  it('defaults to CourtListener (free account required) as the primary Legal MCP toolset, supports authed & custom MCP toolsets, and syncs MCP config to agents', async () => {
-    const servers = LegalMcpManager.listServers(db);
-    expect(servers.length).toBeGreaterThanOrEqual(4);
+  it('manages prompt governance, local matter corpus tools, and leaves MCP tooling native to agents', async () => {
+    const promptSettings = db.getSystemPromptSettings();
+    const matter = db.getMatter('matter-vt-state-v-thorne')!;
+    const assembled = PromptAssembler.assembleForMatter(promptSettings, matter);
 
-    const courtlistener = servers[0];
-    expect(courtlistener.id).toBe('courtlistener-mcp');
-    expect(courtlistener.isDefault).toBe(true);
-    expect(courtlistener.enabled).toBe(true);
-    expect(courtlistener.authTier).toBe('free_account_required');
+    // Verifies Layer 1 core mandate, Layer 2 task persona, and Layer 3 forum rules are assembled
+    expect(assembled.primarySystemPrompt).toContain('ETHICAL GUARDRAILS');
+    expect(assembled.primarySystemPrompt).toContain('State v. Sprague');
+    expect(assembled.primarySystemPrompt).toContain('13 V.S.A.');
 
-    // Save free CourtListener API token
-    const afterSave = LegalMcpManager.saveServerConfig(db, {
-      serverId: 'courtlistener-mcp',
-      enabled: true,
-      authToken: 'cl_free_token_9876543210abcdef',
-    });
-    const clUpdated = afterSave.find((s) => s.id === 'courtlistener-mcp');
-    expect(clUpdated?.hasAuthToken).toBe(true);
-    expect(db.getLegalMcpToken('courtlistener-mcp')).toBe(
-      'cl_free_token_9876543210abcdef'
-    );
-
-    // Add custom authenticated legal MCP server
-    const afterCustom = LegalMcpManager.addCustomServer(db, {
-      name: 'PACER / RECAP Direct Pro MCP',
-      description: 'Authenticated federal docket MCP server',
-      transport: 'stdio',
-      authTier: 'authenticated_pro',
-      endpointUrl: 'https://pacer-mcp.example.org/v1',
-      command: 'npx',
-      args: ['-y', '@legal/pacer-mcp'],
-      envVarName: 'PACER_API_KEY',
-      authToken: 'pacer_secret_123456',
-      toolNames: ['pacer_docket_query', 'pacer_document_fetch'],
-    });
-    expect(afterCustom.some((s) => s.name === 'PACER / RECAP Direct Pro MCP')).toBe(
-      true
-    );
-
-    // Verify CLI MCP injection payload for Claude (--mcp-config) and Codex (--config mcp_servers)
-    const injection = LegalMcpManager.getCliMcpInjectionArgs(db);
-    expect(injection.claudeMcpConfigJson).toContain('courtlistener-mcp');
-    expect(
-      injection.codexConfigFlags.some((f) =>
-        f.includes('mcp_servers.courtlistener_mcp')
-      )
-    ).toBe(true);
+    // Verifies local matter documents and chronology facts are indexable
+    const docs = db.listDocuments(matter.id);
+    expect(docs.length).toBeGreaterThan(0);
+    const facts = db.listChronologyFacts(matter.id);
+    expect(facts.length).toBeGreaterThan(0);
   });
 
   it('builds T3-style Connect your agents onboarding state and creates isolated Codex shadow-home accounts', () => {

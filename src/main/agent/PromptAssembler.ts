@@ -9,8 +9,7 @@ export class PromptAssembler {
   static assembleForMatter(
     settings: SystemPromptSettings,
     matter: Matter,
-    overridePracticeAreaId?: PracticeAreaId,
-    mcpServersSummary?: string
+    overridePracticeAreaId?: PracticeAreaId
   ): AssembledPromptPreview {
     const activeProfile =
       settings.profiles?.find((p) => p.id === settings.activeProfileId) ??
@@ -23,15 +22,6 @@ export class PromptAssembler {
     const preset =
       settings.practiceAreaPresets.find((p) => p.id === activePracticeId) ??
       settings.practiceAreaPresets[0];
-
-    const mcpSection =
-      mcpServersSummary && mcpServersSummary.trim().length > 0
-        ? [
-            '',
-            `# LAYER 3B: CONFIGURED LEGAL MCP TOOLSETS (COURTLISTENER DEFAULT & EXTERNAL AUTHORITY)`,
-            mcpServersSummary.trim(),
-          ].join('\n')
-        : '';
 
     const primarySystemPrompt = [
       `# PRACTITIONER PROFILE: ${profileName.toUpperCase()}`,
@@ -46,8 +36,7 @@ export class PromptAssembler {
       `- **Client / Represented Party**: ${matter.clientName}`,
       `- **Governing Jurisdiction & Forum**: ${matter.jurisdiction}`,
       `- **Mandatory Citation Manual**: ${matter.citationStyle}`,
-      `- **Local Matter Corpus Scope**: All factual claims, record pinpoints, and citations must be grounded in the discovery/matter files indexed in \`${matter.folderPath}\` or verified via CourtListener / Legal MCP authority lookup.`,
-      mcpSection,
+      `- **Local Matter Corpus Scope**: All factual claims, record pinpoints, and citations must be grounded in the discovery/matter files indexed in \`${matter.folderPath}\` or verified through legal authority lookup.`,
     ]
       .filter(Boolean)
       .join('\n');

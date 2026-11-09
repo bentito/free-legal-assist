@@ -19,7 +19,6 @@ import {
   Briefcase,
   ChevronDown,
   ChevronRight,
-  Database,
   Eye,
   FileSearch,
   FolderPlus,
@@ -304,26 +303,6 @@ export const App: React.FC = () => {
             </span>
           </button>
 
-          <button
-            onClick={() => {
-              setStudioInitialTab('legal_mcp');
-              setIsStudioOpen(true);
-            }}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-amber-500/35 text-[11px] text-amber-300 transition"
-            title="Configure CourtListener (Default Free-Account MCP) & Legal MCP Toolsets"
-          >
-            <Database className="w-3.5 h-3.5 text-amber-400" />
-            <span>
-              MCP: CourtListener{' '}
-              {state.legalMcpServers?.find((s) => s.id === 'courtlistener-mcp')
-                ?.hasAuthToken
-                ? '(Live Token)'
-                : '(Default • Free Account)'}{' '}
-              • {(state.legalMcpServers || []).filter((s) => s.enabled).length}{' '}
-              Active
-            </span>
-          </button>
-
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>
@@ -463,60 +442,6 @@ export const App: React.FC = () => {
                   >
                     <div className="truncate">{t.title}</div>
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Legal MCP Toolsets Status Card (CourtListener Default) */}
-            <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300 flex items-center gap-1">
-                  <Database className="w-3 h-3 text-amber-400" />
-                  Legal MCP Toolsets
-                </span>
-                <button
-                  onClick={() => {
-                    setStudioInitialTab('legal_mcp');
-                    setIsStudioOpen(true);
-                  }}
-                  className="text-[10px] text-amber-400 hover:underline"
-                >
-                  Configure MCPs
-                </button>
-              </div>
-              <div className="space-y-1">
-                {(state.legalMcpServers || []).map((srv) => (
-                  <div
-                    key={srv.id}
-                    className="flex items-center justify-between px-2 py-1 rounded bg-slate-900/90 border border-slate-800/80 text-[10px]"
-                  >
-                    <span className="text-slate-200 truncate max-w-[140px]">
-                      {srv.id === 'courtlistener-mcp'
-                        ? 'CourtListener (Default)'
-                        : srv.id === 'vt-statutes-mcp'
-                          ? 'VT Statutes & Art. 11'
-                          : srv.id === 'govinfo-ecfr-mcp'
-                            ? 'GovInfo / eCFR'
-                            : srv.name}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded font-mono text-[9px] ${
-                        srv.enabled
-                          ? srv.hasAuthToken || srv.authTier === 'free_public'
-                            ? 'bg-emerald-500/15 text-emerald-300'
-                            : 'bg-amber-500/15 text-amber-300'
-                          : 'bg-slate-800 text-slate-500'
-                      }`}
-                    >
-                      {srv.enabled
-                        ? srv.hasAuthToken
-                          ? 'Authed'
-                          : srv.authTier === 'free_public'
-                            ? 'Active'
-                            : 'Free Acct'
-                        : 'Off'}
-                    </span>
-                  </div>
                 ))}
               </div>
             </div>
@@ -692,11 +617,6 @@ export const App: React.FC = () => {
                               >
                                 <div className="flex items-center gap-2 min-w-0">
                                   <FileSearch className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                  {tc.mcpServerName && (
-                                    <span className="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-[10px] font-mono text-amber-300 shrink-0">
-                                      MCP: {tc.mcpServerName}
-                                    </span>
-                                  )}
                                   <span className="font-mono text-[11px] text-amber-300 shrink-0">
                                     {tc.toolName}
                                   </span>
@@ -1251,7 +1171,6 @@ export const App: React.FC = () => {
         promptSettings={state.promptSettings}
         adversarialConfig={state.adversarialConfig}
         providers={state.providers}
-        legalMcpServers={state.legalMcpServers || []}
         activeMatter={activeMatter}
         assembledPromptPreview={state.assembledPromptPreview}
         onSelectPractitionerProfile={async (profileId) => {
@@ -1275,21 +1194,6 @@ export const App: React.FC = () => {
         onSaveProviderCredential={async (payload) => {
           const next = await ipcBridge.saveProviderCredential(payload);
           setState(next);
-        }}
-        onSaveLegalMcpServer={async (payload) => {
-          const next = await ipcBridge.saveLegalMcpServer(payload);
-          setState(next);
-        }}
-        onAddCustomLegalMcpServer={async (payload) => {
-          const next = await ipcBridge.addCustomLegalMcpServer(payload);
-          setState(next);
-        }}
-        onSyncLegalMcpToAgents={async () => {
-          const next = await ipcBridge.syncLegalMcpToAgents();
-          setState(next);
-        }}
-        onTestLegalMcpServer={async (serverId) => {
-          return ipcBridge.testLegalMcpServer(serverId);
         }}
         onUpdateMatterJurisdiction={async (payload) => {
           const next = await ipcBridge.updateMatterJurisdiction(payload);
