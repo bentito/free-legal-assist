@@ -211,26 +211,26 @@ To guarantee that every legal agent (`Antigravity ACP`, `OpenAI Codex CLI`, `Ant
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Lawyer as Attorney (LexHarness UI)
-    participant Loop as LegalAgentLoop (Main Process)
-    participant LocalSLM as On-Device Router & PII Model<br/>(Ollama / llama.cpp: Qwen-2.5-3B / Llama-3.2-3B)
-    participant Vault as Local Encrypted Pseudonym Vault<br/>(SQLite + OS safeStorage)
-    participant Frontier as Target Model Tier<br/>(Local / Fast-Economy / Frontier + Critics)
+    participant Lawyer as Attorney UI
+    participant AgentLoop as LegalAgentLoop
+    participant LocalSLM as Local Router SLM (Ollama or llama.cpp)
+    participant Vault as Local Encrypted Pseudonym Vault
+    participant Frontier as Target Model Tier (Local, Fast-Economy, or Frontier)
 
-    Lawyer->>Loop: Submits Prompt + Matter Discovery Excerpts
-    Loop->>LocalSLM: 1. Classify Complexity & Scan for Privileged PII / Client Identifiers
-    LocalSLM->>Vault: 2. Register Reversible Pseudonyms<br/>(e.g., "Marcus Thorne" -> [CLIENT_DEFENDANT_1],<br/>"26-CR-04118" -> [DOCKET_ID_1], SSN/DOB/Address -> [PII_REDACTED_N])
-    LocalSLM-->>Loop: 3. Return { routeTier, targetModel, scrubbedPrompt, scrubbedContext, piiRedactionReport }
-    alt Route Tier == LOCAL_PRIVATE (Simple Task or Strict Air-Gapped Matter)
-        Loop->>LocalSLM: 4a. Execute Turn Entirely On-Device (Zero External Network Calls)
-        LocalSLM-->>Loop: Local Draft Response
-    else Route Tier == FAST_ECONOMY or FRONTIER_REASONING
-        Loop->>Frontier: 4b. Send ONLY Scrubbed Prompt & Scrubbed Evidence ([CLIENT_DEFENDANT_1], etc.)
-        Frontier-->>Loop: Scrubbed Draft / Critic Verdict Referencing Pseudonyms
-        Loop->>Vault: 5. Re-Hydrate Pseudonyms Locally ([CLIENT_DEFENDANT_1] -> "Marcus Thorne")
-        Vault-->>Loop: Fully Restored Attorney-Facing Legal Work Product
+    Lawyer->>AgentLoop: Submits Prompt + Matter Discovery Excerpts
+    AgentLoop->>LocalSLM: 1. Classify Complexity and Scan for Privileged PII
+    LocalSLM->>Vault: 2. Register Reversible Pseudonyms (Marcus Thorne -> CLIENT_DEFENDANT_1, 26-CR-04118 -> DOCKET_ID_1)
+    LocalSLM-->>AgentLoop: 3. Return routeTier, targetModel, scrubbedPrompt, scrubbedContext
+    alt Route Tier is LOCAL_PRIVATE (Simple Task or Air-Gapped Matter)
+        AgentLoop->>LocalSLM: 4a. Execute Turn Entirely On-Device (Zero External Network Calls)
+        LocalSLM-->>AgentLoop: Local Draft Response
+    else Route Tier is FAST_ECONOMY or FRONTIER_REASONING
+        AgentLoop->>Frontier: 4b. Send ONLY Scrubbed Prompt and Scrubbed Evidence (CLIENT_DEFENDANT_1)
+        Frontier-->>AgentLoop: Scrubbed Draft and Critic Verdict Referencing Pseudonyms
+        AgentLoop->>Vault: 5. Re-Hydrate Pseudonyms Locally (CLIENT_DEFENDANT_1 -> Marcus Thorne)
+        Vault-->>AgentLoop: Fully Restored Attorney-Facing Legal Work Product
     end
-    Loop-->>Lawyer: Present Restored Work Product + Routing & PII Audit Badge
+    AgentLoop-->>Lawyer: Present Restored Work Product + Routing and PII Audit Badge
 ```
 
 ### 7.2 On-Device Local Model Runtime (`LocalSlmRuntime`)
