@@ -203,4 +203,82 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     db.completeAgentOnboarding();
     expect(db.getAgentOnboardingSavedState().completedAt).not.toBeNull();
   });
+
+  it('assures CourtListener MCP baseline availability and auto-installs on default agent if missing', () => {
+    const tempHome = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'lexharness-cl-assurance-')
+    );
+
+    try {
+      // 1. Initial probe in empty directory should be not configured
+      const initialProbe = CliAgentDriverManager.probeCourtListenerMcp({
+        homeDir: tempHome,
+      });
+      expect(initialProbe.hasInstalledAgent).toBe(false);
+      expect(initialProbe.status).toBe('not_configured');
+      expect(initialProbe.signupUrl).toContain('courtlistener.com');
+
+      // 2. ensureCourtListenerAssurance installs CourtListener MCP on default agent (Codex)
+      const assuredState = CliAgentDriverManager.ensureCourtListenerAssurance({
+        homeDir: tempHome,
+      });
+      expect(assuredState.hasInstalledAgent).toBe(true);
+      expect(assuredState.configuredAgentDriver).toBe('codex');
+      expect(assuredState.status).toBe('needs_token');
+
+      // Verify Codex config.toml was created with the courtlistener block
+      const codexConfigPath = path.join(tempHome, '.codex', 'config.toml');
+      expect(fs.existsSync(codexConfigPath)).toBe(true);
+      const codexContent = fs.readFileSync(codexConfigPath, 'utf8');
+      expect(codexContent).toContain('[mcp_servers.courtlistener]');
+      expect(codexContent).toContain('courtlistener-mcp');
+
+      // 3. Save token in database and sync to agent config
+      const testToken = 'cl_secret_live_api_token_test_12345';
+      db.saveCourtListenerToken(testToken);
+      expect(db.getCourtListenerToken()).toBe(testToken);
+
+      CliAgentDriverManager.installCourtListenerMcpOnAgent({
+        driver: 'codex',
+        token: testToken,
+        homeDir: tempHome,
+      });
+
+      const updatedProbe = CliAgentDriverManager.probeCourtListenerMcp({
+        homeDir: tempHome,
+        token: testToken,
+      });
+      expect(updatedProbe.hasInstalledAgent).toBe(true);
+      expect(updatedProbe.hasAuthToken).toBe(true);
+      expect(updatedProbe.status).toBe('ready');
+      expect(updatedProbe.maskedAuthToken).toBe('cl_s••••••••2345');
+
+      const updatedCodexContent = fs.readFileSync(codexConfigPath, 'utf8');
+      expect(updatedCodexContent).toContain('COURTLISTENER_API_TOKEN');
+
+      // 4. Test installation on Claude Agent (~/.claude.json)
+      CliAgentDriverManager.installCourtListenerMcpOnAgent({
+        driver: 'claudeAgent',
+        token: testToken,
+        homeDir: tempHome,
+      });
+      const claudeJsonPath = path.join(tempHome, '.claude.json');
+      expect(fs.existsSync(claudeJsonPath)).toBe(true);
+      const claudeData = JSON.parse(fs.readFileSync(claudeJsonPath, 'utf8'));
+      expect(claudeData.mcpServers?.courtlistener?.command).toBe('npx');
+      expect(claudeData.mcpServers?.courtlistener?.args).toEqual([
+        '-y',
+        'courtlistener-mcp',
+      ]);
+      expect(
+        claudeData.mcpServers?.courtlistener?.env?.COURTLISTENER_API_TOKEN
+      ).toBe(testToken);
+    } finally {
+      try {
+        fs.rmSync(tempHome, { recursive: true, force: true });
+      } catch {
+        // Cleanup
+      }
+    }
+  });
 });

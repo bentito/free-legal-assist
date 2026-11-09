@@ -193,6 +193,22 @@ LexHarness focuses exclusively on the governance layer that agents cannot provid
 3. **Multi-Agent Adversarial Review Gates**: Running parallel, multi-family LLM critics (Citation & Record Auditor, Opposing Counsel / Judge Critic) with automatic rejection and revision loops.
 4. **Local Model Routing & Privileged PII Stripping (Phase 2)**: Scrubbing client-identifying data before anything reaches cloud endpoints.
 
+### 6.3 Baseline Case Law Assurance: CourtListener MCP & Account Management
+While the harness does not proxy or host MCP servers, it **actively assures that the practitioner always has a baseline level of case law access** across their agent toolsets:
+1. **Startup Assurance & Automated Default-Agent Configuration (`ensureCourtListenerAssurance`)**:
+   - On application startup and during agent onboarding (`CliAgentDriverManager.buildAgentOnboardingState`), the harness probes all detected agent runtimes (`~/.codex/config.toml`, `~/.claude.json`, Antigravity skills) to verify that at least one agent has the **CourtListener MCP toolset** (`courtlistener-mcp`) installed.
+   - If CourtListener MCP is missing from all detected agents, LexHarness **automatically installs/configures it on the user's default agent** (preferring Codex CLI if present, then Claude Code CLI, then Antigravity) by writing the standard MCP tool definition (`command = "npx"`, `args = ["-y", "courtlistener-mcp"]`) into the default agent's native configuration file (`~/.codex/config.toml` or `~/.claude.json`).
+   - This guarantees that from the moment LexHarness launches, the attorney has immediate, out-of-the-box access to case law searches (`courtlistener_search_opinions`), citation validation (`courtlistener_lookup_citation`), and docket inspection without requiring manual command-line setup.
+2. **Account Creation Prompting & Free Tier Handling**:
+   - CourtListener provides live legal research queries against REST API v4, offering **5,000 requests/hour on its free tier**.
+   - In the **"Connect your agents"** onboarding modal (Step 1), LexHarness surfaces a dedicated **Base Legal Tooling: CourtListener MCP** card displaying:
+     - Real-time status indicator (`Ready & Configured`, `Installed · Token Optional`, or `Not Configured`).
+     - Direct registration action button (`Create Free Account`) opening `https://www.courtlistener.com/help/api/rest/` in the user's default browser.
+     - Token configuration drawer allowing the user to paste or update their free CourtListener API token.
+3. **Encrypted Token Persistence & Seamless Sync (`saveCourtListenerToken`)**:
+   - Entered CourtListener tokens are encrypted at rest using the OS-level credential vault (`node-safeStorage` on Mac Keychain and Windows DPAPI) via `LegalDatabase.saveCourtListenerToken()`.
+   - The token is automatically written into the agent's native MCP configuration file (e.g. `env = { COURTLISTENER_API_TOKEN = "..." }` in `~/.codex/config.toml` or `~/.claude.json`) and synchronized to `process.env.COURTLISTENER_API_TOKEN`, ensuring the agent immediately acquires authenticated access without requiring restart.
+
 ---
 
 ## 7. Phase 2 Design & Roadmap: On-Device Local Model Router & Client PII Scrubbing Gateway (`LocalPrivacyModelRouter`)

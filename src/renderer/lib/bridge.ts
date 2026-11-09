@@ -81,6 +81,10 @@ declare global {
         customCommand?: string;
       }): Promise<{ sessionId: string }>;
       stopAgentSetupCommand(payload: { sessionId: string }): Promise<AppBootstrapState>;
+      saveCourtListenerToken(payload: { token: string }): Promise<AppBootstrapState>;
+      installCourtListenerOnDefaultAgent(payload?: {
+        driver?: 'codex' | 'claudeAgent' | 'antigravity';
+      }): Promise<AppBootstrapState>;
       openExternalUrl(payload: { url: string }): Promise<void>;
       createDocument(payload: {
         matterId: string;
@@ -234,6 +238,18 @@ export const ipcBridge = {
 
   async stopAgentSetupCommand(sessionId: string): Promise<AppBootstrapState> {
     return window.lexharness!.stopAgentSetupCommand({ sessionId });
+  },
+
+  async saveCourtListenerToken(token: string): Promise<AppBootstrapState> {
+    return window.lexharness!.saveCourtListenerToken({ token });
+  },
+
+  async installCourtListenerOnDefaultAgent(
+    driver?: 'codex' | 'claudeAgent' | 'antigravity'
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.installCourtListenerOnDefaultAgent(
+      driver ? { driver } : undefined
+    );
   },
 
   async openExternalUrl(url: string): Promise<void> {

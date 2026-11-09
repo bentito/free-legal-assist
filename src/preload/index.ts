@@ -80,6 +80,10 @@ export interface LexHarnessBridge {
     customCommand?: string;
   }): Promise<{ sessionId: string }>;
   stopAgentSetupCommand(payload: { sessionId: string }): Promise<AppBootstrapState>;
+  saveCourtListenerToken(payload: { token: string }): Promise<AppBootstrapState>;
+  installCourtListenerOnDefaultAgent(payload?: {
+    driver?: 'codex' | 'claudeAgent' | 'antigravity';
+  }): Promise<AppBootstrapState>;
   openExternalUrl(payload: { url: string }): Promise<void>;
   createDocument(payload: {
     matterId: string;
@@ -133,6 +137,10 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.invoke('legal:start-agent-setup-command', payload),
   stopAgentSetupCommand: (payload) =>
     ipcRenderer.invoke('legal:stop-agent-setup-command', payload),
+  saveCourtListenerToken: (payload) =>
+    ipcRenderer.invoke('legal:save-courtlistener-token', payload),
+  installCourtListenerOnDefaultAgent: (payload) =>
+    ipcRenderer.invoke('legal:install-courtlistener-default-agent', payload),
   openExternalUrl: (payload) =>
     ipcRenderer.invoke('legal:open-external-url', payload),
   createDocument: (payload) => ipcRenderer.invoke('legal:create-document', payload),

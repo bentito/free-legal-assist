@@ -7,6 +7,7 @@ import {
   AgentConnectionInstance,
   AgentOnboardingState,
   AgentSetupTerminalEvent,
+  CourtListenerMcpAssuranceState,
   LLMProviderId,
   ProviderRuntimeStatus,
 } from '../../../shared/types';
@@ -762,6 +763,272 @@ export class CliAgentDriverManager {
   }
 
   /**
+   * Checks whether any agent runtime has the CourtListener MCP toolset configured,
+   * inspecting Codex `~/.codex/config.toml`, Claude `~/.claude.json`, or Antigravity skills.
+   */
+  static probeCourtListenerMcp(options?: {
+    homeDir?: string;
+    token?: string | null;
+  }): CourtListenerMcpAssuranceState {
+    const home = options?.homeDir || os.homedir();
+    const token = options?.token ?? process.env.COURTLISTENER_API_TOKEN ?? null;
+    const hasToken = Boolean(token && token.trim().length > 0);
+    const maskedAuthToken = hasToken
+      ? `${token!.trim().slice(0, 4)}••••••••${token!.trim().slice(-4)}`
+      : null;
+    const signupUrl = 'https://www.courtlistener.com/help/api/rest/';
+
+    // 1. Check Codex config (~/.codex/config.toml)
+    const codexConfigPath = path.join(home, '.codex', 'config.toml');
+    if (fs.existsSync(codexConfigPath)) {
+      try {
+        const content = fs.readFileSync(codexConfigPath, 'utf8');
+        if (
+          content.includes('[mcp_servers.courtlistener]') ||
+          content.includes('courtlistener-mcp') ||
+          content.includes('[mcp_servers."courtlistener"]')
+        ) {
+          const configHasToken =
+            content.includes('COURTLISTENER_API_TOKEN') || hasToken;
+          return {
+            hasInstalledAgent: true,
+            configuredAgentDisplayName: 'Codex',
+            configuredAgentDriver: 'codex',
+            hasAuthToken: configHasToken,
+            maskedAuthToken: hasToken
+              ? maskedAuthToken
+              : configHasToken
+                ? 'Configured in config.toml'
+                : null,
+            signupUrl,
+            status: configHasToken ? 'ready' : 'needs_token',
+            statusHeadline: configHasToken
+              ? 'CourtListener MCP ready on Codex.'
+              : 'CourtListener installed on Codex · Free API token recommended.',
+            statusDetail: configHasToken
+              ? 'Live case law search, citation verification, and opinion retrieval active (5,000 req/hr).'
+              : 'Sign up for a free CourtListener account to unlock full API limits.',
+          };
+        }
+      } catch {
+        // Ignore read errors
+      }
+    }
+
+    // 2. Check Claude config (~/.claude.json)
+    const claudeJsonPath = path.join(home, '.claude.json');
+    if (fs.existsSync(claudeJsonPath)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(claudeJsonPath, 'utf8'));
+        if (raw?.mcpServers?.courtlistener) {
+          const configHasToken =
+            Boolean(
+              raw.mcpServers.courtlistener.env?.COURTLISTENER_API_TOKEN
+            ) || hasToken;
+          return {
+            hasInstalledAgent: true,
+            configuredAgentDisplayName: 'Claude',
+            configuredAgentDriver: 'claudeAgent',
+            hasAuthToken: configHasToken,
+            maskedAuthToken: hasToken
+              ? maskedAuthToken
+              : configHasToken
+                ? 'Configured in ~/.claude.json'
+                : null,
+            signupUrl,
+            status: configHasToken ? 'ready' : 'needs_token',
+            statusHeadline: configHasToken
+              ? 'CourtListener MCP ready on Claude.'
+              : 'CourtListener installed on Claude · Free API token recommended.',
+            statusDetail: configHasToken
+              ? 'Live case law search, citation verification, and opinion retrieval active (5,000 req/hr).'
+              : 'Sign up for a free CourtListener account to unlock full API limits.',
+          };
+        }
+      } catch {
+        // Ignore JSON parse errors
+      }
+    }
+
+    // 3. Check Antigravity / Gemini
+    const agySkillsDir = path.join(
+      home,
+      '.gemini',
+      'antigravity-cli',
+      'skills'
+    );
+    if (fs.existsSync(path.join(agySkillsDir, 'courtlistener'))) {
+      return {
+        hasInstalledAgent: true,
+        configuredAgentDisplayName: 'Antigravity',
+        configuredAgentDriver: 'antigravity',
+        hasAuthToken: hasToken,
+        maskedAuthToken,
+        signupUrl,
+        status: hasToken ? 'ready' : 'needs_token',
+        statusHeadline: hasToken
+          ? 'CourtListener MCP ready on Antigravity.'
+          : 'CourtListener configured · Free API token recommended.',
+        statusDetail: hasToken
+          ? 'Live case law search, citation verification, and opinion retrieval active (5,000 req/hr).'
+          : 'Sign up for a free CourtListener account to unlock full API limits.',
+      };
+    }
+
+    return {
+      hasInstalledAgent: false,
+      configuredAgentDisplayName: null,
+      configuredAgentDriver: null,
+      hasAuthToken: hasToken,
+      maskedAuthToken,
+      signupUrl,
+      status: 'not_configured',
+      statusHeadline: 'CourtListener MCP not yet installed.',
+      statusDetail:
+        'LexHarness will automatically install CourtListener on your default agent for base case law access.',
+    };
+  }
+
+  /**
+   * Installs or updates the CourtListener MCP toolset configuration in the specified agent's config.
+   */
+  static installCourtListenerMcpOnAgent(params: {
+    driver: 'codex' | 'claudeAgent' | 'antigravity';
+    token?: string | null;
+    homeDir?: string;
+  }): void {
+    const home = params.homeDir || os.homedir();
+    const token =
+      params.token?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim() || null;
+
+    if (params.driver === 'codex') {
+      const codexDir = path.join(home, '.codex');
+      fs.mkdirSync(codexDir, { recursive: true });
+      const configPath = path.join(codexDir, 'config.toml');
+
+      let existing = '';
+      if (fs.existsSync(configPath)) {
+        try {
+          existing = fs.readFileSync(configPath, 'utf8');
+        } catch {
+          existing = '';
+        }
+      }
+
+      const mcpBlock = [
+        '[mcp_servers.courtlistener]',
+        'command = "npx"',
+        'args = ["-y", "courtlistener-mcp"]',
+        ...(token ? [`env = { COURTLISTENER_API_TOKEN = "${token}" }`] : []),
+      ].join('\n');
+
+      const blockRegex = /\[mcp_servers\.courtlistener\][\s\S]*?(?=(\n\[|$))/;
+      if (blockRegex.test(existing)) {
+        existing = existing.replace(blockRegex, mcpBlock);
+      } else {
+        existing =
+          existing.trimEnd() +
+          (existing.trim().length > 0 ? '\n\n' : '') +
+          mcpBlock +
+          '\n';
+      }
+
+      fs.writeFileSync(configPath, existing, 'utf8');
+      return;
+    }
+
+    if (params.driver === 'claudeAgent') {
+      const configPath = path.join(home, '.claude.json');
+      let data: Record<string, any> = {};
+      if (fs.existsSync(configPath)) {
+        try {
+          data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        } catch {
+          data = {};
+        }
+      }
+      data.mcpServers = data.mcpServers || {};
+      data.mcpServers.courtlistener = {
+        command: 'npx',
+        args: ['-y', 'courtlistener-mcp'],
+        ...(token ? { env: { COURTLISTENER_API_TOKEN: token } } : {}),
+      };
+      fs.writeFileSync(configPath, JSON.stringify(data, null, 2), 'utf8');
+      return;
+    }
+
+    if (params.driver === 'antigravity') {
+      const skillDir = path.join(
+        home,
+        '.gemini',
+        'antigravity-cli',
+        'skills',
+        'courtlistener'
+      );
+      fs.mkdirSync(skillDir, { recursive: true });
+      const skillMd = `---
+name: courtlistener
+description: CourtListener MCP toolset for legal case law searches, citation verification, and opinions.
+---
+
+# CourtListener MCP Toolset
+Provides access to federal and state case law, opinions, oral arguments, and citations.
+Command: npx -y courtlistener-mcp
+${token ? `COURTLISTENER_API_TOKEN: ${token}\n` : ''}
+`;
+      fs.writeFileSync(path.join(skillDir, 'SKILL.md'), skillMd, 'utf8');
+    }
+  }
+
+  /**
+   * Assures at startup and onboarding that at least one agent has CourtListener MCP installed.
+   * If none is found, it automatically installs it on the default agent (Codex > Claude > Antigravity).
+   */
+  static ensureCourtListenerAssurance(params?: {
+    token?: string | null;
+    homeDir?: string;
+  }): CourtListenerMcpAssuranceState {
+    const probe = this.probeCourtListenerMcp(params);
+    if (probe.hasInstalledAgent) {
+      if (params?.token && !probe.hasAuthToken && probe.configuredAgentDriver) {
+        this.installCourtListenerMcpOnAgent({
+          driver: probe.configuredAgentDriver,
+          token: params.token,
+          homeDir: params.homeDir,
+        });
+        return this.probeCourtListenerMcp(params);
+      }
+      return probe;
+    }
+
+    // Determine the default agent driver
+    const codexStatus = this.probeProviderStatusSync('codex-cli');
+    const claudeStatus = this.probeProviderStatusSync('claude-cli');
+    const agyStatus = this.probeProviderStatusSync('agy-acp');
+
+    let targetDriver: 'codex' | 'claudeAgent' | 'antigravity' = 'codex';
+    if (codexStatus.installed) {
+      targetDriver = 'codex';
+    } else if (claudeStatus.installed) {
+      targetDriver = 'claudeAgent';
+    } else if (agyStatus.installed) {
+      targetDriver = 'antigravity';
+    }
+
+    try {
+      this.installCourtListenerMcpOnAgent({
+        driver: targetDriver,
+        token: params?.token,
+        homeDir: params?.homeDir,
+      });
+    } catch {
+      // Ignore directory write issues on restricted environments
+    }
+
+    return this.probeCourtListenerMcp(params);
+  }
+
+  /**
    * Builds T3 Code's `Connect your agents` onboarding & connection state (`welcome-BH9_mGm9.js` + `CodexSetupSection-D8WpB4Jb.js`).
    */
   static buildAgentOnboardingState(params: {
@@ -775,8 +1042,10 @@ export class CliAgentDriverManager {
       createdAt: string;
     }[];
     cliOverrides: Record<string, { binaryPath?: string }>;
+    courtListenerToken?: string | null;
+    homeDir?: string;
   }): AgentOnboardingState {
-    const home = os.homedir();
+    const home = params.homeDir || os.homedir();
     const isWin = process.platform === 'win32';
     const platformOs: 'darwin' | 'windows' | 'linux' = isWin
       ? 'windows'
@@ -949,6 +1218,11 @@ export class CliAgentDriverManager {
       loginCommand: `${agyBin} login`,
     };
 
+    const courtListenerAssurance = this.ensureCourtListenerAssurance({
+      token: params.courtListenerToken,
+      homeDir: params.homeDir,
+    });
+
     return {
       completedAt: params.completedAt,
       machineLabel: this.getMachineLabel(),
@@ -959,6 +1233,7 @@ export class CliAgentDriverManager {
         claudeInstance,
         agyInstance,
       ],
+      courtListenerAssurance,
     };
   }
 

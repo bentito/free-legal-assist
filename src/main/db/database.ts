@@ -918,6 +918,31 @@ export class LegalDatabase {
     return this.listProviderConfigs();
   }
 
+  // --- Base Legal Tooling: CourtListener MCP Token ---
+  saveCourtListenerToken(token: string): void {
+    const trimmed = token.trim();
+    const encrypted = trimmed ? this.encryptor.encrypt(trimmed) : '';
+    this.setKeyValue('courtlistener_api_token_encrypted', encrypted, true);
+    if (trimmed) {
+      process.env.COURTLISTENER_API_TOKEN = trimmed;
+    } else {
+      delete process.env.COURTLISTENER_API_TOKEN;
+    }
+  }
+
+  getCourtListenerToken(): string | null {
+    const encrypted = this.getKeyValue<string>('courtlistener_api_token_encrypted');
+    if (encrypted) {
+      try {
+        const decrypted = this.encryptor.decrypt(encrypted);
+        if (decrypted && decrypted.trim().length > 0) return decrypted.trim();
+      } catch {
+        // Fallback
+      }
+    }
+    return process.env.COURTLISTENER_API_TOKEN || null;
+  }
+
   private getRawProviderRow(providerId: LLMProviderId): {
     provider_id: string;
     encrypted_api_key: string;

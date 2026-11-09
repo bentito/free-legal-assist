@@ -298,11 +298,24 @@ export interface AgentConnectionInstance {
   isAdditionalAccount?: boolean;
 }
 
+export interface CourtListenerMcpAssuranceState {
+  hasInstalledAgent: boolean;
+  configuredAgentDisplayName: string | null;
+  configuredAgentDriver: 'codex' | 'claudeAgent' | 'antigravity' | null;
+  hasAuthToken: boolean;
+  maskedAuthToken: string | null;
+  signupUrl: string;
+  status: 'ready' | 'needs_token' | 'not_configured';
+  statusHeadline: string;
+  statusDetail: string;
+}
+
 export interface AgentOnboardingState {
   completedAt: string | null;
   machineLabel: string;
   platformOs: 'darwin' | 'windows' | 'linux';
   agentInstances: AgentConnectionInstance[];
+  courtListenerAssurance: CourtListenerMcpAssuranceState;
 }
 
 export interface AgentSetupTerminalEvent {

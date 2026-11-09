@@ -94,6 +94,7 @@ function buildBootstrapState(): AppBootstrapState {
     setupModes: onboardingSaved.setupModes,
     additionalCodexAccounts: onboardingSaved.additionalCodexAccounts,
     cliOverrides: db.getCliOverrides(),
+    courtListenerToken: db.getCourtListenerToken(),
   });
 
   return {
@@ -470,6 +471,38 @@ function registerIpcHandlers(): void {
     'legal:stop-agent-setup-command',
     async (_event, payload: { sessionId: string }) => {
       CliAgentDriverManager.stopSetupTerminalSession(payload.sessionId);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:save-courtlistener-token',
+    async (_event, payload: { token: string }) => {
+      db.saveCourtListenerToken(payload.token);
+      const probe = CliAgentDriverManager.probeCourtListenerMcp({
+        token: payload.token,
+      });
+      const driver = probe.configuredAgentDriver || 'codex';
+      CliAgentDriverManager.installCourtListenerMcpOnAgent({
+        driver,
+        token: payload.token,
+      });
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:install-courtlistener-default-agent',
+    async (
+      _event,
+      payload?: { driver?: 'codex' | 'claudeAgent' | 'antigravity' }
+    ) => {
+      const token = db.getCourtListenerToken();
+      const driver = payload?.driver || 'codex';
+      CliAgentDriverManager.installCourtListenerMcpOnAgent({
+        driver,
+        token,
+      });
       return buildBootstrapState();
     }
   );

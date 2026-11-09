@@ -1358,6 +1358,14 @@ export const App: React.FC = () => {
           onSubscribeSetupTerminal={(callback) => {
             return ipcBridge.onAgentSetupTerminal(callback);
           }}
+          onSaveCourtListenerToken={async (token) => {
+            const next = await ipcBridge.saveCourtListenerToken(token);
+            setState(next);
+          }}
+          onInstallCourtListenerOnDefaultAgent={async () => {
+            const next = await ipcBridge.installCourtListenerOnDefaultAgent();
+            setState(next);
+          }}
           onSelectMatter={async (matterId) => {
             const next = await ipcBridge.selectMatter(matterId);
             setState(next);
