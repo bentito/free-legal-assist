@@ -6,6 +6,7 @@ import { LegalDatabase } from '../db/database';
 import { PromptAssembler } from '../agent/PromptAssembler';
 import { LegalAgentLoop } from '../agent/LegalAgentLoop';
 import { LegalMcpManager } from '../mcp/LegalMcpManager';
+import { CliAgentDriverManager } from '../agent/providers/CliAgentDriverManager';
 
 describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets & Multi-LLM Loop', () => {
   let tmpDir: string;
@@ -192,5 +193,47 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
         f.includes('mcp_servers.courtlistener_mcp')
       )
     ).toBe(true);
+  });
+
+  it('builds T3-style Connect your agents onboarding state and creates isolated Codex shadow-home accounts', () => {
+    const savedInitial = db.getAgentOnboardingSavedState();
+    expect(savedInitial.completedAt).toBeNull();
+
+    // Add a secondary ChatGPT account ("Work")
+    const instanceId = 'codex_work_test';
+    const sharedHome = path.join(tmpDir, 'mock-codex-home');
+    fs.mkdirSync(sharedHome, { recursive: true });
+    fs.writeFileSync(path.join(sharedHome, 'config.toml'), '# shared config\n');
+
+    const shadowHome = path.join(tmpDir, 'providers', 'codex', instanceId, 'shadow');
+    CliAgentDriverManager.ensureCodexShadowHomeLayout(sharedHome, shadowHome);
+    expect(fs.existsSync(shadowHome)).toBe(true);
+    expect(fs.existsSync(path.join(shadowHome, 'config.toml'))).toBe(true);
+
+    db.addCodexAccountInstance({
+      instanceId,
+      displayName: 'ChatGPT - Work',
+      shadowHomePath: shadowHome,
+      setupMode: 'managed',
+    });
+
+    const saved = db.getAgentOnboardingSavedState();
+    const onboardingState = CliAgentDriverManager.buildAgentOnboardingState({
+      ...saved,
+      cliOverrides: db.getCliOverrides(),
+    });
+    expect(onboardingState.machineLabel.length).toBeGreaterThan(0);
+    expect(
+      onboardingState.agentInstances.some((i) => i.instanceId === 'codex-cli')
+    ).toBe(true);
+    expect(
+      onboardingState.agentInstances.some((i) => i.displayName === 'ChatGPT - Work')
+    ).toBe(true);
+    expect(
+      onboardingState.agentInstances.some((i) => i.instanceId === 'claude-cli')
+    ).toBe(true);
+
+    db.completeAgentOnboarding();
+    expect(db.getAgentOnboardingSavedState().completedAt).not.toBeNull();
   });
 });

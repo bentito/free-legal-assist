@@ -163,17 +163,22 @@ Lawyers frequently need to revisit a Matter to update the case caption, docket n
 
 ---
 
-## 5. Replicating T3 Code's Agent Harness Drivers (`Codex`, `Antigravity ACP / agy acp`, and `Claude Code`)
+## 5. Replicating T3 Code's Agent Harness Drivers & "Connect your agents" Onboarding (`Codex`, `Antigravity ACP / agy acp`, and `Claude Code`)
 
-LexHarness replicates T3 Code's local agent driver architecture (`CliAgentDriverManager` in `src/main/agent/providers/CliAgentDriverManager.ts`) so that any role in the Multi-LLM Adversarial Gate (**Primary Defense / Lead Counsel**, **Citation & Record Auditor**, or **State's Attorney / Opposing Critic**) can be assigned to either a local CLI/ACP Agent Harness or a direct HTTPS API provider:
+LexHarness replicates T3 Code's local agent driver architecture (`CliAgentDriverManager` in `src/main/agent/providers/CliAgentDriverManager.ts`) and T3 Code's **"Connect your agents"** initial onboarding & multi-account connection dialog (`ConnectAgentsModal` in `src/renderer/components/ConnectAgentsModal.tsx`, matching `image.png`):
 
-1. **`agy-acp` — Antigravity ACP Harness (`antigravity-acp` driver)**:
+1. **T3-Style "Connect your agents" Onboarding & Connection Dialog (`ConnectAgentsModal.tsx`)**:
+   - Opens automatically on initial launch (`!agentOnboarding.completedAt`) and is accessible at any time via the **`Agents: N Ready`** button in the top header bar.
+   - Displays the 3-step stepper (`1 Connect` · `2 Agents` · `3 Projects`), local machine label (`scutil --get ComputerName`, e.g., `Brett's MacBook Pro`), and connection cards for **Codex** (`Connected with your Codex CLI. — ✓ Ready`), **Claude** (`Ready to code. — ✓ Ready`), and **Antigravity**.
+   - **Multi-Account ChatGPT / Codex Shadow-Home Support (`Connect another ChatGPT account`)**: Replicates T3 Code's `CodexHomeLayout.ts` and `CodexSetupSection.tsx` so users can add multiple named ChatGPT accounts (`ChatGPT - Work`, etc.). Each additional account gets an isolated shadow home (`<userData>/providers/codex/<instanceId>/shadow`) with a private `auth.json` while symlinking shared `~/.codex` entries (`config.toml`, `skills`, `instructions.md`, `rules`, `memories`).
+   - **Inline Setup & Auth Terminal Drawer**: Clicking **`Continue with ChatGPT`**, **`Sign in`**, **`Re-auth`**, or **`Install`** launches an interactive setup command session (`codex login`, `claude`, or `npm install -g ...`) inside an inline terminal drawer and automatically detects OAuth URLs (`Open sign-in page`).
+2. **`agy-acp` — Antigravity ACP Harness (`antigravity-acp` driver)**:
    - Auto-detects `agy` on `PATH` (`/opt/homebrew/bin/agy`) or T3's managed ACP server binary (`~/.t3/tools/antigravity-acp/<platform>-<arch>/versions/<releaseId>/agy_acp_server.par` or `agy_acp_server.exe` on Windows).
    - Supports `gemini-4-argon`, `gemini-3.8-flash`, `claude-opus-5-5`, and `claude-sonnet-5-5` with configurable thinking/reasoning effort (`low`, `medium`, `high`, `xhigh`, `max`) and environment isolation (`AGY_ACP_FORCE_FILE_STORAGE=1`, `PYTHONUNBUFFERED=1`).
-2. **`codex-cli` — OpenAI Codex Agent Harness (`codex-cli` driver)**:
+3. **`codex-cli` — OpenAI Codex Agent Harness (`codex-cli` driver)**:
    - Replicates T3 Code's `CodexTextGeneration.ts` non-interactive execution pipeline (`codex exec --config features.plugins=false --config features.apps=false --ephemeral --skip-git-repo-check -s read-only --model <model> --config model_reasoning_effort="<effort>" --output-last-message <tempFile> -`).
-   - Supports `gpt-6-luna`, `o3`, and `o4-mini` using existing `~/.codex` authentication or `OPENAI_API_KEY`.
-3. **`claude-cli` — Anthropic Claude Code Agent Harness (`claude-agent-cli` driver)**:
+   - Supports `gpt-6-luna`, `o3`, and `o4-mini` using existing `~/.codex` authentication (or isolated shadow-home `CODEX_HOME`) or `OPENAI_API_KEY`.
+4. **`claude-cli` — Anthropic Claude Code Agent Harness (`claude-agent-cli` driver)**:
    - Replicates T3 Code's `ClaudeExecutable.ts` cross-platform binary & Windows shim resolution (resolving `node_modules/@anthropic-ai/claude-code/bin/claude.exe` or `cli.js` when Windows `.cmd`/`.bat`/`.ps1` shims are encountered) and runs `claude -p --output-format text --model <model> --system-prompt <assembledLegalPrompt>`.
 
 ---
@@ -334,6 +339,7 @@ free-legal-assist/
         ├── lib/
         │   └── bridge.ts                         # Typed renderer wrapper around window.lexharness
         └── components/
+            ├── ConnectAgentsModal.tsx            # T3-style "Connect your agents" onboarding, multi-account ChatGPT & auth terminal modal
             ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 7-tab modal (Layers 1–4, Legal MCP Toolsets, CLI Agents & Preview)
             └── RightWorkspacePane.tsx            # 3-tab right pane: Work-Product Redline, Matter Corpus & Chronology
 ```

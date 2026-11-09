@@ -1102,4 +1102,68 @@ export class LegalDatabase {
     state.lastSyncedAt = new Date().toISOString();
     this.setKeyValue('legal_mcp_saved_state', state, true);
   }
+
+  // --- T3-Style Agent Onboarding & Multi-Account Codex Instances ---
+  getAgentOnboardingSavedState(): {
+    completedAt: string | null;
+    setupModes: Record<string, 'existing' | 'managed'>;
+    additionalCodexAccounts: {
+      instanceId: string;
+      displayName: string;
+      shadowHomePath: string;
+      setupMode: 'existing' | 'managed';
+      createdAt: string;
+    }[];
+  } {
+    return (
+      this.getKeyValue('agent_onboarding_state') ?? {
+        completedAt: null,
+        setupModes: {},
+        additionalCodexAccounts: [],
+      }
+    );
+  }
+
+  completeAgentOnboarding(): void {
+    const state = this.getAgentOnboardingSavedState();
+    state.completedAt = new Date().toISOString();
+    this.setKeyValue('agent_onboarding_state', state, true);
+  }
+
+  setAgentSetupMode(instanceId: string, setupMode: 'existing' | 'managed'): void {
+    const state = this.getAgentOnboardingSavedState();
+    state.setupModes[instanceId] = setupMode;
+    this.setKeyValue('agent_onboarding_state', state, true);
+  }
+
+  addCodexAccountInstance(params: {
+    instanceId: string;
+    displayName: string;
+    shadowHomePath: string;
+    setupMode?: 'existing' | 'managed';
+  }): void {
+    const state = this.getAgentOnboardingSavedState();
+    const existing = state.additionalCodexAccounts.filter(
+      (a) => a.instanceId !== params.instanceId
+    );
+    state.additionalCodexAccounts = [
+      ...existing,
+      {
+        instanceId: params.instanceId,
+        displayName: params.displayName,
+        shadowHomePath: params.shadowHomePath,
+        setupMode: params.setupMode ?? 'managed',
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    this.setKeyValue('agent_onboarding_state', state, true);
+  }
+
+  removeCodexAccountInstance(instanceId: string): void {
+    const state = this.getAgentOnboardingSavedState();
+    state.additionalCodexAccounts = state.additionalCodexAccounts.filter(
+      (a) => a.instanceId !== instanceId
+    );
+    this.setKeyValue('agent_onboarding_state', state, true);
+  }
 }

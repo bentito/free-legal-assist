@@ -8,6 +8,7 @@ import {
   ThreadMessage,
 } from '../shared/types';
 import { ipcBridge } from './lib/bridge';
+import { ConnectAgentsModal } from './components/ConnectAgentsModal';
 import {
   PromptGovernanceModal,
   StudioTab,
@@ -25,6 +26,7 @@ import {
   Gavel,
   Loader2,
   MessageSquarePlus,
+  Plug,
   Scale,
   Send,
   Settings,
@@ -53,6 +55,7 @@ export const App: React.FC = () => {
     useState<PracticeAreaId>('vt_suppression_art11');
 
   // Modals & UI drawers
+  const [isConnectAgentsOpen, setIsConnectAgentsOpen] = useState(false);
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [studioInitialTab, setStudioInitialTab] =
     useState<StudioTab>('layer1_core');
@@ -138,6 +141,10 @@ export const App: React.FC = () => {
         );
         if (activeMatter) {
           setTurnPracticeArea(activeMatter.practiceArea);
+        }
+        // Automatically show the T3-style "Connect your agents" onboarding modal on initial use
+        if (!initial.agentOnboarding?.completedAt) {
+          setIsConnectAgentsOpen(true);
         }
         setLoading(false);
       })
@@ -280,6 +287,23 @@ export const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5 app-no-drag">
+          <button
+            onClick={() => setIsConnectAgentsOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-200 transition"
+            title="Connect your agents (Codex, Claude, Antigravity & Multi-Account ChatGPT)"
+          >
+            <Plug className="w-3.5 h-3.5 text-emerald-400" />
+            <span>
+              Agents:{' '}
+              {
+                (state.agentOnboarding?.agentInstances || []).filter(
+                  (i) => i.status === 'ready'
+                ).length
+              }{' '}
+              Ready
+            </span>
+          </button>
+
           <button
             onClick={() => {
               setStudioInitialTab('legal_mcp');
@@ -1391,6 +1415,56 @@ export const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* T3-Style Connect Your Agents Onboarding & Multi-Account Modal */}
+      {state.agentOnboarding && (
+        <ConnectAgentsModal
+          isOpen={isConnectAgentsOpen}
+          onClose={() => setIsConnectAgentsOpen(false)}
+          onboarding={state.agentOnboarding}
+          matters={state.matters}
+          activeMatterId={activeMatter.id}
+          onCompleteOnboarding={async () => {
+            const next = await ipcBridge.completeAgentOnboarding();
+            setState(next);
+          }}
+          onRefreshConnections={async () => {
+            const next = await ipcBridge.refreshAgentConnections();
+            setState(next);
+          }}
+          onAddCodexAccount={async (label) => {
+            const next = await ipcBridge.addCodexAccount(label);
+            setState(next);
+          }}
+          onRemoveCodexAccount={async (instanceId) => {
+            const next = await ipcBridge.removeCodexAccount(instanceId);
+            setState(next);
+          }}
+          onStartSetupCommand={async (payload) => {
+            return ipcBridge.startAgentSetupCommand(payload);
+          }}
+          onStopSetupCommand={async (sessionId) => {
+            const next = await ipcBridge.stopAgentSetupCommand(sessionId);
+            setState(next);
+          }}
+          onOpenExternalUrl={async (url) => {
+            await ipcBridge.openExternalUrl(url);
+          }}
+          onSubscribeSetupTerminal={(callback) => {
+            return ipcBridge.onAgentSetupTerminal(callback);
+          }}
+          onSelectMatter={async (matterId) => {
+            const next = await ipcBridge.selectMatter(matterId);
+            setState(next);
+          }}
+          onOpenNewMatterModal={() => {
+            setNewMatterJurisdiction(activeProfile.defaultJurisdiction);
+            setNewMatterCitation(activeProfile.defaultCitationStyle);
+            setNewMatterPracticeArea(activeProfile.activePracticeAreaId);
+            setShowNewMatterModal(true);
+          }}
+        />
       )}
     </div>
   );

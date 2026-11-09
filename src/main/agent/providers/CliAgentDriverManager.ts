@@ -1,17 +1,23 @@
-import { execFile, spawn } from 'node:child_process';
+import { ChildProcess, execFile, execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { LLMProviderId, ProviderRuntimeStatus } from '../../../shared/types';
+import {
+  AgentConnectionInstance,
+  AgentOnboardingState,
+  AgentSetupTerminalEvent,
+  LLMProviderId,
+  ProviderRuntimeStatus,
+} from '../../../shared/types';
 
 const execFileAsync = promisify(execFile);
 
 /**
- * Replicates T3 Code's cross-platform CLI & ACP Agent Driver resolution and execution
- * for:
+ * Replicates T3 Code's cross-platform CLI & ACP Agent Driver resolution, onboarding,
+ * shadow-home multi-account management, and execution for:
  *  1. Antigravity ACP (`agy` / `agy_acp_server.par` / `agy_acp_server.exe`)
- *  2. OpenAI Codex Agent CLI (`codex exec` / `codex app-server`)
+ *  2. OpenAI Codex Agent CLI (`codex exec` / `codex app-server` + T3 Shadow Home multi-account)
  *  3. Anthropic Claude Code Agent CLI (`claude` / `claude.exe` / `@anthropic-ai/claude-code`)
  */
 export class CliAgentDriverManager {
@@ -20,6 +26,8 @@ export class CliAgentDriverManager {
     { status: ProviderRuntimeStatus; timestamp: number }
   >();
   private static CACHE_TTL_MS = 30_000;
+  private static cachedMachineLabel: string | null = null;
+  private static activeSetupSessions = new Map<string, ChildProcess>();
 
   static getExtendedPathEnv(): NodeJS.ProcessEnv {
     const home = os.homedir();
@@ -554,5 +562,549 @@ export class CliAgentDriverManager {
       }
       child.stdin.end();
     });
+  }
+
+  static invalidateStatusCache(): void {
+    this.statusCache.clear();
+  }
+
+  /**
+   * Replicates T3 Code's local environment machine label (e.g., "Brett's MacBook Pro").
+   */
+  static getMachineLabel(): string {
+    if (this.cachedMachineLabel) return this.cachedMachineLabel;
+    if (process.platform === 'darwin') {
+      try {
+        const name = execFileSync('scutil', ['--get', 'ComputerName'], {
+          encoding: 'utf8',
+          timeout: 1500,
+        }).trim();
+        if (name) {
+          this.cachedMachineLabel = name;
+          return name;
+        }
+      } catch {
+        // Fallback below
+      }
+    }
+    const host = os.hostname().replace(/\.local$/i, '');
+    this.cachedMachineLabel = host || 'Local Computer';
+    return this.cachedMachineLabel;
+  }
+
+  /**
+   * Replicates T3 Code's `formatCodexPlanType` subscription label mapping.
+   */
+  private static formatCodexPlanType(planType?: string | null): string | null {
+    switch (planType) {
+      case 'free':
+        return 'ChatGPT Free Subscription';
+      case 'go':
+        return 'ChatGPT Go Subscription';
+      case 'plus':
+        return 'ChatGPT Plus Subscription';
+      case 'pro':
+        return 'ChatGPT Pro 200 Subscription';
+      case 'prolite':
+        return 'ChatGPT Pro 100 Subscription';
+      case 'promax':
+        return 'ChatGPT Pro 500 Subscription';
+      case 'self_serve_business_prolite':
+        return 'ChatGPT Business Premium Subscription';
+      case 'team':
+      case 'self_serve_business_usage_based':
+      case 'business':
+        return 'ChatGPT Business Subscription';
+      case 'ent26':
+      case 'enterprise_cbp_automation':
+      case 'enterprise_cbp_usage_based':
+      case 'enterprise':
+        return 'ChatGPT Enterprise Subscription';
+      case 'edu':
+        return 'ChatGPT Education Subscription';
+      default:
+        return planType ? `ChatGPT (${planType})` : null;
+    }
+  }
+
+  /**
+   * Reads a Codex home directory (`~/.codex` or a T3 shadow home directory) and extracts
+   * authentication status, account email, and subscription tier from `auth.json`.
+   */
+  static parseCodexAuthInfo(codexHomeDir: string): {
+    authenticated: boolean;
+    email: string | null;
+    subscriptionLabel: string | null;
+  } {
+    const authFile = path.join(codexHomeDir, 'auth.json');
+    if (!fs.existsSync(authFile)) {
+      return {
+        authenticated: Boolean(process.env.OPENAI_API_KEY),
+        email: null,
+        subscriptionLabel: process.env.OPENAI_API_KEY ? 'OpenAI API Key' : null,
+      };
+    }
+
+    try {
+      const raw = JSON.parse(fs.readFileSync(authFile, 'utf8')) as {
+        OPENAI_API_KEY?: string | null;
+        tokens?: {
+          id_token?: string;
+          access_token?: string;
+        };
+      };
+      const idToken = raw.tokens?.id_token;
+      if (idToken && idToken.includes('.')) {
+        const parts = idToken.split('.');
+        if (parts[1]) {
+          const payload = JSON.parse(
+            Buffer.from(parts[1], 'base64url').toString('utf8')
+          ) as {
+            email?: string;
+            'https://api.openai.com/auth'?: {
+              chatgpt_plan_type?: string;
+            };
+          };
+          const email = payload.email?.trim() || null;
+          const planType =
+            payload['https://api.openai.com/auth']?.chatgpt_plan_type || null;
+          return {
+            authenticated: true,
+            email,
+            subscriptionLabel: this.formatCodexPlanType(planType),
+          };
+        }
+      }
+      if (raw.tokens?.access_token || raw.OPENAI_API_KEY) {
+        return {
+          authenticated: true,
+          email: null,
+          subscriptionLabel: raw.OPENAI_API_KEY ? 'OpenAI API Key' : 'ChatGPT Subscription',
+        };
+      }
+    } catch {
+      // Ignore malformed auth.json
+    }
+    return {
+      authenticated: false,
+      email: null,
+      subscriptionLabel: null,
+    };
+  }
+
+  /**
+   * Replicates T3 Code's `CodexHomeLayout.ts` (`resolveCodexHomeLayout` + `ensureShadowAuthIsPrivate` + `ensureSymlink`):
+   * Creates an account-isolated Shadow Home directory that symlinks shared Codex configuration/skills
+   * from `~/.codex` while ensuring `auth.json` is strictly private to the shadow home.
+   */
+  static ensureCodexShadowHomeLayout(
+    sharedHomePath: string,
+    shadowHomePath: string
+  ): void {
+    const resolvedShared = path.resolve(sharedHomePath);
+    const resolvedShadow = path.resolve(shadowHomePath);
+    if (resolvedShared === resolvedShadow) return;
+
+    fs.mkdirSync(resolvedShadow, { recursive: true });
+
+    // Ensure auth.json in shadow home is never a symlink (`ensureShadowAuthIsPrivate`)
+    const shadowAuthPath = path.join(resolvedShadow, 'auth.json');
+    try {
+      const stat = fs.lstatSync(shadowAuthPath);
+      if (stat.isSymbolicLink()) {
+        fs.unlinkSync(shadowAuthPath);
+      }
+    } catch {
+      // Missing is expected prior to sign-in
+    }
+
+    // Symlink shared configuration & skill entries from `~/.codex`
+    const sharedEntriesToLink = [
+      'config.toml',
+      'skills',
+      'instructions.md',
+      'rules',
+      'memories',
+    ];
+    for (const entryName of sharedEntriesToLink) {
+      const target = path.join(resolvedShared, entryName);
+      const link = path.join(resolvedShadow, entryName);
+      if (!fs.existsSync(target)) continue;
+      try {
+        const lstat = fs.lstatSync(link);
+        if (lstat.isSymbolicLink()) {
+          const currentTarget = path.resolve(path.dirname(link), fs.readlinkSync(link));
+          if (currentTarget !== target) {
+            fs.unlinkSync(link);
+            fs.symlinkSync(
+              target,
+              link,
+              process.platform === 'win32' && fs.statSync(target).isDirectory()
+                ? 'junction'
+                : undefined
+            );
+          }
+        }
+      } catch {
+        try {
+          fs.symlinkSync(
+            target,
+            link,
+            process.platform === 'win32' && fs.statSync(target).isDirectory()
+              ? 'junction'
+              : undefined
+          );
+        } catch {
+          // Ignore symlink permission errors on restricted systems
+        }
+      }
+    }
+  }
+
+  /**
+   * Builds T3 Code's `Connect your agents` onboarding & connection state (`welcome-BH9_mGm9.js` + `CodexSetupSection-D8WpB4Jb.js`).
+   */
+  static buildAgentOnboardingState(params: {
+    completedAt: string | null;
+    setupModes: Record<string, 'existing' | 'managed'>;
+    additionalCodexAccounts: {
+      instanceId: string;
+      displayName: string;
+      shadowHomePath: string;
+      setupMode: 'existing' | 'managed';
+      createdAt: string;
+    }[];
+    cliOverrides: Record<string, { binaryPath?: string }>;
+  }): AgentOnboardingState {
+    const home = os.homedir();
+    const isWin = process.platform === 'win32';
+    const platformOs: 'darwin' | 'windows' | 'linux' = isWin
+      ? 'windows'
+      : process.platform === 'darwin'
+        ? 'darwin'
+        : 'linux';
+
+    const sharedCodexHome = path.join(home, '.codex');
+    const codexStatus = this.probeProviderStatusSync(
+      'codex-cli',
+      params.cliOverrides['codex-cli']?.binaryPath
+    );
+    const codexAuth = this.parseCodexAuthInfo(sharedCodexHome);
+    const codexBin = codexStatus.resolvedBinaryPath || 'codex';
+    const codexInstallCmd = isWin
+      ? 'irm https://chatgpt.com/codex/install.ps1 | iex'
+      : 'curl -fsSL https://chatgpt.com/codex/install.sh | sh';
+
+    const primaryCodexReady = codexStatus.installed && codexAuth.authenticated;
+    const primaryCodexInstance: AgentConnectionInstance = {
+      instanceId: 'codex-cli',
+      driver: 'codex',
+      providerId: 'codex-cli',
+      displayName: 'Codex',
+      setupMode: params.setupModes['codex-cli'] ?? 'existing',
+      enabled: true,
+      installed: codexStatus.installed,
+      authenticated: codexAuth.authenticated,
+      status: primaryCodexReady
+        ? 'ready'
+        : codexStatus.installed
+          ? 'signIn'
+          : 'install',
+      headline: primaryCodexReady
+        ? 'Connected with your Codex CLI.'
+        : codexStatus.installed
+          ? 'Code with your ChatGPT subscription.'
+          : 'Not found · CLI not detected on PATH.',
+      detail: primaryCodexReady
+        ? codexAuth.subscriptionLabel
+        : 'Run `codex login` or install Codex CLI.',
+      email: codexAuth.email,
+      subscriptionLabel: codexAuth.subscriptionLabel,
+      version: codexStatus.version,
+      resolvedBinaryPath: codexStatus.resolvedBinaryPath,
+      homePath: sharedCodexHome,
+      shadowHomePath: '',
+      installCommand: codexInstallCmd,
+      loginCommand: `${codexBin} login`,
+      isAdditionalAccount: false,
+    };
+
+    const extraCodexInstances: AgentConnectionInstance[] =
+      params.additionalCodexAccounts.map((acct) => {
+        this.ensureCodexShadowHomeLayout(sharedCodexHome, acct.shadowHomePath);
+        const shadowAuth = this.parseCodexAuthInfo(acct.shadowHomePath);
+        const ready = codexStatus.installed && shadowAuth.authenticated;
+        const loginCmd = isWin
+          ? `$env:CODEX_HOME="${acct.shadowHomePath}"; ${codexBin} login`
+          : `CODEX_HOME="${acct.shadowHomePath}" ${codexBin} login`;
+
+        return {
+          instanceId: acct.instanceId,
+          driver: 'codex',
+          providerId: 'codex-cli',
+          displayName: acct.displayName,
+          setupMode: acct.setupMode,
+          enabled: true,
+          installed: codexStatus.installed,
+          authenticated: shadowAuth.authenticated,
+          status: ready ? 'ready' : codexStatus.installed ? 'signIn' : 'install',
+          headline: ready
+            ? 'Connected with your Codex CLI.'
+            : 'Code with your ChatGPT subscription.',
+          detail: ready
+            ? shadowAuth.subscriptionLabel || `Shadow Home: ${acct.shadowHomePath}`
+            : `Isolated account profile (${acct.displayName})`,
+          email: shadowAuth.email,
+          subscriptionLabel: shadowAuth.subscriptionLabel,
+          version: codexStatus.version,
+          resolvedBinaryPath: codexStatus.resolvedBinaryPath,
+          homePath: sharedCodexHome,
+          shadowHomePath: acct.shadowHomePath,
+          installCommand: codexInstallCmd,
+          loginCommand: loginCmd,
+          isAdditionalAccount: true,
+        };
+      });
+
+    // Claude Agent CLI (`claudeAgent` in T3)
+    const claudeStatus = this.probeProviderStatusSync(
+      'claude-cli',
+      params.cliOverrides['claude-cli']?.binaryPath
+    );
+    const claudeBin = claudeStatus.resolvedBinaryPath || 'claude';
+    const claudeInstallCmd = isWin
+      ? 'irm https://claude.ai/install.ps1 | iex'
+      : 'curl -fsSL https://claude.ai/install.sh | bash';
+    const claudeReady = claudeStatus.installed && claudeStatus.authenticated;
+
+    const claudeInstance: AgentConnectionInstance = {
+      instanceId: 'claude-cli',
+      driver: 'claudeAgent',
+      providerId: 'claude-cli',
+      displayName: 'Claude',
+      setupMode: 'existing',
+      enabled: true,
+      installed: claudeStatus.installed,
+      authenticated: claudeStatus.authenticated,
+      status: claudeReady
+        ? 'ready'
+        : claudeStatus.installed
+          ? 'signIn'
+          : 'install',
+      headline: claudeReady
+        ? 'Ready to code.'
+        : claudeStatus.installed
+          ? 'Not authenticated'
+          : 'Not found',
+      detail: claudeReady
+        ? null
+        : claudeStatus.installed
+          ? 'Run `claude auth login` to connect your Claude subscription.'
+          : 'CLI not detected on PATH.',
+      email: null,
+      subscriptionLabel: claudeReady ? 'Claude Code CLI' : null,
+      version: claudeStatus.version,
+      resolvedBinaryPath: claudeStatus.resolvedBinaryPath,
+      homePath: path.join(home, '.claude'),
+      shadowHomePath: '',
+      installCommand: claudeInstallCmd,
+      loginCommand: `${claudeBin} auth login`,
+    };
+
+    // Antigravity ACP (`antigravity` in T3)
+    const agyStatus = this.probeProviderStatusSync(
+      'agy-acp',
+      params.cliOverrides['agy-acp']?.binaryPath
+    );
+    const agyReady = agyStatus.installed && agyStatus.authenticated;
+    const agyBin = agyStatus.resolvedBinaryPath || 'agy';
+
+    const agyInstance: AgentConnectionInstance = {
+      instanceId: 'agy-acp',
+      driver: 'antigravity',
+      providerId: 'agy-acp',
+      displayName: 'Antigravity',
+      setupMode: 'existing',
+      enabled: true,
+      installed: agyStatus.installed,
+      authenticated: agyStatus.authenticated,
+      status: agyReady ? 'ready' : agyStatus.installed ? 'signIn' : 'install',
+      headline: agyReady
+        ? 'Connected with your Antigravity ACP CLI.'
+        : agyStatus.installed
+          ? 'Installed · Sign-in required'
+          : 'Not found',
+      detail: agyReady
+        ? null
+        : agyStatus.installed
+          ? 'Sign in with Google or configure Gemini API key.'
+          : 'CLI not detected on PATH.',
+      email: null,
+      subscriptionLabel: agyReady ? agyStatus.version : null,
+      version: agyStatus.version,
+      resolvedBinaryPath: agyStatus.resolvedBinaryPath,
+      homePath: path.join(home, '.gemini'),
+      shadowHomePath: '',
+      installCommand: 'agy --version',
+      loginCommand: `${agyBin} login`,
+    };
+
+    return {
+      completedAt: params.completedAt,
+      machineLabel: this.getMachineLabel(),
+      platformOs,
+      agentInstances: [
+        primaryCodexInstance,
+        ...extraCodexInstances,
+        claudeInstance,
+        agyInstance,
+      ],
+    };
+  }
+
+  /**
+   * Replicates T3 Code's inline onboarding setup terminal (`Vt` in `welcome-BH9_mGm9.js`),
+   * executing install or sign-in commands (`codex login`, `claude auth login`, install scripts)
+   * and streaming live terminal output + any detected OAuth sign-in URL back to the renderer.
+   */
+  static startSetupTerminalSession(params: {
+    sessionId: string;
+    instance: AgentConnectionInstance;
+    mode: 'install' | 'login' | 'custom';
+    customCommand?: string;
+    onEvent: (event: AgentSetupTerminalEvent) => void;
+  }): void {
+    const command =
+      params.customCommand ||
+      (params.mode === 'install'
+        ? params.instance.installCommand
+        : params.instance.loginCommand);
+
+    const existing = this.activeSetupSessions.get(params.sessionId);
+    if (existing) {
+      try {
+        existing.kill('SIGTERM');
+      } catch {
+        // Ignore
+      }
+      this.activeSetupSessions.delete(params.sessionId);
+    }
+
+    let output = `$ ${command}\n`;
+    let detectedAuthUrl: string | null = null;
+
+    params.onEvent({
+      sessionId: params.sessionId,
+      instanceId: params.instance.instanceId,
+      driver: params.instance.driver,
+      command,
+      phase: 'running',
+      output,
+      detectedAuthUrl: null,
+    });
+
+    const isWin = process.platform === 'win32';
+    const baseEnv = this.getExtendedPathEnv();
+    const env: NodeJS.ProcessEnv = {
+      ...baseEnv,
+      ...(params.instance.shadowHomePath
+        ? { CODEX_HOME: params.instance.shadowHomePath }
+        : {}),
+    };
+
+    const shellCmd = isWin ? 'powershell.exe' : process.env.SHELL || '/bin/zsh';
+    const shellArgs = isWin
+      ? ['-NoProfile', '-NonInteractive', '-Command', command]
+      : ['-lc', command];
+
+    const child = spawn(shellCmd, shellArgs, {
+      env,
+      cwd: os.homedir(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    this.activeSetupSessions.set(params.sessionId, child);
+
+    const extractUrl = (text: string) => {
+      const urlMatch = text.match(/https:\/\/[^\s"'<>]+/i);
+      if (urlMatch && urlMatch[0]) {
+        detectedAuthUrl = urlMatch[0];
+      }
+    };
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      const str = chunk.toString('utf8');
+      output += str;
+      extractUrl(str);
+      params.onEvent({
+        sessionId: params.sessionId,
+        instanceId: params.instance.instanceId,
+        driver: params.instance.driver,
+        command,
+        phase: 'running',
+        output,
+        detectedAuthUrl,
+      });
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      const str = chunk.toString('utf8');
+      output += str;
+      extractUrl(str);
+      params.onEvent({
+        sessionId: params.sessionId,
+        instanceId: params.instance.instanceId,
+        driver: params.instance.driver,
+        command,
+        phase: 'running',
+        output,
+        detectedAuthUrl,
+      });
+    });
+
+    child.on('error', (err) => {
+      this.activeSetupSessions.delete(params.sessionId);
+      this.invalidateStatusCache();
+      output += `\n[Error]: ${err.message}\n`;
+      params.onEvent({
+        sessionId: params.sessionId,
+        instanceId: params.instance.instanceId,
+        driver: params.instance.driver,
+        command,
+        phase: 'failed',
+        output,
+        exitCode: 1,
+        detectedAuthUrl,
+      });
+    });
+
+    child.on('close', (code) => {
+      this.activeSetupSessions.delete(params.sessionId);
+      this.invalidateStatusCache();
+      output += `\n[Process exited with code ${code ?? 0}]\n`;
+      params.onEvent({
+        sessionId: params.sessionId,
+        instanceId: params.instance.instanceId,
+        driver: params.instance.driver,
+        command,
+        phase: code === 0 ? 'completed' : 'failed',
+        output,
+        exitCode: code,
+        detectedAuthUrl,
+      });
+    });
+  }
+
+  static stopSetupTerminalSession(sessionId: string): void {
+    const child = this.activeSetupSessions.get(sessionId);
+    if (child) {
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // Ignore
+      }
+      this.activeSetupSessions.delete(sessionId);
+    }
+    this.invalidateStatusCache();
   }
 }

@@ -3,6 +3,7 @@ import {
   AdversarialConfig,
   AdversarialReviewMode,
   AgentProgressEvent,
+  AgentSetupTerminalEvent,
   AppBootstrapState,
   ChronologyFact,
   CreateCustomLegalMcpServerPayload,
@@ -75,6 +76,21 @@ export interface LexHarnessBridge {
   ): Promise<AppBootstrapState>;
   syncLegalMcpToAgents(): Promise<AppBootstrapState>;
   testLegalMcpServer(serverId: LegalMcpServerId): Promise<LegalMcpTestResult>;
+  completeAgentOnboarding(): Promise<AppBootstrapState>;
+  refreshAgentConnections(): Promise<AppBootstrapState>;
+  addCodexAccount(payload: { accountName: string }): Promise<{
+    state: AppBootstrapState;
+    createdInstanceId: string;
+    displayName: string;
+  }>;
+  removeCodexAccount(payload: { instanceId: string }): Promise<AppBootstrapState>;
+  startAgentSetupCommand(payload: {
+    instanceId: string;
+    mode: 'install' | 'login' | 'custom';
+    customCommand?: string;
+  }): Promise<{ sessionId: string }>;
+  stopAgentSetupCommand(payload: { sessionId: string }): Promise<AppBootstrapState>;
+  openExternalUrl(payload: { url: string }): Promise<void>;
   createDocument(payload: {
     matterId: string;
     title: string;
@@ -92,6 +108,7 @@ export interface LexHarnessBridge {
     status: ChronologyFact['status'];
   }): Promise<AppBootstrapState>;
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
+  onAgentSetupTerminal(callback: (event: AgentSetupTerminalEvent) => void): () => void;
 }
 
 const bridge: LexHarnessBridge = {
@@ -122,6 +139,20 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.invoke('legal:sync-legal-mcp-to-agents'),
   testLegalMcpServer: (serverId) =>
     ipcRenderer.invoke('legal:test-legal-mcp-server', serverId),
+  completeAgentOnboarding: () =>
+    ipcRenderer.invoke('legal:complete-agent-onboarding'),
+  refreshAgentConnections: () =>
+    ipcRenderer.invoke('legal:refresh-agent-connections'),
+  addCodexAccount: (payload) =>
+    ipcRenderer.invoke('legal:add-codex-account', payload),
+  removeCodexAccount: (payload) =>
+    ipcRenderer.invoke('legal:remove-codex-account', payload),
+  startAgentSetupCommand: (payload) =>
+    ipcRenderer.invoke('legal:start-agent-setup-command', payload),
+  stopAgentSetupCommand: (payload) =>
+    ipcRenderer.invoke('legal:stop-agent-setup-command', payload),
+  openExternalUrl: (payload) =>
+    ipcRenderer.invoke('legal:open-external-url', payload),
   createDocument: (payload) => ipcRenderer.invoke('legal:create-document', payload),
   addChronologyFact: (payload) =>
     ipcRenderer.invoke('legal:add-chronology-fact', payload),
@@ -130,6 +161,13 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.on('legal:agent-progress', listener);
     return () => {
       ipcRenderer.removeListener('legal:agent-progress', listener);
+    };
+  },
+  onAgentSetupTerminal: (callback) => {
+    const listener = (_event: unknown, data: AgentSetupTerminalEvent) => callback(data);
+    ipcRenderer.on('legal:agent-setup-terminal', listener);
+    return () => {
+      ipcRenderer.removeListener('legal:agent-setup-terminal', listener);
     };
   },
 };

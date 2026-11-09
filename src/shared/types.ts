@@ -366,6 +366,47 @@ export interface AssembledPromptPreview {
   opposingCounselSystemPrompt: string;
 }
 
+export interface AgentConnectionInstance {
+  instanceId: string;
+  driver: 'codex' | 'claudeAgent' | 'antigravity';
+  providerId: LLMProviderId;
+  displayName: string;
+  setupMode: 'existing' | 'managed';
+  enabled: boolean;
+  installed: boolean;
+  authenticated: boolean;
+  status: 'ready' | 'signIn' | 'install' | 'checking' | 'attention' | 'disabled';
+  headline: string;
+  detail: string | null;
+  email: string | null;
+  subscriptionLabel: string | null;
+  version: string;
+  resolvedBinaryPath: string;
+  homePath: string;
+  shadowHomePath: string;
+  installCommand: string;
+  loginCommand: string;
+  isAdditionalAccount?: boolean;
+}
+
+export interface AgentOnboardingState {
+  completedAt: string | null;
+  machineLabel: string;
+  platformOs: 'darwin' | 'windows' | 'linux';
+  agentInstances: AgentConnectionInstance[];
+}
+
+export interface AgentSetupTerminalEvent {
+  sessionId: string;
+  instanceId: string;
+  driver: 'codex' | 'claudeAgent' | 'antigravity';
+  command: string;
+  phase: 'preparing' | 'running' | 'completed' | 'failed';
+  output: string;
+  exitCode?: number | null;
+  detectedAuthUrl?: string | null;
+}
+
 export interface AppBootstrapState {
   matters: Matter[];
   activeMatterId: string;
@@ -380,4 +421,5 @@ export interface AppBootstrapState {
   providers: ProviderConfig[];
   legalMcpServers: LegalMcpServerConfig[];
   assembledPromptPreview: AssembledPromptPreview;
+  agentOnboarding: AgentOnboardingState;
 }

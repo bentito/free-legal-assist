@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
 import path from 'node:path';
 import { LegalDatabase, SecretEncryptor } from './db/database';
 import { LegalAgentLoop } from './agent/LegalAgentLoop';
 import { PromptAssembler } from './agent/PromptAssembler';
+import { CliAgentDriverManager } from './agent/providers/CliAgentDriverManager';
 import { LegalMcpManager } from './mcp/LegalMcpManager';
 import {
   AdversarialConfig,
@@ -94,6 +95,14 @@ function buildBootstrapState(): AppBootstrapState {
     mcpInjection.enabledServersSummary
   );
 
+  const onboardingSaved = db.getAgentOnboardingSavedState();
+  const agentOnboarding = CliAgentDriverManager.buildAgentOnboardingState({
+    completedAt: onboardingSaved.completedAt,
+    setupModes: onboardingSaved.setupModes,
+    additionalCodexAccounts: onboardingSaved.additionalCodexAccounts,
+    cliOverrides: db.getCliOverrides(),
+  });
+
   return {
     matters,
     activeMatterId,
@@ -108,6 +117,7 @@ function buildBootstrapState(): AppBootstrapState {
     providers,
     legalMcpServers,
     assembledPromptPreview,
+    agentOnboarding,
   };
 }
 
@@ -408,6 +418,104 @@ function registerIpcHandlers(): void {
         createdAt: new Date().toISOString(),
       });
       return buildBootstrapState();
+    }
+  );
+
+  // --- T3-Style Agent Onboarding, Multi-Account Codex & Setup Terminal IPC ---
+  ipcMain.handle('legal:complete-agent-onboarding', async () => {
+    db.completeAgentOnboarding();
+    return buildBootstrapState();
+  });
+
+  ipcMain.handle('legal:refresh-agent-connections', async () => {
+    CliAgentDriverManager.invalidateStatusCache();
+    return buildBootstrapState();
+  });
+
+  ipcMain.handle(
+    'legal:add-codex-account',
+    async (_event, payload: { accountName: string }) => {
+      const cleanName = payload.accountName.trim() || 'Personal';
+      const displayName = cleanName.toLowerCase().startsWith('chatgpt')
+        ? cleanName
+        : `ChatGPT - ${cleanName}`;
+      const instanceId = `codex_${Date.now().toString(36)}`;
+      const shadowHomePath = path.join(
+        app.getPath('userData'),
+        'providers',
+        'codex',
+        instanceId,
+        'shadow'
+      );
+      db.addCodexAccountInstance({
+        instanceId,
+        displayName,
+        shadowHomePath,
+        setupMode: 'managed',
+      });
+      CliAgentDriverManager.invalidateStatusCache();
+      return {
+        state: buildBootstrapState(),
+        createdInstanceId: instanceId,
+        displayName,
+      };
+    }
+  );
+
+  ipcMain.handle(
+    'legal:remove-codex-account',
+    async (_event, payload: { instanceId: string }) => {
+      db.removeCodexAccountInstance(payload.instanceId);
+      CliAgentDriverManager.invalidateStatusCache();
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:start-agent-setup-command',
+    async (
+      _event,
+      payload: {
+        instanceId: string;
+        mode: 'install' | 'login' | 'custom';
+        customCommand?: string;
+      }
+    ) => {
+      const currentState = buildBootstrapState();
+      const target = currentState.agentOnboarding.agentInstances.find(
+        (inst) => inst.instanceId === payload.instanceId
+      );
+      if (!target) {
+        throw new Error(`Agent instance ${payload.instanceId} not found.`);
+      }
+      const sessionId = `onboarding-${target.driver}-${Date.now().toString(36)}`;
+      CliAgentDriverManager.startSetupTerminalSession({
+        sessionId,
+        instance: target,
+        mode: payload.mode,
+        customCommand: payload.customCommand,
+        onEvent: (termEvent) => {
+          mainWindow?.webContents.send('legal:agent-setup-terminal', termEvent);
+        },
+      });
+      return { sessionId };
+    }
+  );
+
+  ipcMain.handle(
+    'legal:stop-agent-setup-command',
+    async (_event, payload: { sessionId: string }) => {
+      CliAgentDriverManager.stopSetupTerminalSession(payload.sessionId);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:open-external-url',
+    async (_event, payload: { url: string }) => {
+      if (/^https?:\/\//i.test(payload.url)) {
+        await shell.openExternal(payload.url);
+      }
     }
   );
 }

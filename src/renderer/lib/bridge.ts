@@ -2,6 +2,7 @@ import {
   AdversarialConfig,
   AdversarialReviewMode,
   AgentProgressEvent,
+  AgentSetupTerminalEvent,
   AppBootstrapState,
   ChronologyFact,
   CreateCustomLegalMcpServerPayload,
@@ -78,6 +79,21 @@ declare global {
       ): Promise<AppBootstrapState>;
       syncLegalMcpToAgents(): Promise<AppBootstrapState>;
       testLegalMcpServer(serverId: LegalMcpServerId): Promise<LegalMcpTestResult>;
+      completeAgentOnboarding(): Promise<AppBootstrapState>;
+      refreshAgentConnections(): Promise<AppBootstrapState>;
+      addCodexAccount(payload: { accountName: string }): Promise<{
+        state: AppBootstrapState;
+        createdInstanceId: string;
+        displayName: string;
+      }>;
+      removeCodexAccount(payload: { instanceId: string }): Promise<AppBootstrapState>;
+      startAgentSetupCommand(payload: {
+        instanceId: string;
+        mode: 'install' | 'login' | 'custom';
+        customCommand?: string;
+      }): Promise<{ sessionId: string }>;
+      stopAgentSetupCommand(payload: { sessionId: string }): Promise<AppBootstrapState>;
+      openExternalUrl(payload: { url: string }): Promise<void>;
       createDocument(payload: {
         matterId: string;
         title: string;
@@ -95,6 +111,9 @@ declare global {
         status: ChronologyFact['status'];
       }): Promise<AppBootstrapState>;
       onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
+      onAgentSetupTerminal(
+        callback: (event: AgentSetupTerminalEvent) => void
+      ): () => void;
     };
   }
 }
@@ -222,6 +241,39 @@ export const ipcBridge = {
     return window.lexharness!.testLegalMcpServer(serverId);
   },
 
+  async completeAgentOnboarding(): Promise<AppBootstrapState> {
+    return window.lexharness!.completeAgentOnboarding();
+  },
+
+  async refreshAgentConnections(): Promise<AppBootstrapState> {
+    return window.lexharness!.refreshAgentConnections();
+  },
+
+  async addCodexAccount(accountName: string): Promise<AppBootstrapState> {
+    const res = await window.lexharness!.addCodexAccount({ accountName });
+    return res.state;
+  },
+
+  async removeCodexAccount(instanceId: string): Promise<AppBootstrapState> {
+    return window.lexharness!.removeCodexAccount({ instanceId });
+  },
+
+  async startAgentSetupCommand(payload: {
+    instanceId: string;
+    mode: 'install' | 'login' | 'custom';
+    customCommand?: string;
+  }): Promise<{ sessionId: string }> {
+    return window.lexharness!.startAgentSetupCommand(payload);
+  },
+
+  async stopAgentSetupCommand(sessionId: string): Promise<AppBootstrapState> {
+    return window.lexharness!.stopAgentSetupCommand({ sessionId });
+  },
+
+  async openExternalUrl(url: string): Promise<void> {
+    return window.lexharness!.openExternalUrl({ url });
+  },
+
   async createDocument(payload: {
     matterId: string;
     title: string;
@@ -247,6 +299,15 @@ export const ipcBridge = {
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void {
     if (window.lexharness) {
       return window.lexharness.onAgentProgress(callback);
+    }
+    return () => {};
+  },
+
+  onAgentSetupTerminal(
+    callback: (event: AgentSetupTerminalEvent) => void
+  ): () => void {
+    if (window.lexharness) {
+      return window.lexharness.onAgentSetupTerminal(callback);
     }
     return () => {};
   },
