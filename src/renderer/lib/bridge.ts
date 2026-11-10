@@ -42,6 +42,8 @@ declare global {
         userPrompt: string;
         overrideReviewMode?: AdversarialReviewMode;
         overridePracticeAreaId?: PracticeAreaId;
+        overridePrimaryProvider?: LLMProviderId;
+        overridePrimaryModel?: string;
       }): Promise<AppBootstrapState>;
       savePromptSettings(
         updated: Partial<SystemPromptSettings>
@@ -158,6 +160,8 @@ export const ipcBridge = {
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
+    overridePrimaryProvider?: LLMProviderId;
+    overridePrimaryModel?: string;
   }): Promise<AppBootstrapState> {
     return window.lexharness!.runTurn(payload);
   },

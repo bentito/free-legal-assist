@@ -108,6 +108,16 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(result.assistantMessage.revisionRoundsCompleted).toBe(1);
     expect(result.assistantMessage.content).toContain('State v. Sprague');
     expect(result.assistantMessage.content).toContain('V.R.Cr.P. 12(d)');
+
+    // Verify turn with explicit Agent & Model selection as per T3 control surface
+    const customAgentTurn = await loop.runTurn({
+      matterId: 'matter-vt-state-v-thorne',
+      userPrompt: 'Analyze state constitutional search doctrine under Chapter I, Article 11.',
+      overridePrimaryProvider: 'legal-simulator',
+      overridePrimaryModel: 'lexharness-local-v1',
+    });
+    expect(customAgentTurn.assistantMessage.primaryProvider).toBe('legal-simulator');
+    expect(customAgentTurn.assistantMessage.primaryModel).toBe('lexharness-local-v1');
   });
 
   it('deletes a Matter and cascades deletion of messages, documents, versions, and chronology facts', () => {

@@ -3,6 +3,7 @@ import {
   AdversarialReviewRecord,
   AgentProgressEvent,
   LegalMessage,
+  LLMProviderId,
   PracticeAreaId,
   ToolCallRecord,
 } from '../../shared/types';
@@ -28,6 +29,8 @@ export class LegalAgentLoop {
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
+    overridePrimaryProvider?: LLMProviderId;
+    overridePrimaryModel?: string;
     onProgress?: (event: AgentProgressEvent) => void;
   }): Promise<{
     userMessage: LegalMessage;
@@ -38,6 +41,8 @@ export class LegalAgentLoop {
       userPrompt,
       overrideReviewMode,
       overridePracticeAreaId,
+      overridePrimaryProvider,
+      overridePrimaryModel,
       onProgress,
     } = params;
 
@@ -67,6 +72,10 @@ export class LegalAgentLoop {
     const advConfig = {
       ...this.db.getAdversarialConfig(),
       ...(overrideReviewMode ? { mode: overrideReviewMode } : {}),
+      ...(overridePrimaryProvider
+        ? { primaryProvider: overridePrimaryProvider }
+        : {}),
+      ...(overridePrimaryModel ? { primaryModel: overridePrimaryModel } : {}),
     };
 
     const assembled = PromptAssembler.assembleForMatter(

@@ -444,7 +444,6 @@ export class CliAgentDriverManager {
   }): Promise<string> {
     // If pointed at the standalone `agy` CLI, use non-interactive `--print` mode with `--model` and `--effort`
     const args = [
-      '--print',
       '--disable-slash-commands',
       '--model',
       input.model,
@@ -452,6 +451,7 @@ export class CliAgentDriverManager {
       input.effort,
       '--output-format',
       'text',
+      '--print',
       input.prompt,
     ];
 

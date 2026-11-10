@@ -25,7 +25,7 @@ flowchart TB
         subgraph UI["Renderer Control Surface (src/renderer)"]
             Header["macOS Inset Header Bar (Active Profile Badge, Matter/Docket + Gear, Connected Agents Pill, Gate Status)"]
             LeftSidebar["Left Pane: Matters/Cases, Matter Grounding & Multi-LLM Gate Card"]
-            CenterStream["Center Pane: Agent Loop Stream, Grounded Tool Cards, Privacy/Routing Badge, Adversarial Scorecard & Composer"]
+            CenterStream["Center Pane: Agent Loop Stream, Grounded Tool Cards, Privacy/Routing Badge, Adversarial Scorecard & T3-Style Agent/Model Composer"]
             RightPane["Right Pane: Work-Product Redline Viewer, Discovery/Matter Corpus & Fact Chronology"]
             StudioModal["Prompt Governance Studio (Profiles, Layers 1–4 Prompts, Model Roles & Credentials, Local Router & PII Policy)"]
             MatterModal["Matter Settings & Delete Confirmation Dialogs"]

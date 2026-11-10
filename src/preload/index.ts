@@ -41,6 +41,8 @@ export interface LexHarnessBridge {
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
+    overridePrimaryProvider?: LLMProviderId;
+    overridePrimaryModel?: string;
   }): Promise<AppBootstrapState>;
   savePromptSettings(
     updated: Partial<SystemPromptSettings>

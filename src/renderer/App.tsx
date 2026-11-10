@@ -3,8 +3,10 @@ import {
   AdversarialReviewMode,
   AgentProgressEvent,
   AppBootstrapState,
+  LLMProviderId,
   Matter,
   PracticeAreaId,
+  ProviderConfig,
   ThreadMessage,
 } from '../shared/types';
 import { ipcBridge } from './lib/bridge';
@@ -16,9 +18,11 @@ import {
 import { RightWorkspacePane } from './components/RightWorkspacePane';
 import {
   AlertTriangle,
+  Bot,
   Briefcase,
   ChevronDown,
   ChevronRight,
+  Cpu,
   Eye,
   FileSearch,
   FolderPlus,
@@ -48,6 +52,8 @@ export const App: React.FC = () => {
   const [liveProgress, setLiveProgress] = useState<AgentProgressEvent | null>(
     null
   );
+  const [turnProvider, setTurnProvider] = useState<LLMProviderId>('agy-acp');
+  const [turnModel, setTurnModel] = useState<string>('gemini-4-argon');
   const [turnReviewMode, setTurnReviewMode] =
     useState<AdversarialReviewMode>('multi_llm_default');
   const [turnPracticeArea, setTurnPracticeArea] =
@@ -135,6 +141,12 @@ export const App: React.FC = () => {
       .then((initial) => {
         setState(initial);
         setTurnReviewMode(initial.adversarialConfig.mode);
+        const activeProvider =
+          initial.adversarialConfig.primaryProvider || 'agy-acp';
+        const activeModel =
+          initial.adversarialConfig.primaryModel || 'gemini-4-argon';
+        setTurnProvider(activeProvider);
+        setTurnModel(activeModel);
         const activeMatter = initial.matters.find(
           (m) => m.id === initial.activeMatterId
         );
@@ -192,6 +204,57 @@ export const App: React.FC = () => {
       (p) => p.id === state.promptSettings.activeProfileId
     ) ?? state.promptSettings.profiles[0];
 
+  const currentProviderConfig =
+    state.providers.find((p) => p.id === turnProvider) ?? state.providers[0];
+
+  const formatAgentLabel = (p?: ProviderConfig) => {
+    if (!p) return 'Agent';
+    if (p.id === 'agy-acp') return 'Antigravity ACP (T3 Native)';
+    if (p.id === 'claude-cli') return 'Claude Code CLI';
+    if (p.id === 'codex-cli') return 'OpenAI Codex CLI';
+    if (p.id === 'anthropic') return 'Anthropic Claude API';
+    if (p.id === 'openai') return 'OpenAI Direct API';
+    if (p.id === 'gemini') return 'Google Gemini API';
+    if (p.id === 'openrouter') return 'OpenRouter / Local';
+    if (p.id === 'legal-simulator') return 'Offline Simulator';
+    return p.name;
+  };
+
+  const availableModelsForTurnProvider =
+    currentProviderConfig?.availableModels ?? [
+      { id: turnModel, label: turnModel },
+    ];
+
+  const handleProviderChange = async (providerId: LLMProviderId) => {
+    setTurnProvider(providerId);
+    const providerObj = state.providers.find((p) => p.id === providerId);
+    const newModel =
+      providerObj?.availableModels[0]?.id || providerObj?.defaultModel || turnModel;
+    setTurnModel(newModel);
+    try {
+      const updated = await ipcBridge.saveAdversarialConfig({
+        primaryProvider: providerId,
+        primaryModel: newModel,
+      });
+      setState(updated);
+    } catch {
+      // Non-blocking sync
+    }
+  };
+
+  const handleModelChange = async (modelId: string) => {
+    setTurnModel(modelId);
+    try {
+      const updated = await ipcBridge.saveAdversarialConfig({
+        primaryProvider: turnProvider,
+        primaryModel: modelId,
+      });
+      setState(updated);
+    } catch {
+      // Non-blocking sync
+    }
+  };
+
   const handleSubmitPrompt = async (customPrompt?: string) => {
     const text = (customPrompt ?? promptInput).trim();
     if (!text || isRunningTurn) return;
@@ -201,7 +264,7 @@ export const App: React.FC = () => {
     setLiveProgress({
       matterId: activeMatter.id,
       phase: 'assembling_prompt',
-      statusText: 'Starting Local Legal Agent Loop...',
+      statusText: `Starting Legal Agent Turn with ${currentProviderConfig?.name || turnProvider} (${turnModel})...`,
     });
 
     try {
@@ -210,6 +273,8 @@ export const App: React.FC = () => {
         userPrompt: text,
         overrideReviewMode: turnReviewMode,
         overridePracticeAreaId: turnPracticeArea,
+        overridePrimaryProvider: turnProvider,
+        overridePrimaryModel: turnModel,
       });
       setState(updated);
       const newestAssistantMsg = [...updated.messages]
@@ -807,22 +872,77 @@ export const App: React.FC = () => {
                     }
                   }}
                   rows={2}
-                  placeholder={`Instruct your Legal Agent under ${activeProfile.name} (e.g., draft V.R.Cr.P. 12(b)(3) suppression motion, audit BWC vs. Affidavit, or generate redlines)... (⌘+Enter to run)`}
+                  placeholder={`Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile.name}... (⌘+Enter to send)`}
                   className="w-full bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none"
                 />
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-800/80">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* T3-Style Agent Selector */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 hover:border-amber-500/40 transition">
+                      <Bot className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Agent:
+                      </span>
+                      <select
+                        value={turnProvider}
+                        onChange={(e) =>
+                          handleProviderChange(e.target.value as LLMProviderId)
+                        }
+                        className="bg-transparent text-xs font-medium text-amber-300 focus:outline-none cursor-pointer"
+                        title="Select Executing Agent Harness (as per T3)"
+                      >
+                        {state.providers.map((p) => (
+                          <option
+                            key={p.id}
+                            value={p.id}
+                            className="bg-slate-900 text-slate-100"
+                          >
+                            {formatAgentLabel(p)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* T3-Style Model Selector */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 hover:border-cyan-500/40 transition">
+                      <Cpu className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                        Model:
+                      </span>
+                      <select
+                        value={turnModel}
+                        onChange={(e) => handleModelChange(e.target.value)}
+                        className="bg-transparent text-xs font-mono font-medium text-cyan-300 focus:outline-none cursor-pointer max-w-[200px] truncate"
+                        title="Select Model for this Agent"
+                      >
+                        {availableModelsForTurnProvider.map((m) => (
+                          <option
+                            key={m.id}
+                            value={m.id}
+                            className="bg-slate-900 text-slate-100 font-sans"
+                          >
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     {/* Task Persona Selector */}
                     <select
                       value={turnPracticeArea}
                       onChange={(e) =>
                         setTurnPracticeArea(e.target.value as PracticeAreaId)
                       }
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-amber-300"
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-slate-300 hover:border-slate-600 transition cursor-pointer"
+                      title="Task Directive Persona"
                     >
                       {state.promptSettings.practiceAreaPresets.map((p) => (
-                        <option key={p.id} value={p.id}>
+                        <option
+                          key={p.id}
+                          value={p.id}
+                          className="bg-slate-900 text-slate-100"
+                        >
                           Task: {p.shortLabel}
                         </option>
                       ))}
@@ -836,38 +956,49 @@ export const App: React.FC = () => {
                           e.target.value as AdversarialReviewMode
                         )
                       }
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-emerald-300"
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-emerald-300 hover:border-slate-600 transition cursor-pointer"
+                      title="Multi-LLM Adversarial Gate Mode"
                     >
-                      <option value="multi_llm_default">
-                        Gate: Multi-LLM Adversarial Review (Default)
+                      <option
+                        value="multi_llm_default"
+                        className="bg-slate-900 text-slate-100"
+                      >
+                        Gate: Multi-LLM Review
                       </option>
-                      <option value="single_critic">
-                        Gate: Single-Critic Citation Audit
+                      <option
+                        value="single_critic"
+                        className="bg-slate-900 text-slate-100"
+                      >
+                        Gate: Single Critic
                       </option>
-                      <option value="direct_bypass">
-                        Gate: Direct Turn (Bypass Review)
+                      <option
+                        value="direct_bypass"
+                        className="bg-slate-900 text-slate-100"
+                      >
+                        Gate: Direct Bypass
                       </option>
                     </select>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-500 hidden sm:inline">
-                      ⌘ + Enter
+                    <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
+                      ⌘↵
                     </span>
                     <button
                       disabled={isRunningTurn || !promptInput.trim()}
                       onClick={() => handleSubmitPrompt()}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-semibold text-xs transition"
+                      title={`Send prompt to ${formatAgentLabel(currentProviderConfig)} (${turnModel}) — ⌘+Enter`}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:hover:bg-amber-500 text-slate-950 font-semibold text-xs shadow-sm transition active:scale-95 cursor-pointer"
                     >
                       {isRunningTurn ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Running Loop & Review...</span>
+                          <span>Running...</span>
                         </>
                       ) : (
                         <>
                           <Send className="w-3.5 h-3.5" />
-                          <span>Run Legal Agent</span>
+                          <span>Send</span>
                         </>
                       )}
                     </button>

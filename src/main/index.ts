@@ -206,6 +206,8 @@ function registerIpcHandlers(): void {
         userPrompt: string;
         overrideReviewMode?: AdversarialReviewMode;
         overridePracticeAreaId?: PracticeAreaId;
+        overridePrimaryProvider?: LLMProviderId;
+        overridePrimaryModel?: string;
       }
     ) => {
       await agentLoop.runTurn({
