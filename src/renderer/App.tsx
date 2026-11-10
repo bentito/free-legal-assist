@@ -187,8 +187,6 @@ export const App: React.FC = () => {
 
   const activeMatter =
     state.matters.find((m) => m.id === state.activeMatterId) ?? state.matters[0];
-  const activeThread =
-    state.threads.find((t) => t.id === state.activeThreadId) ?? state.threads[0];
   const activeProfile =
     state.promptSettings.profiles.find(
       (p) => p.id === state.promptSettings.activeProfileId
@@ -201,7 +199,7 @@ export const App: React.FC = () => {
     setPromptInput('');
     setIsRunningTurn(true);
     setLiveProgress({
-      threadId: activeThread.id,
+      matterId: activeMatter.id,
       phase: 'assembling_prompt',
       statusText: 'Starting Local Legal Agent Loop...',
     });
@@ -209,7 +207,6 @@ export const App: React.FC = () => {
     try {
       const updated = await ipcBridge.runTurn({
         matterId: activeMatter.id,
-        threadId: activeThread.id,
         userPrompt: text,
         overrideReviewMode: turnReviewMode,
         overridePracticeAreaId: turnPracticeArea,
@@ -401,48 +398,29 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Matter Threads */}
-            <div>
-              <div className="flex items-center justify-between px-1.5 mb-1.5">
+            {/* Active Matter Grounding Overview */}
+            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2">
+              <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Matter Research & Motion Threads
+                  Active Matter Grounding
                 </span>
-                <button
-                  onClick={async () => {
-                    const title = `Legal Analysis Thread #${
-                      state.threads.length + 1
-                    }`;
-                    const updated = await ipcBridge.createThread({
-                      matterId: activeMatter.id,
-                      title,
-                      practiceArea: activeMatter.practiceArea,
-                    });
-                    setState(updated);
-                  }}
-                  className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300"
-                >
-                  <MessageSquarePlus className="w-3.5 h-3.5" />
-                  <span>New Thread</span>
-                </button>
+                <span className="text-[10px] font-mono text-amber-400">
+                  {state.documents.length} Files
+                </span>
               </div>
-
-              <div className="space-y-1">
-                {state.threads.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={async () => {
-                      const updated = await ipcBridge.selectThread(t.id);
-                      setState(updated);
-                    }}
-                    className={`w-full px-3 py-2 rounded-lg text-left text-xs transition ${
-                      t.id === activeThread.id
-                        ? 'bg-slate-800 text-amber-300 font-medium border border-slate-700'
-                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                    }`}
-                  >
-                    <div className="truncate">{t.title}</div>
-                  </button>
-                ))}
+              <div className="space-y-1 text-[11px]">
+                <div className="text-slate-200 font-medium truncate">
+                  {activeMatter.name}
+                </div>
+                <div className="text-slate-400 text-[10px]">
+                  Client: <span className="text-slate-300">{activeMatter.clientName}</span>
+                </div>
+                <div className="text-slate-400 text-[10px] font-mono truncate">
+                  Docket: {activeMatter.matterNumber}
+                </div>
+                <div className="text-slate-400 text-[10px] truncate">
+                  Forum: {activeMatter.jurisdiction}
+                </div>
               </div>
             </div>
           </div>
@@ -489,22 +467,30 @@ export const App: React.FC = () => {
 
         {/* CENTER PANE: Legal Agent Loop & Multi-LLM Adversarial Stream */}
         <main className="flex-1 flex flex-col min-w-0 bg-slate-950">
-          {/* Active Thread Subheader */}
+          {/* Active Matter Subheader */}
           <div className="px-6 py-3 bg-slate-900/50 border-b border-slate-800/80 flex items-center justify-between">
             <div>
-              <h1 className="text-sm font-semibold text-slate-100">
-                {activeThread.title}
+              <h1 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                <Scale className="w-4 h-4 text-amber-400" />
+                <span>{activeMatter.name}</span>
+                <span className="text-xs font-normal text-slate-400 font-mono">
+                  ({activeMatter.matterNumber})
+                </span>
               </h1>
               <p className="text-[11px] text-slate-400">
-                Profile:{' '}
+                Client:{' '}
+                <span className="text-slate-200 font-medium">
+                  {activeMatter.clientName}
+                </span>{' '}
+                &bull; Profile:{' '}
                 <span className="text-amber-300 font-medium">
                   {activeProfile.name}
                 </span>{' '}
-                • Task Directive:{' '}
-                <span className="text-slate-200 font-medium">
-                  {state.assembledPromptPreview.practiceAreaName}
+                &bull; Forum:{' '}
+                <span className="text-slate-300 font-medium">
+                  {activeMatter.jurisdiction}
                 </span>{' '}
-                • Corpus: {state.documents.length} Indexed Files
+                &bull; Corpus: {state.documents.length} Indexed Files
               </p>
             </div>
 
@@ -1127,7 +1113,7 @@ export const App: React.FC = () => {
               </p>
               <p className="text-[11px] text-slate-400">
                 This action will remove the Matter and all associated legal
-                threads, messages, indexed discovery documents, redline
+                messages, indexed discovery documents, redline
                 versions, and chronology facts from the local database. This
                 cannot be undone.
               </p>

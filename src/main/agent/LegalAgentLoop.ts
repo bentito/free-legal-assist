@@ -2,8 +2,8 @@ import {
   AdversarialReviewMode,
   AdversarialReviewRecord,
   AgentProgressEvent,
+  LegalMessage,
   PracticeAreaId,
-  ThreadMessage,
   ToolCallRecord,
 } from '../../shared/types';
 import { LegalDatabase } from '../db/database';
@@ -25,26 +25,24 @@ export class LegalAgentLoop {
 
   async runTurn(params: {
     matterId: string;
-    threadId: string;
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
     onProgress?: (event: AgentProgressEvent) => void;
   }): Promise<{
-    userMessage: ThreadMessage;
-    assistantMessage: ThreadMessage;
+    userMessage: LegalMessage;
+    assistantMessage: LegalMessage;
   }> {
     const {
       matterId,
-      threadId,
       userPrompt,
       overrideReviewMode,
       overridePracticeAreaId,
       onProgress,
     } = params;
 
-    const emit = (event: Omit<AgentProgressEvent, 'threadId'>) => {
-      onProgress?.({ threadId, ...event });
+    const emit = (event: Omit<AgentProgressEvent, 'matterId'>) => {
+      onProgress?.({ matterId, ...event });
     };
 
     const matter = this.db.getMatter(matterId);
@@ -53,9 +51,9 @@ export class LegalAgentLoop {
     }
 
     // 1. Record User Prompt
-    const userMessage: ThreadMessage = {
+    const userMessage: LegalMessage = {
       id: `msg-user-${Date.now()}`,
-      threadId,
+      matterId,
       role: 'user',
       content: userPrompt,
       toolCalls: [],
@@ -272,9 +270,9 @@ export class LegalAgentLoop {
       }
     }
 
-    const assistantMessage: ThreadMessage = {
+    const assistantMessage: LegalMessage = {
       id: assistantMessageId,
-      threadId,
+      matterId,
       role: 'assistant',
       content: candidateDraft,
       initialDraftBeforeReview:

@@ -37,15 +37,8 @@ declare global {
       selectPractitionerProfile(
         profileId: PractitionerProfileId
       ): Promise<AppBootstrapState>;
-      createThread(payload: {
-        matterId: string;
-        title: string;
-        practiceArea: PracticeAreaId;
-      }): Promise<AppBootstrapState>;
-      selectThread(threadId: string): Promise<AppBootstrapState>;
       runTurn(payload: {
         matterId: string;
-        threadId: string;
         userPrompt: string;
         overrideReviewMode?: AdversarialReviewMode;
         overridePracticeAreaId?: PracticeAreaId;
@@ -160,21 +153,8 @@ export const ipcBridge = {
     return window.lexharness!.selectPractitionerProfile(profileId);
   },
 
-  async createThread(payload: {
-    matterId: string;
-    title: string;
-    practiceArea: PracticeAreaId;
-  }): Promise<AppBootstrapState> {
-    return window.lexharness!.createThread(payload);
-  },
-
-  async selectThread(threadId: string): Promise<AppBootstrapState> {
-    return window.lexharness!.selectThread(threadId);
-  },
-
   async runTurn(payload: {
     matterId: string;
-    threadId: string;
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;

@@ -10,7 +10,6 @@ import {
   AppBootstrapState,
   ChronologyFact,
   DocumentCategory,
-  LegalThread,
   LLMProviderId,
   Matter,
   MatterDocument,
@@ -24,7 +23,6 @@ let mainWindow: BrowserWindow | null = null;
 let db: LegalDatabase;
 let agentLoop: LegalAgentLoop;
 let activeMatterId = 'matter-vt-state-v-thorne';
-let activeThreadId = 'thread-vt-suppression';
 
 function createSafeStorageEncryptor(): SecretEncryptor {
   return {
@@ -57,25 +55,7 @@ function buildBootstrapState(): AppBootstrapState {
     matters.find((m) => m.id === activeMatterId) ?? matters[0];
   activeMatterId = currentMatter.id;
 
-  let threads = db.listThreads(activeMatterId);
-  if (threads.length === 0) {
-    const defaultThread: LegalThread = {
-      id: `thread-${Date.now()}`,
-      matterId: activeMatterId,
-      title: `${currentMatter.name} — Legal Analysis Thread`,
-      practiceArea: currentMatter.practiceArea,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    db.insertThread(defaultThread);
-    threads = [defaultThread];
-  }
-
-  const currentThread =
-    threads.find((t) => t.id === activeThreadId) ?? threads[0];
-  activeThreadId = currentThread.id;
-
-  const messages = db.listMessages(activeThreadId);
+  const messages = db.listMessages(activeMatterId);
   const documents = db.listDocuments(activeMatterId);
   const documentVersions = db.listDocumentVersions(activeMatterId);
   const chronologyFacts = db.listChronologyFacts(activeMatterId);
@@ -85,7 +65,7 @@ function buildBootstrapState(): AppBootstrapState {
   const assembledPromptPreview = PromptAssembler.assembleForMatter(
     promptSettings,
     currentMatter,
-    currentThread.practiceArea
+    currentMatter.practiceArea
   );
 
   const onboardingSaved = db.getAgentOnboardingSavedState();
@@ -100,8 +80,6 @@ function buildBootstrapState(): AppBootstrapState {
   return {
     matters,
     activeMatterId,
-    threads,
-    activeThreadId,
     messages,
     documents,
     documentVersions,
@@ -121,10 +99,6 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('legal:select-matter', async (_event, matterId: string) => {
     activeMatterId = matterId;
-    const threads = db.listThreads(matterId);
-    if (threads.length > 0) {
-      activeThreadId = threads[0].id;
-    }
     return buildBootstrapState();
   });
 
@@ -172,17 +146,6 @@ function registerIpcHandlers(): void {
       };
       db.insertDocument(initialDoc);
 
-      const initialThread: LegalThread = {
-        id: `thread-${Date.now()}`,
-        matterId: newMatter.id,
-        title: 'Primary Legal Research & Drafting Thread',
-        practiceArea: newMatter.practiceArea,
-        createdAt: now,
-        updatedAt: now,
-      };
-      db.insertThread(initialThread);
-      activeThreadId = initialThread.id;
-
       return buildBootstrapState();
     }
   );
@@ -201,10 +164,6 @@ function registerIpcHandlers(): void {
       const { nextActiveMatterId } = db.deleteMatter(matterId);
       if (activeMatterId === matterId) {
         activeMatterId = nextActiveMatterId;
-        const threads = db.listThreads(activeMatterId);
-        if (threads.length > 0) {
-          activeThreadId = threads[0].id;
-        }
       }
       return buildBootstrapState();
     }
@@ -239,39 +198,11 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
-    'legal:create-thread',
-    async (
-      _event,
-      payload: { matterId: string; title: string; practiceArea: PracticeAreaId }
-    ) => {
-      const now = new Date().toISOString();
-      const thread: LegalThread = {
-        id: `thread-${Date.now()}`,
-        matterId: payload.matterId,
-        title: payload.title,
-        practiceArea: payload.practiceArea,
-        createdAt: now,
-        updatedAt: now,
-      };
-      db.insertThread(thread);
-      activeMatterId = payload.matterId;
-      activeThreadId = thread.id;
-      return buildBootstrapState();
-    }
-  );
-
-  ipcMain.handle('legal:select-thread', async (_event, threadId: string) => {
-    activeThreadId = threadId;
-    return buildBootstrapState();
-  });
-
-  ipcMain.handle(
     'legal:run-turn',
     async (
       _event,
       payload: {
         matterId: string;
-        threadId: string;
         userPrompt: string;
         overrideReviewMode?: AdversarialReviewMode;
         overridePracticeAreaId?: PracticeAreaId;

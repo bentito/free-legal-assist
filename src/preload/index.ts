@@ -36,15 +36,8 @@ export interface LexHarnessBridge {
   selectPractitionerProfile(
     profileId: PractitionerProfileId
   ): Promise<AppBootstrapState>;
-  createThread(payload: {
-    matterId: string;
-    title: string;
-    practiceArea: PracticeAreaId;
-  }): Promise<AppBootstrapState>;
-  selectThread(threadId: string): Promise<AppBootstrapState>;
   runTurn(payload: {
     matterId: string;
-    threadId: string;
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
@@ -115,8 +108,6 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.invoke('legal:update-matter-jurisdiction', payload),
   selectPractitionerProfile: (profileId) =>
     ipcRenderer.invoke('legal:select-practitioner-profile', profileId),
-  createThread: (payload) => ipcRenderer.invoke('legal:create-thread', payload),
-  selectThread: (threadId) => ipcRenderer.invoke('legal:select-thread', threadId),
   runTurn: (payload) => ipcRenderer.invoke('legal:run-turn', payload),
   savePromptSettings: (updated) =>
     ipcRenderer.invoke('legal:save-prompt-settings', updated),

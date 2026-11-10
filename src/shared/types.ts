@@ -220,9 +220,9 @@ export interface AdversarialReviewRecord {
   createdAt: string;
 }
 
-export interface ThreadMessage {
+export interface LegalMessage {
   id: string;
-  threadId: string;
+  matterId: string;
   role: 'user' | 'assistant';
   content: string;
   initialDraftBeforeReview?: string;
@@ -236,14 +236,7 @@ export interface ThreadMessage {
   createdAt: string;
 }
 
-export interface LegalThread {
-  id: string;
-  matterId: string;
-  title: string;
-  practiceArea: PracticeAreaId;
-  createdAt: string;
-  updatedAt: string;
-}
+export type ThreadMessage = LegalMessage;
 
 export type AgentLoopPhase =
   | 'idle'
@@ -256,7 +249,7 @@ export type AgentLoopPhase =
   | 'error';
 
 export interface AgentProgressEvent {
-  threadId: string;
+  matterId: string;
   phase: AgentLoopPhase;
   statusText: string;
   detailText?: string;
@@ -332,9 +325,7 @@ export interface AgentSetupTerminalEvent {
 export interface AppBootstrapState {
   matters: Matter[];
   activeMatterId: string;
-  threads: LegalThread[];
-  activeThreadId: string;
-  messages: ThreadMessage[];
+  messages: LegalMessage[];
   documents: MatterDocument[];
   documentVersions: DocumentVersion[];
   chronologyFacts: ChronologyFact[];

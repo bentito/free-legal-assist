@@ -83,7 +83,6 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
 
     const result = await loop.runTurn({
       matterId: 'matter-vt-state-v-thorne',
-      threadId: 'thread-vt-suppression',
       userPrompt:
         'Draft a V.R.Cr.P. 12(b)(3) Motion to Suppress and 12(d) Motion to Dismiss challenging Trooper Keller’s exit order and locked console search.',
       onProgress: (evt) => {
@@ -111,7 +110,7 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(result.assistantMessage.content).toContain('V.R.Cr.P. 12(d)');
   });
 
-  it('deletes a Matter and cascades deletion of threads, documents, versions, and chronology facts', () => {
+  it('deletes a Matter and cascades deletion of messages, documents, versions, and chronology facts', () => {
     const initialMatters = db.listMatters();
     expect(initialMatters.length).toBe(2);
 
@@ -121,7 +120,7 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(remainingMatters.length).toBe(1);
     expect(nextActiveMatterId).toBe('matter-vt-state-v-thorne');
     expect(db.listDocuments('matter-apex-meridian').length).toBe(0);
-    expect(db.listThreads('matter-apex-meridian').length).toBe(0);
+    expect(db.listMessages('matter-apex-meridian').length).toBe(0);
     expect(db.listChronologyFacts('matter-apex-meridian').length).toBe(0);
   });
 

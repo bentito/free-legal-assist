@@ -5,7 +5,7 @@ import {
   AdversarialConfig,
   ChronologyFact,
   DocumentVersion,
-  LegalThread,
+  LegalMessage,
   LLMProviderId,
   Matter,
   MatterDocument,
@@ -14,7 +14,6 @@ import {
   PractitionerProfileId,
   ProviderConfig,
   SystemPromptSettings,
-  ThreadMessage,
   UpdateMatterPayload,
 } from '../../shared/types';
 import { CliAgentDriverManager } from '../agent/providers/CliAgentDriverManager';
@@ -27,7 +26,6 @@ import {
   SEEDED_DOCUMENT_VERSIONS,
   SEEDED_MATTERS,
   SEEDED_MESSAGES,
-  SEEDED_THREADS,
 } from './defaultLegalData';
 
 export interface SecretEncryptor {
@@ -248,18 +246,9 @@ export class LegalDatabase {
         created_at TEXT NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS threads (
-        id TEXT PRIMARY KEY,
-        matter_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        practice_area TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
-        thread_id TEXT NOT NULL,
+        matter_id TEXT NOT NULL,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
         initial_draft_before_review TEXT,
@@ -287,6 +276,28 @@ export class LegalDatabase {
         updated_at TEXT NOT NULL
       );
     `);
+
+    // Migrate messages table if existing DB had thread_id instead of matter_id
+    try {
+      const tableInfo = this.db.exec('PRAGMA table_info(messages)');
+      const cols = tableInfo[0]?.values?.map((row) => String(row[1])) || [];
+      if (cols.length > 0 && !cols.includes('matter_id')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN matter_id TEXT');
+        try {
+          this.db.run(`
+            UPDATE messages
+            SET matter_id = COALESCE(
+              (SELECT matter_id FROM threads WHERE threads.id = messages.thread_id),
+              'matter-vt-state-v-thorne'
+            )
+          `);
+        } catch {
+          this.db.run("UPDATE messages SET matter_id = 'matter-vt-state-v-thorne'");
+        }
+      }
+    } catch {
+      // Ignored if table not created yet
+    }
   }
 
   private seedOrMigrate(): void {
@@ -305,9 +316,6 @@ export class LegalDatabase {
       }
       for (const fact of SEEDED_CHRONOLOGY_FACTS) {
         this.insertChronologyFact(fact, false);
-      }
-      for (const t of SEEDED_THREADS) {
-        this.insertThread(t, false);
       }
       for (const msg of SEEDED_MESSAGES) {
         this.insertMessage(msg, false);
@@ -447,16 +455,12 @@ export class LegalDatabase {
   }
 
   /**
-   * Deletes a Matter and cascades deletion to all associated threads, messages,
+   * Deletes a Matter and cascades deletion to all associated messages,
    * documents, document versions, and chronology facts. If the last remaining
    * Matter is deleted, creates a fresh default Matter so the workspace stays usable.
    */
   deleteMatter(matterId: string): { remainingMatters: Matter[]; nextActiveMatterId: string } {
-    const threads = this.listThreads(matterId);
-    for (const t of threads) {
-      this.db.run('DELETE FROM messages WHERE thread_id = ?', [t.id]);
-    }
-    this.db.run('DELETE FROM threads WHERE matter_id = ?', [matterId]);
+    this.db.run('DELETE FROM messages WHERE matter_id = ?', [matterId]);
     this.db.run('DELETE FROM document_versions WHERE matter_id = ?', [matterId]);
     this.db.run('DELETE FROM documents WHERE matter_id = ?', [matterId]);
     this.db.run('DELETE FROM chronology_facts WHERE matter_id = ?', [matterId]);
@@ -626,56 +630,18 @@ export class LegalDatabase {
     return fact;
   }
 
-  // --- Threads & Messages ---
-  listThreads(matterId: string): LegalThread[] {
+  // --- Matter Analysis Messages ---
+  listMessages(matterId: string): LegalMessage[] {
     const stmt = this.db.prepare(
-      'SELECT * FROM threads WHERE matter_id = ? ORDER BY updated_at DESC'
+      'SELECT * FROM messages WHERE matter_id = ? ORDER BY created_at ASC'
     );
     stmt.bind([matterId]);
-    const threads: LegalThread[] = [];
-    while (stmt.step()) {
-      const r = stmt.getAsObject() as Record<string, string>;
-      threads.push({
-        id: r.id,
-        matterId: r.matter_id,
-        title: r.title,
-        practiceArea: r.practice_area as PracticeAreaId,
-        createdAt: r.created_at,
-        updatedAt: r.updated_at,
-      });
-    }
-    stmt.free();
-    return threads;
-  }
-
-  insertThread(thread: LegalThread, flush = true): LegalThread {
-    this.db.run(
-      `INSERT OR REPLACE INTO threads (id, matter_id, title, practice_area, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        thread.id,
-        thread.matterId,
-        thread.title,
-        thread.practiceArea,
-        thread.createdAt,
-        thread.updatedAt,
-      ]
-    );
-    if (flush) this.persist();
-    return thread;
-  }
-
-  listMessages(threadId: string): ThreadMessage[] {
-    const stmt = this.db.prepare(
-      'SELECT * FROM messages WHERE thread_id = ? ORDER BY created_at ASC'
-    );
-    stmt.bind([threadId]);
-    const messages: ThreadMessage[] = [];
+    const messages: LegalMessage[] = [];
     while (stmt.step()) {
       const r = stmt.getAsObject() as Record<string, unknown>;
       messages.push({
         id: String(r.id),
-        threadId: String(r.thread_id),
+        matterId: String(r.matter_id),
         role: r.role as 'user' | 'assistant',
         content: String(r.content),
         initialDraftBeforeReview: r.initial_draft_before_review
@@ -686,7 +652,7 @@ export class LegalDatabase {
           : undefined,
         primaryModel: r.primary_model ? String(r.primary_model) : undefined,
         reviewModeUsed: r.review_mode_used
-          ? (String(r.review_mode_used) as ThreadMessage['reviewModeUsed'])
+          ? (String(r.review_mode_used) as LegalMessage['reviewModeUsed'])
           : undefined,
         assembledSystemPromptSnapshot: r.assembled_system_prompt_snapshot
           ? String(r.assembled_system_prompt_snapshot)
@@ -701,17 +667,17 @@ export class LegalDatabase {
     return messages;
   }
 
-  insertMessage(msg: ThreadMessage, flush = true): ThreadMessage {
+  insertMessage(msg: LegalMessage, flush = true): LegalMessage {
     this.db.run(
       `INSERT OR REPLACE INTO messages (
-        id, thread_id, role, content, initial_draft_before_review,
+        id, matter_id, role, content, initial_draft_before_review,
         primary_provider, primary_model, review_mode_used,
         assembled_system_prompt_snapshot, tool_calls_json, adversarial_reviews_json,
         revision_rounds_completed, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         msg.id,
-        msg.threadId,
+        msg.matterId,
         msg.role,
         msg.content,
         msg.initialDraftBeforeReview ?? null,

@@ -2,13 +2,12 @@ import {
   AdversarialConfig,
   ChronologyFact,
   DocumentVersion,
-  LegalThread,
+  LegalMessage,
   Matter,
   MatterDocument,
   PracticeAreaPreset,
   PractitionerProfile,
   SystemPromptSettings,
-  ThreadMessage,
 } from '../../shared/types';
 
 // ============================================================================
@@ -550,29 +549,10 @@ export const SEEDED_CHRONOLOGY_FACTS: ChronologyFact[] = [
   },
 ];
 
-export const SEEDED_THREADS: LegalThread[] = [
-  {
-    id: 'thread-vt-suppression',
-    matterId: 'matter-vt-state-v-thorne',
-    title: 'Art. 11 Motion to Suppress Exit Order & Warrantless Console Search (V.R.Cr.P. 12)',
-    practiceArea: 'vt_suppression_art11',
-    createdAt: '2026-11-08T10:00:00.000Z',
-    updatedAt: '2026-11-08T10:15:00.000Z',
-  },
-  {
-    id: 'thread-apex-cap-analysis',
-    matterId: 'matter-apex-meridian',
-    title: 'MSA § 9.2 Liability Cap & § 8.2 Notice Prejudice Analysis',
-    practiceArea: 'general_litigation',
-    createdAt: '2026-11-07T09:15:00.000Z',
-    updatedAt: '2026-11-07T09:30:00.000Z',
-  },
-];
-
-export const SEEDED_MESSAGES: ThreadMessage[] = [
+export const SEEDED_MESSAGES: LegalMessage[] = [
   {
     id: 'msg-vt-user-1',
-    threadId: 'thread-vt-suppression',
+    matterId: 'matter-vt-state-v-thorne',
     role: 'user',
     content:
       'Analyze Trooper Keller’s Affidavit against the Body-Worn Camera transcript and his V.R.Cr.P. 15 deposition, and draft our Motion to Suppress and Dismiss under Chapter I, Article 11 of the Vermont Constitution.',
@@ -582,7 +562,7 @@ export const SEEDED_MESSAGES: ThreadMessage[] = [
   },
   {
     id: 'msg-vt-assistant-1',
-    threadId: 'thread-vt-suppression',
+    matterId: 'matter-vt-state-v-thorne',
     role: 'assistant',
     primaryProvider: 'anthropic',
     primaryModel: 'claude-3-7-sonnet-latest',

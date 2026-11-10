@@ -4,7 +4,7 @@
 
 **LexHarness** is a cross-platform (**macOS and Windows**) desktop application that provides lawyers with a dedicated **Agent Harness Control Surface**—an autonomous, multi-step workspace for legal research, record investigation, citation verification, and work-product drafting:
 
-1. **Local Client Agent Loop**: Runs natively on the lawyer's Mac or Windows machine inside the Electron main process, maintaining matter and thread state in a local SQLite database (`sql.js`), executing local matter evidence tools (`search_matter_corpus`, `verify_citation_lookup`, `read_document_pages`, `propose_document_redline`, `record_chronology_fact`), and calling LLM provider APIs or T3-style CLI/ACP agent harnesses directly from the client.
+1. **Local Client Agent Loop**: Runs natively on the lawyer's Mac or Windows machine inside the Electron main process, maintaining matter state and legal message history directly in a local SQLite database (`sql.js`), executing local matter evidence tools (`search_matter_corpus`, `verify_citation_lookup`, `read_document_pages`, `propose_document_redline`, `record_chronology_fact`), and calling LLM provider APIs or T3-style CLI/ACP agent harnesses directly from the client.
 2. **Practitioner Profiles & User-Governed Legal System Prompts**: All system prompts, task presets, default jurisdictions, and critic instructions are organized into selectable **Practitioner Profiles** and exposed directly in the application's **Prompt Governance Studio** (Settings).
    - **1st in Pick List (Default Profile)**: **`Vermont Criminal Defense Lawyer`** — Pre-configured for Vermont Superior Court, Criminal Division practice, grounding analysis in the Vermont Constitution (specifically **Chapter I, Article 11** search-and-seizure protections, which are broader than the federal Fourth Amendment, and **Article 10** trial/due process rights), the **Vermont Rules of Criminal Procedure (V.R.Cr.P.)**, **Vermont Rules of Evidence (V.R.E.)**, **Title 13 (`13 V.S.A.`)** and **Title 23 (`23 V.S.A.`)**, and Vermont Supreme Court precedent.
    - **2nd in Pick List**: **`General Legal Practice`** — A versatile civil, transactional, and regulatory profile with general practice presets.
@@ -24,7 +24,7 @@ flowchart TB
     subgraph Desktop["Cross-Platform Desktop App (macOS & Windows - Electron)"]
         subgraph UI["Renderer Control Surface (src/renderer)"]
             Header["macOS Inset Header Bar (Active Profile Badge, Matter/Docket + Gear, Connected Agents Pill, Gate Status)"]
-            LeftSidebar["Left Pane: Matters/Cases, Threads & Multi-LLM Gate Card"]
+            LeftSidebar["Left Pane: Matters/Cases, Matter Grounding & Multi-LLM Gate Card"]
             CenterStream["Center Pane: Agent Loop Stream, Grounded Tool Cards, Privacy/Routing Badge, Adversarial Scorecard & Composer"]
             RightPane["Right Pane: Work-Product Redline Viewer, Discovery/Matter Corpus & Fact Chronology"]
             StudioModal["Prompt Governance Studio (Profiles, Layers 1–4 Prompts, Model Roles & Credentials, Local Router & PII Policy)"]
@@ -152,7 +152,7 @@ Lawyers frequently need to revisit a Matter to update the case caption, docket n
   - `practiceArea` (*Default Task Persona*)
   - `folderPath` (*Local Matter Workspace Folder Path*)
 - **Matter Deletion with Confirmation Dialog (`legal:delete-matter`)**:
-  - Clicking **`Delete Matter...`** (either from the right-click context menu or inside the **Matter Settings Dialog**) opens a dedicated **Confirm Permanent Matter Deletion** modal dialog displaying the Matter name, Client name, and Docket ID, warning that all associated threads, messages, indexed discovery documents, redline versions, and chronology facts will be permanently removed.
+  - Clicking **`Delete Matter...`** (either from the right-click context menu or inside the **Matter Settings Dialog**) opens a dedicated **Confirm Permanent Matter Deletion** modal dialog displaying the Matter name, Client name, and Docket ID, warning that all associated messages, indexed discovery documents, redline versions, and chronology facts will be permanently removed.
   - Only when the user clicks **`Yes, Permanently Delete Matter`** does `LegalDatabase.deleteMatter(matterId)` cascade-delete all associated records in SQLite and switch the active workspace to the next remaining Matter.
 
 ---
@@ -357,3 +357,17 @@ free-legal-assist/
 5. **Package Distributable Installers (`release/`) & Publish GitHub Release (`v0.2.0`)**:
    - `npm run dist:mac` (macOS `.dmg` and `-mac.zip`)
    - `npm run dist:win` (Windows x64 `LexHarness Setup 0.2.0.exe` and `LexHarness-0.2.0-win.zip`)
+
+---
+
+## 10. Future Ideas: Specialized Issue Analysis Threads
+
+While LexHarness currently intentionally unifies each Matter into a single direct workspace—grounding all messages, evidence discovery files, redlines, and factual chronologies directly in the active matter file—multi-threading can be revisited in future releases as matters grow in procedural complexity:
+1. **Procedural & Motion Branching**:
+   - Allowing attorneys to spin off isolated analysis threads within a single matter (e.g., Thread A: *V.R.Cr.P. 12(b)(3) Exit Order Suppression*; Thread B: *Bader Exigent Circumstances Challenge*; Thread C: *State's Witness Impeachment Matrix*).
+   - Each thread would maintain its own conversation context and adversarial review records while referencing the unified matter evidence corpus (`~/Matters/<Docket>`).
+2. **Specialized Counsel & Subagent Threads**:
+   - Forking specific legal inquiries to specialized subagents (e.g., sentencing mitigation researcher, appellate preservation auditor, client interview intake).
+3. **Thread Merging & Master Brief Synthesis**:
+   - Synthesizing findings and draft sections from multiple exploratory threads into the matter's primary pleading or appellate brief.
+
