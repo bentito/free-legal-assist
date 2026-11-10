@@ -295,12 +295,25 @@ export interface CourtListenerMcpAssuranceState {
   hasInstalledAgent: boolean;
   configuredAgentDisplayName: string | null;
   configuredAgentDriver: 'codex' | 'claudeAgent' | 'antigravity' | null;
+  installedDrivers?: ('codex' | 'claudeAgent' | 'antigravity')[];
   hasAuthToken: boolean;
   maskedAuthToken: string | null;
   signupUrl: string;
   status: 'ready' | 'needs_token' | 'not_configured';
   statusHeadline: string;
   statusDetail: string;
+}
+
+export interface CustomLegalMcpServer {
+  id: string;
+  name: string;
+  description?: string;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  targetDriver: 'codex' | 'claudeAgent' | 'antigravity' | 'all';
+  enabled: boolean;
+  createdAt: string;
 }
 
 export interface AgentOnboardingState {
@@ -334,4 +347,5 @@ export interface AppBootstrapState {
   providers: ProviderConfig[];
   assembledPromptPreview: AssembledPromptPreview;
   agentOnboarding: AgentOnboardingState;
+  customMcpServers: CustomLegalMcpServer[];
 }

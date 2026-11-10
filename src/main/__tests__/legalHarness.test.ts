@@ -6,6 +6,7 @@ import { LegalDatabase } from '../db/database';
 import { PromptAssembler } from '../agent/PromptAssembler';
 import { LegalAgentLoop } from '../agent/LegalAgentLoop';
 import { CliAgentDriverManager } from '../agent/providers/CliAgentDriverManager';
+import { CustomLegalMcpServer } from '../../shared/types';
 
 describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets & Multi-LLM Loop', () => {
   let tmpDir: string;
@@ -282,6 +283,83 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
       expect(
         claudeData.mcpServers?.courtlistener?.env?.COURTLISTENER_API_TOKEN
       ).toBe(testToken);
+
+      // Verify installedDrivers lists both codex and claudeAgent
+      const multiProbe = CliAgentDriverManager.probeCourtListenerMcp({
+        homeDir: tempHome,
+        token: testToken,
+      });
+      expect(multiProbe.installedDrivers).toContain('codex');
+      expect(multiProbe.installedDrivers).toContain('claudeAgent');
+      expect(multiProbe.configuredAgentDisplayName).toBeTruthy();
+    } finally {
+      try {
+        fs.rmSync(tempHome, { recursive: true, force: true });
+      } catch {
+        // Cleanup
+      }
+    }
+  });
+
+  it('manages custom legal MCP servers and injects configs across agent runtimes', () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'lexharness-custom-mcp-'));
+    try {
+      // 1. Database persistence
+      const customServer: CustomLegalMcpServer = {
+        id: 'sec-edgar',
+        name: 'SEC EDGAR Filings',
+        description: 'SEC EDGAR corporate filings search via MCP',
+        command: 'npx',
+        args: ['-y', 'sec-edgar-mcp'],
+        env: { SEC_USER_AGENT: 'LawFirm legal@firm.com' },
+        targetDriver: 'all',
+        enabled: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      const initialList = db.listCustomMcpServers();
+      expect(Array.isArray(initialList)).toBe(true);
+
+      const savedList = db.saveCustomMcpServer(customServer);
+      expect(savedList.some((s) => s.id === 'sec-edgar')).toBe(true);
+      expect(db.listCustomMcpServers().some((s) => s.id === 'sec-edgar')).toBe(true);
+
+      // 2. Install on Codex and Claude agent configs
+      CliAgentDriverManager.installCustomMcpServerOnAgent({
+        server: customServer,
+        homeDir: tempHome,
+      });
+
+      // Codex config check
+      const codexPath = path.join(tempHome, '.codex', 'config.toml');
+      expect(fs.existsSync(codexPath)).toBe(true);
+      const codexText = fs.readFileSync(codexPath, 'utf8');
+      expect(codexText).toContain('[mcp_servers.sec-edgar]');
+      expect(codexText).toContain('sec-edgar-mcp');
+
+      // Claude config check
+      const claudePath = path.join(tempHome, '.claude.json');
+      expect(fs.existsSync(claudePath)).toBe(true);
+      const claudeJson = JSON.parse(fs.readFileSync(claudePath, 'utf8'));
+      expect(claudeJson.mcpServers?.['sec-edgar']?.command).toBe('npx');
+      expect(claudeJson.mcpServers?.['sec-edgar']?.env?.SEC_USER_AGENT).toBe('LawFirm legal@firm.com');
+
+      // 3. Remove custom MCP server from agent configs
+      CliAgentDriverManager.removeCustomMcpServerFromAgent({
+        serverId: 'sec-edgar',
+        homeDir: tempHome,
+      });
+
+      const updatedCodex = fs.readFileSync(codexPath, 'utf8');
+      expect(updatedCodex).not.toContain('[mcp_servers.sec-edgar]');
+
+      const updatedClaude = JSON.parse(fs.readFileSync(claudePath, 'utf8'));
+      expect(updatedClaude.mcpServers?.['sec-edgar']).toBeUndefined();
+
+      // 4. Delete from database
+      const afterDelete = db.deleteCustomMcpServer('sec-edgar');
+      expect(afterDelete.some((s) => s.id === 'sec-edgar')).toBe(false);
+      expect(db.listCustomMcpServers().some((s) => s.id === 'sec-edgar')).toBe(false);
     } finally {
       try {
         fs.rmSync(tempHome, { recursive: true, force: true });

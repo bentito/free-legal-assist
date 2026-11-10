@@ -1316,6 +1316,27 @@ export const App: React.FC = () => {
           const next = await ipcBridge.updateMatterJurisdiction(payload);
           setState(next);
         }}
+        courtListenerAssurance={state.agentOnboarding?.courtListenerAssurance}
+        customMcpServers={state.customMcpServers}
+        onSaveCourtListenerToken={async (token) => {
+          const next = await ipcBridge.saveCourtListenerToken(token);
+          setState(next);
+        }}
+        onInstallCourtListenerOnDefaultAgent={async (driver) => {
+          const next = await ipcBridge.installCourtListenerOnDefaultAgent(driver);
+          setState(next);
+        }}
+        onSaveCustomMcpServer={async (server) => {
+          const next = await ipcBridge.saveCustomMcpServer(server);
+          setState(next);
+        }}
+        onDeleteCustomMcpServer={async (serverId) => {
+          const next = await ipcBridge.deleteCustomMcpServer(serverId);
+          setState(next);
+        }}
+        onOpenExternalUrl={async (url) => {
+          await ipcBridge.openExternalUrl(url);
+        }}
       />
 
       {/* New Legal Matter Modal */}
@@ -1474,14 +1495,6 @@ export const App: React.FC = () => {
           }}
           onSubscribeSetupTerminal={(callback) => {
             return ipcBridge.onAgentSetupTerminal(callback);
-          }}
-          onSaveCourtListenerToken={async (token) => {
-            const next = await ipcBridge.saveCourtListenerToken(token);
-            setState(next);
-          }}
-          onInstallCourtListenerOnDefaultAgent={async () => {
-            const next = await ipcBridge.installCourtListenerOnDefaultAgent();
-            setState(next);
           }}
           onSelectMatter={async (matterId) => {
             const next = await ipcBridge.selectMatter(matterId);

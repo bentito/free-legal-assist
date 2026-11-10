@@ -4,6 +4,7 @@ import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import {
   AdversarialConfig,
   ChronologyFact,
+  CustomLegalMcpServer,
   DocumentVersion,
   LegalMessage,
   LLMProviderId,
@@ -907,6 +908,32 @@ export class LegalDatabase {
       }
     }
     return process.env.COURTLISTENER_API_TOKEN || null;
+  }
+
+  // --- Custom Legal MCP Servers ---
+  listCustomMcpServers(): CustomLegalMcpServer[] {
+    return this.getKeyValue<CustomLegalMcpServer[]>('custom_mcp_servers') ?? [];
+  }
+
+  saveCustomMcpServer(server: CustomLegalMcpServer): CustomLegalMcpServer[] {
+    const current = this.listCustomMcpServers();
+    const existingIndex = current.findIndex((s) => s.id === server.id);
+    let next: CustomLegalMcpServer[];
+    if (existingIndex >= 0) {
+      next = [...current];
+      next[existingIndex] = server;
+    } else {
+      next = [...current, server];
+    }
+    this.setKeyValue('custom_mcp_servers', next, true);
+    return next;
+  }
+
+  deleteCustomMcpServer(serverId: string): CustomLegalMcpServer[] {
+    const current = this.listCustomMcpServers();
+    const next = current.filter((s) => s.id !== serverId);
+    this.setKeyValue('custom_mcp_servers', next, true);
+    return next;
   }
 
   private getRawProviderRow(providerId: LLMProviderId): {

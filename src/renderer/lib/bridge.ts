@@ -5,6 +5,7 @@ import {
   AgentSetupTerminalEvent,
   AppBootstrapState,
   ChronologyFact,
+  CustomLegalMcpServer,
   DocumentCategory,
   LLMProviderId,
   PracticeAreaId,
@@ -78,7 +79,13 @@ declare global {
       stopAgentSetupCommand(payload: { sessionId: string }): Promise<AppBootstrapState>;
       saveCourtListenerToken(payload: { token: string }): Promise<AppBootstrapState>;
       installCourtListenerOnDefaultAgent(payload?: {
-        driver?: 'codex' | 'claudeAgent' | 'antigravity';
+        driver?: 'codex' | 'claudeAgent' | 'antigravity' | 'all';
+      }): Promise<AppBootstrapState>;
+      saveCustomMcpServer(payload: {
+        server: CustomLegalMcpServer;
+      }): Promise<AppBootstrapState>;
+      deleteCustomMcpServer(payload: {
+        serverId: string;
       }): Promise<AppBootstrapState>;
       openExternalUrl(payload: { url: string }): Promise<void>;
       createDocument(payload: {
@@ -229,11 +236,23 @@ export const ipcBridge = {
   },
 
   async installCourtListenerOnDefaultAgent(
-    driver?: 'codex' | 'claudeAgent' | 'antigravity'
+    driver?: 'codex' | 'claudeAgent' | 'antigravity' | 'all'
   ): Promise<AppBootstrapState> {
     return window.lexharness!.installCourtListenerOnDefaultAgent(
       driver ? { driver } : undefined
     );
+  },
+
+  async saveCustomMcpServer(
+    server: CustomLegalMcpServer
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.saveCustomMcpServer({ server });
+  },
+
+  async deleteCustomMcpServer(
+    serverId: string
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.deleteCustomMcpServer({ serverId });
   },
 
   async openExternalUrl(url: string): Promise<void> {

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   AdversarialConfig,
   AssembledPromptPreview,
+  CourtListenerMcpAssuranceState,
+  CustomLegalMcpServer,
   LLMProviderId,
   Matter,
   PracticeAreaId,
@@ -11,15 +13,23 @@ import {
   SystemPromptSettings,
 } from '../../shared/types';
 import {
+  Bot,
   CheckCircle2,
+  Cpu,
+  ExternalLink,
   Eye,
   KeyRound,
+  Plus,
+  RefreshCw,
   RotateCcw,
   Scale,
+  Server,
   ShieldAlert,
   Sliders,
   Sparkles,
+  Trash2,
   UserCheck,
+  Wrench,
   X,
 } from 'lucide-react';
 
@@ -29,6 +39,7 @@ export type StudioTab =
   | 'layer3_jurisdiction'
   | 'layer4_critics'
   | 'providers_models'
+  | 'legal_mcp'
   | 'live_preview';
 
 interface PromptGovernanceModalProps {
@@ -40,6 +51,8 @@ interface PromptGovernanceModalProps {
   providers: ProviderConfig[];
   activeMatter: Matter;
   assembledPromptPreview: AssembledPromptPreview;
+  courtListenerAssurance?: CourtListenerMcpAssuranceState;
+  customMcpServers?: CustomLegalMcpServer[];
   onSelectPractitionerProfile: (profileId: PractitionerProfileId) => Promise<void>;
   onSavePromptSettings: (updated: Partial<SystemPromptSettings>) => Promise<void>;
   onResetPromptSettings: () => Promise<void>;
@@ -60,6 +73,13 @@ interface PromptGovernanceModalProps {
     citationStyle: string;
     practiceArea: PracticeAreaId;
   }) => Promise<void>;
+  onSaveCourtListenerToken?: (token: string) => Promise<void>;
+  onInstallCourtListenerOnDefaultAgent?: (
+    driver?: 'codex' | 'claudeAgent' | 'antigravity' | 'all'
+  ) => Promise<void>;
+  onSaveCustomMcpServer?: (server: CustomLegalMcpServer) => Promise<void>;
+  onDeleteCustomMcpServer?: (serverId: string) => Promise<void>;
+  onOpenExternalUrl?: (url: string) => Promise<void>;
 }
 
 export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
@@ -71,12 +91,19 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   providers,
   activeMatter,
   assembledPromptPreview,
+  courtListenerAssurance,
+  customMcpServers = [],
   onSelectPractitionerProfile,
   onSavePromptSettings,
   onResetPromptSettings,
   onSaveAdversarialConfig,
   onSaveProviderCredential,
   onUpdateMatterJurisdiction,
+  onSaveCourtListenerToken,
+  onInstallCourtListenerOnDefaultAgent,
+  onSaveCustomMcpServer,
+  onDeleteCustomMcpServer,
+  onOpenExternalUrl,
 }) => {
   const [activeTab, setActiveTab] = useState<StudioTab>(initialTab || 'layer1_core');
 
@@ -85,6 +112,24 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
       setActiveTab(initialTab);
     }
   }, [isOpen, initialTab]);
+
+  // Legal MCP Tab state
+  const [mcpTokenInput, setMcpTokenInput] = useState('');
+  const [isSavingMcpToken, setIsSavingMcpToken] = useState(false);
+  const [isInstallingDriver, setIsInstallingDriver] = useState<string | null>(null);
+
+  // Custom MCP Server addition form state
+  const [showAddCustomMcp, setShowAddCustomMcp] = useState(false);
+  const [customServerId, setCustomServerId] = useState('');
+  const [customServerName, setCustomServerName] = useState('');
+  const [customServerDesc, setCustomServerDesc] = useState('');
+  const [customServerCommand, setCustomServerCommand] = useState('npx');
+  const [customServerArgs, setCustomServerArgs] = useState('');
+  const [customServerEnv, setCustomServerEnv] = useState('');
+  const [customServerTargetDriver, setCustomServerTargetDriver] = useState<
+    'codex' | 'claudeAgent' | 'antigravity' | 'all'
+  >('all');
+  const [isSavingCustomServer, setIsSavingCustomServer] = useState(false);
 
   const [coreMandate, setCoreMandate] = useState(promptSettings.coreLegalMandate);
   const [presets, setPresets] = useState<PracticeAreaPreset[]>(
@@ -378,6 +423,30 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="font-semibold">Multi-LLM & CLI Agents</div>
                 <div className="text-[10px] opacity-75">
                   Codex, agy ACP, Claude & API Keys
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('legal_mcp')}
+              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
+                activeTab === 'legal_mcp'
+                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Wrench className="w-4 h-4 shrink-0 text-amber-400" />
+              <div>
+                <div className="font-semibold flex items-center gap-1.5">
+                  <span>Legal MCP Tools</span>
+                  {courtListenerAssurance?.hasInstalledAgent && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  )}
+                </div>
+                <div className="text-[10px] opacity-75 truncate max-w-[170px]">
+                  {courtListenerAssurance?.configuredAgentDisplayName
+                    ? `Active on ${courtListenerAssurance.configuredAgentDisplayName}`
+                    : 'CourtListener & Custom MCPs'}
                 </div>
               </div>
             </button>
@@ -937,6 +1006,506 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'legal_mcp' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <Server className="w-4 h-4 text-amber-400" />
+                    Legal MCP Toolsets & External Agent Configurations
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Model Context Protocol (MCP) servers run directly within your local AI agent runtimes (OpenAI Codex, Claude Code, Antigravity ACP). LexHarness ensures at least one active client is equipped with live legal research tools.
+                  </p>
+                </div>
+
+                {/* Assurance & Hosting Client Card */}
+                <div className="p-4 rounded-xl bg-slate-900 border border-slate-700/80 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                        <Scale className="w-4 h-4 text-emerald-400" />
+                        Base Legal Research Tool: CourtListener MCP
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        Provides authoritative federal & state case law search, citation verification, and docket lookups directly to attorney agent loops.
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+                        courtListenerAssurance?.hasInstalledAgent
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      {courtListenerAssurance?.hasInstalledAgent
+                        ? 'Configured in Active Client'
+                        : 'Setup Required'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-2">
+                    <div className="text-[11px] text-slate-400 font-medium">
+                      Currently Hosting Client:
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-semibold text-amber-300 font-mono">
+                        {courtListenerAssurance?.configuredAgentDisplayName || 'None (Automatic default will install)'}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-slate-400 mr-1">Active on:</span>
+                        {(courtListenerAssurance?.installedDrivers || []).length > 0 ? (
+                          (courtListenerAssurance?.installedDrivers || []).map((d) => (
+                            <span
+                              key={d}
+                              className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950 border border-emerald-700/60 text-emerald-300"
+                            >
+                              {d === 'codex' ? 'Codex CLI' : d === 'claudeAgent' ? 'Claude Code' : 'Antigravity'}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[11px] text-slate-500 italic">No agent clients configured</span>
+                        )}
+                      </div>
+                    </div>
+                    {courtListenerAssurance?.statusDetail && (
+                      <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 mt-2">
+                        {courtListenerAssurance.statusDetail}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Switch / Change Hosting Client */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800">
+                    <div className="text-xs font-medium text-slate-300">
+                      Switch or Extend Toolset to Other Clients:
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        onClick={async () => {
+                          setIsInstallingDriver('codex');
+                          try {
+                            await onInstallCourtListenerOnDefaultAgent?.('codex');
+                            flashSaved('Configured CourtListener MCP on OpenAI Codex CLI (~/.codex/config.toml)');
+                          } finally {
+                            setIsInstallingDriver(null);
+                          }
+                        }}
+                        disabled={isInstallingDriver !== null}
+                        className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium text-center transition flex flex-col items-center justify-center gap-1"
+                      >
+                        <Bot className="w-4 h-4 text-emerald-400" />
+                        <span>OpenAI Codex</span>
+                        <span className="text-[10px] text-slate-400">~/.codex/config.toml</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          setIsInstallingDriver('claudeAgent');
+                          try {
+                            await onInstallCourtListenerOnDefaultAgent?.('claudeAgent');
+                            flashSaved('Configured CourtListener MCP on Claude Code (~/.claude.json)');
+                          } finally {
+                            setIsInstallingDriver(null);
+                          }
+                        }}
+                        disabled={isInstallingDriver !== null}
+                        className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium text-center transition flex flex-col items-center justify-center gap-1"
+                      >
+                        <Bot className="w-4 h-4 text-amber-400" />
+                        <span>Claude Code</span>
+                        <span className="text-[10px] text-slate-400">~/.claude.json</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          setIsInstallingDriver('antigravity');
+                          try {
+                            await onInstallCourtListenerOnDefaultAgent?.('antigravity');
+                            flashSaved('Configured CourtListener MCP on Antigravity ACP (Skills Directory)');
+                          } finally {
+                            setIsInstallingDriver(null);
+                          }
+                        }}
+                        disabled={isInstallingDriver !== null}
+                        className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium text-center transition flex flex-col items-center justify-center gap-1"
+                      >
+                        <Cpu className="w-4 h-4 text-cyan-400" />
+                        <span>Antigravity ACP</span>
+                        <span className="text-[10px] text-slate-400">~/.gemini/antigravity-cli</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          setIsInstallingDriver('all');
+                          try {
+                            await onInstallCourtListenerOnDefaultAgent?.('all');
+                            flashSaved('Configured CourtListener MCP across all enabled clients!');
+                          } finally {
+                            setIsInstallingDriver(null);
+                          }
+                        }}
+                        disabled={isInstallingDriver !== null}
+                        className="px-3 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-medium text-center transition flex flex-col items-center justify-center gap-1"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <span>All Clients</span>
+                        <span className="text-[10px] text-amber-300/70">Universal Sync</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CourtListener API Token / Free Account Section */}
+                <div className="p-4 rounded-xl bg-slate-900 border border-slate-700/80 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-amber-400" />
+                        CourtListener API Authentication (Optional Free Tier)
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        CourtListener MCP works out-of-the-box with open search access. Registering a free API token raises query rate limits and enables federal RECAP/PACER document retrieval.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => onOpenExternalUrl?.(courtListenerAssurance?.signupUrl || 'https://www.courtlistener.com/sign-in/')}
+                      className="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition shrink-0"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
+                      Get Free API Token
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      value={mcpTokenInput}
+                      onChange={(e) => setMcpTokenInput(e.target.value)}
+                      placeholder={
+                        courtListenerAssurance?.maskedAuthToken
+                          ? `Configured: ${courtListenerAssurance.maskedAuthToken}`
+                          : 'Paste CourtListener API token (optional)'
+                      }
+                      className="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-xs placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!mcpTokenInput.trim()) return;
+                        setIsSavingMcpToken(true);
+                        try {
+                          await onSaveCourtListenerToken?.(mcpTokenInput.trim());
+                          setMcpTokenInput('');
+                          flashSaved('CourtListener API token saved and injected into agent runtime configs');
+                        } finally {
+                          setIsSavingMcpToken(false);
+                        }
+                      }}
+                      disabled={isSavingMcpToken || !mcpTokenInput.trim()}
+                      className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-semibold text-xs transition shrink-0"
+                    >
+                      {isSavingMcpToken ? 'Saving...' : 'Save Token'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Configured MCP Servers List & Custom Additions */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-200">
+                        Active Legal MCP Servers
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        MCP servers managed across your attorney workspace and injected into agent prompts.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowAddCustomMcp(!showAddCustomMcp)}
+                      className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 font-medium text-xs flex items-center gap-1.5 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Legal MCP Server
+                    </button>
+                  </div>
+
+                  {/* Add Custom MCP Form */}
+                  {showAddCustomMcp && (
+                    <div className="p-4 rounded-xl bg-slate-900 border border-amber-500/30 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-semibold text-amber-300">
+                          Add Custom Legal MCP Server
+                        </div>
+                        <button
+                          onClick={() => setShowAddCustomMcp(false)}
+                          className="text-slate-400 hover:text-slate-200"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Quick Templates */}
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-medium text-slate-400">
+                          Or quick-fill preset template:
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => {
+                              setCustomServerId('recap-pacer');
+                              setCustomServerName('RECAP Federal Dockets');
+                              setCustomServerDesc('Automated docket lookup and RECAP document archive retrieval');
+                              setCustomServerCommand('npx');
+                              setCustomServerArgs('-y courtlistener-mcp --dockets');
+                              setCustomServerTargetDriver('all');
+                            }}
+                            className="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] transition"
+                          >
+                            RECAP / PACER Dockets
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCustomServerId('sec-edgar');
+                              setCustomServerName('SEC EDGAR Filings');
+                              setCustomServerDesc('Public company 10-K, 10-Q, and 8-K filings retrieval via MCP');
+                              setCustomServerCommand('npx');
+                              setCustomServerArgs('-y sec-edgar-mcp');
+                              setCustomServerTargetDriver('all');
+                            }}
+                            className="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] transition"
+                          >
+                            SEC EDGAR Filings
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCustomServerId('harvard-cap');
+                              setCustomServerName('Harvard Caselaw Access Project');
+                              setCustomServerDesc('Historical US caselaw archive from Harvard Law Library');
+                              setCustomServerCommand('npx');
+                              setCustomServerArgs('-y harvard-cap-mcp');
+                              setCustomServerTargetDriver('all');
+                            }}
+                            className="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[11px] transition"
+                          >
+                            Harvard CAP
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block text-slate-300 mb-1">Server ID (slug)</label>
+                          <input
+                            type="text"
+                            value={customServerId}
+                            onChange={(e) => setCustomServerId(e.target.value)}
+                            placeholder="e.g. sec-edgar"
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-300 mb-1">Display Name</label>
+                          <input
+                            type="text"
+                            value={customServerName}
+                            onChange={(e) => setCustomServerName(e.target.value)}
+                            placeholder="e.g. SEC EDGAR Search"
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="text-xs">
+                        <label className="block text-slate-300 mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={customServerDesc}
+                          onChange={(e) => setCustomServerDesc(e.target.value)}
+                          placeholder="Brief description of the legal research tools provided"
+                          className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 text-xs">
+                        <div>
+                          <label className="block text-slate-300 mb-1">Command</label>
+                          <input
+                            type="text"
+                            value={customServerCommand}
+                            onChange={(e) => setCustomServerCommand(e.target.value)}
+                            placeholder="npx or python3"
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-slate-300 mb-1">Arguments</label>
+                          <input
+                            type="text"
+                            value={customServerArgs}
+                            onChange={(e) => setCustomServerArgs(e.target.value)}
+                            placeholder="-y package-name --flag"
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="block text-slate-300 mb-1">Target Client</label>
+                          <select
+                            value={customServerTargetDriver}
+                            onChange={(e) => setCustomServerTargetDriver(e.target.value as any)}
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                          >
+                            <option value="all">All Enabled Clients</option>
+                            <option value="codex">OpenAI Codex (~/.codex/config.toml)</option>
+                            <option value="claudeAgent">Claude Code (~/.claude.json)</option>
+                            <option value="antigravity">Antigravity ACP (Skills)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-slate-300 mb-1">Environment (KEY=VAL)</label>
+                          <input
+                            type="text"
+                            value={customServerEnv}
+                            onChange={(e) => setCustomServerEnv(e.target.value)}
+                            placeholder="API_KEY=xxx,DEBUG=true"
+                            className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button
+                          onClick={() => setShowAddCustomMcp(false)}
+                          className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!customServerId.trim() || !customServerCommand.trim()) return;
+                            setIsSavingCustomServer(true);
+                            try {
+                              const envObj: Record<string, string> = {};
+                              if (customServerEnv.trim()) {
+                                for (const pair of customServerEnv.split(',')) {
+                                  const [k, v] = pair.split('=');
+                                  if (k && v) envObj[k.trim()] = v.trim();
+                                }
+                              }
+                              const argsArray = customServerArgs.trim()
+                                ? customServerArgs.trim().split(/\s+/)
+                                : [];
+                              await onSaveCustomMcpServer?.({
+                                id: customServerId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
+                                name: customServerName.trim() || customServerId.trim(),
+                                description: customServerDesc.trim() || 'Custom Legal MCP Server',
+                                command: customServerCommand.trim(),
+                                args: argsArray,
+                                env: envObj,
+                                targetDriver: customServerTargetDriver,
+                                enabled: true,
+                                createdAt: new Date().toISOString(),
+                              });
+                              setShowAddCustomMcp(false);
+                              setCustomServerId('');
+                              setCustomServerName('');
+                              setCustomServerDesc('');
+                              setCustomServerArgs('');
+                              setCustomServerEnv('');
+                              flashSaved('Custom legal MCP server configured and installed');
+                            } finally {
+                              setIsSavingCustomServer(false);
+                            }
+                          }}
+                          disabled={isSavingCustomServer || !customServerId.trim() || !customServerCommand.trim()}
+                          className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-semibold text-xs transition"
+                        >
+                          {isSavingCustomServer ? 'Registering...' : 'Save & Configure'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of active servers */}
+                  <div className="space-y-2">
+                    {/* Core Server: CourtListener */}
+                    <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-100">
+                            CourtListener Legal Search (Core Base)
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700/60">
+                            Core Base
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Pre-configured legal citation verification & case retrieval toolset
+                        </p>
+                        <div className="font-mono text-[10px] text-slate-400">
+                          Command: <span className="text-slate-300">npx -y courtlistener-mcp</span>
+                        </div>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <span className="text-[10px] font-medium text-emerald-400 flex items-center justify-end gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Active
+                        </span>
+                        <div className="text-[10px] text-slate-400">
+                          Host: <span className="text-amber-300 font-mono">{courtListenerAssurance?.configuredAgentDisplayName || 'Codex CLI'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Custom MCP servers */}
+                    {customMcpServers.map((server) => (
+                      <div
+                        key={server.id}
+                        className="p-3.5 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-100">
+                              {server.name}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                              {server.targetDriver === 'all'
+                                ? 'All Clients'
+                                : server.targetDriver === 'codex'
+                                ? 'Codex'
+                                : server.targetDriver === 'claudeAgent'
+                                ? 'Claude Code'
+                                : 'Antigravity'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400">
+                            {server.description}
+                          </p>
+                          <div className="font-mono text-[10px] text-slate-400">
+                            Command: <span className="text-slate-300">{server.command} {server.args.join(' ')}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              await onDeleteCustomMcpServer?.(server.id);
+                              flashSaved(`Removed MCP server ${server.name}`);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
+                            title="Delete custom MCP server"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

@@ -42,8 +42,6 @@ interface ConnectAgentsModalProps {
   onSubscribeSetupTerminal: (
     callback: (event: AgentSetupTerminalEvent) => void
   ) => () => void;
-  onSaveCourtListenerToken: (token: string) => Promise<void>;
-  onInstallCourtListenerOnDefaultAgent: () => Promise<void>;
   onSelectMatter: (matterId: string) => Promise<void>;
   onOpenNewMatterModal: () => void;
 }
@@ -146,8 +144,6 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
   onStopSetupCommand,
   onOpenExternalUrl,
   onSubscribeSetupTerminal,
-  onSaveCourtListenerToken,
-  onInstallCourtListenerOnDefaultAgent,
   onSelectMatter,
   onOpenNewMatterModal,
 }) => {
@@ -156,11 +152,6 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
   const [stepIndex, setStepIndex] = useState<number>(1);
   const [setupMode, setSetupMode] = useState<'local' | 'remote'>('local');
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // CourtListener MCP Assurance State
-  const [showTokenInput, setShowTokenInput] = useState(false);
-  const [tokenInput, setTokenInput] = useState('');
-  const [isSavingToken, setIsSavingToken] = useState(false);
 
   // Add ChatGPT Account modal state (replicates T3's `Ae` dialog in CodexSetupSection)
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
@@ -599,123 +590,6 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
                       {activeTerminalOutput ||
                         'Launching agent setup command...'}
                     </pre>
-                  </div>
-                )}
-
-                {/* Base Case Law Tooling: CourtListener MCP Assurance Card */}
-                {onboarding.courtListenerAssurance && (
-                  <div className="rounded-xl border border-neutral-800/90 bg-[#17171a] p-3.5 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-amber-500/35 bg-amber-500/10 text-amber-400">
-                          <Scale className="size-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-neutral-100">
-                              Base Legal Tooling &bull; CourtListener MCP
-                            </span>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                                onboarding.courtListenerAssurance.status === 'ready'
-                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                  : onboarding.courtListenerAssurance.status === 'needs_token'
-                                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                                    : 'bg-neutral-800 text-neutral-400 border-neutral-700'
-                              }`}
-                            >
-                              {onboarding.courtListenerAssurance.status === 'ready'
-                                ? 'Ready & Configured'
-                                : onboarding.courtListenerAssurance.status === 'needs_token'
-                                  ? 'Installed \u00b7 Token Optional'
-                                  : 'Not Configured'}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-neutral-300">
-                            {onboarding.courtListenerAssurance.statusHeadline}
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-neutral-400 leading-relaxed">
-                            {onboarding.courtListenerAssurance.statusDetail}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-800/80">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenExternalUrl(
-                              onboarding.courtListenerAssurance.signupUrl
-                            )
-                          }
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800/80 px-2.5 py-1 text-xs text-neutral-200 hover:border-neutral-600 hover:text-white transition"
-                        >
-                          <ExternalLink className="size-3" />
-                          <span>Create Free Account</span>
-                        </button>
-
-                        {!onboarding.courtListenerAssurance.hasInstalledAgent && (
-                          <button
-                            type="button"
-                            onClick={onInstallCourtListenerOnDefaultAgent}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/25 transition"
-                          >
-                            <span>Install on Default Agent</span>
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowTokenInput(!showTokenInput)}
-                          className="text-xs text-neutral-400 hover:text-neutral-200 underline decoration-dotted transition"
-                        >
-                          {onboarding.courtListenerAssurance.hasAuthToken
-                            ? 'Update API Token'
-                            : 'Add Free API Token'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {showTokenInput && (
-                      <div className="mt-2 rounded-lg bg-black/60 border border-neutral-800 p-2.5 space-y-2">
-                        <label className="text-[11px] text-neutral-300 block">
-                          CourtListener REST API v4 Token (free tier unlocks 5,000 req/hr live case law access)
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="password"
-                            value={tokenInput}
-                            onChange={(e) => setTokenInput(e.target.value)}
-                            placeholder={
-                              onboarding.courtListenerAssurance.maskedAuthToken ||
-                              'Paste API token from courtlistener.com...'
-                            }
-                            className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 font-mono text-xs text-neutral-100 placeholder:text-neutral-400 focus:border-amber-500 focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            disabled={isSavingToken || !tokenInput.trim()}
-                            onClick={async () => {
-                              setIsSavingToken(true);
-                              try {
-                                await onSaveCourtListenerToken(tokenInput.trim());
-                                setTokenInput('');
-                                setShowTokenInput(false);
-                              } finally {
-                                setIsSavingToken(false);
-                              }
-                            }}
-                            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-neutral-950 hover:bg-amber-400 disabled:opacity-50 transition"
-                          >
-                            {isSavingToken ? 'Saving...' : 'Save & Sync'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 

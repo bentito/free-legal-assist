@@ -9,6 +9,7 @@ import {
   AdversarialReviewMode,
   AppBootstrapState,
   ChronologyFact,
+  CustomLegalMcpServer,
   DocumentCategory,
   LLMProviderId,
   Matter,
@@ -89,6 +90,7 @@ function buildBootstrapState(): AppBootstrapState {
     providers,
     assembledPromptPreview,
     agentOnboarding,
+    customMcpServers: db.listCustomMcpServers(),
   };
 }
 
@@ -428,7 +430,7 @@ function registerIpcHandlers(): void {
     'legal:install-courtlistener-default-agent',
     async (
       _event,
-      payload?: { driver?: 'codex' | 'claudeAgent' | 'antigravity' }
+      payload?: { driver?: 'codex' | 'claudeAgent' | 'antigravity' | 'all' }
     ) => {
       const token = db.getCourtListenerToken();
       const driver = payload?.driver || 'codex';
@@ -436,6 +438,34 @@ function registerIpcHandlers(): void {
         driver,
         token,
       });
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:save-custom-mcp-server',
+    async (_event, payload: { server: CustomLegalMcpServer }) => {
+      db.saveCustomMcpServer(payload.server);
+      CliAgentDriverManager.installCustomMcpServerOnAgent({
+        server: payload.server,
+      });
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:delete-custom-mcp-server',
+    async (_event, payload: { serverId: string }) => {
+      const servers = db.listCustomMcpServers();
+      const toDelete = servers.find((s) => s.id === payload.serverId);
+      if (toDelete) {
+        CliAgentDriverManager.removeCustomMcpServerFromAgent({
+          serverId: toDelete.id,
+          serverName: toDelete.name,
+          targetDriver: toDelete.targetDriver,
+        });
+      }
+      db.deleteCustomMcpServer(payload.serverId);
       return buildBootstrapState();
     }
   );
