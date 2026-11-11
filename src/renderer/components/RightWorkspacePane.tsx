@@ -110,7 +110,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           }`}
         >
           <FileDiff className="w-3.5 h-3.5" />
-          <span>Work-Product Redline</span>
+          <span>Redline</span>
           <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
             {documentVersions.length}
           </span>
@@ -125,7 +125,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           }`}
         >
           <BookOpen className="w-3.5 h-3.5" />
-          <span>Matter Corpus</span>
+          <span>Documents</span>
           <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
             {documents.length}
           </span>
@@ -153,10 +153,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Legal Track-Changes & Redline Snapshots
+                Document Versions & Changes
               </h3>
               <p className="text-[11px] text-slate-400">
-                Compare pre-review drafts against post-adversarial cured versions.
+                Compare original drafts against revised versions.
               </p>
             </div>
             <select
@@ -181,11 +181,11 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  <span className="font-semibold text-amber-200">Counsel Rationale: </span>
+                  <span className="font-semibold text-amber-200">Revision Summary: </span>
                   {activeVersion.rationaleSummary}
                 </p>
                 <div className="text-[10px] text-slate-400 mt-1.5 font-mono">
-                  Author/Gate: {activeVersion.createdByModel}
+                  Created by: {activeVersion.createdByModel}
                 </div>
               </div>
 
@@ -193,10 +193,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 font-serif text-xs leading-relaxed">
                   <div className="flex items-center gap-3 pb-2 border-b border-slate-800 font-sans text-[11px]">
                     <span className="px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 line-through">
-                      Struck Pre-Audit Language
+                      Original Text (Removed)
                     </span>
                     <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 underline">
-                      Inserted Cured Language
+                      Revised Text (Added)
                     </span>
                   </div>
 
@@ -239,7 +239,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
             </div>
           ) : (
             <div className="p-6 text-center text-xs text-slate-500">
-              No redline versions recorded yet for this matter.
+              No draft revisions saved yet for this matter.
             </div>
           )}
         </div>
@@ -251,10 +251,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Indexed Matter Files & Bates Record
+                Matter Documents & Exhibits
               </h3>
               <p className="text-[11px] text-slate-400">
-                Scoped local documents searched by the Legal Agent Loop.
+                Local case files searched during legal research.
               </p>
             </div>
             <button
@@ -269,7 +269,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           {showAddDocForm && (
             <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/40 space-y-2.5">
               <div className="text-xs font-semibold text-amber-300">
-                Ingest Document into Matter Corpus
+                Add Document to Matter Files
               </div>
               <input
                 type="text"
@@ -286,12 +286,12 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   }
                   className="px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200"
                 >
-                  <option value="CONTRACT">CONTRACT</option>
-                  <option value="DEPOSITION">DEPOSITION</option>
-                  <option value="EXHIBIT">EXHIBIT</option>
-                  <option value="PLEADING">PLEADING</option>
-                  <option value="STATUTE_AUTHORITY">STATUTE_AUTHORITY</option>
-                  <option value="WORK_PRODUCT">WORK_PRODUCT</option>
+                  <option value="CONTRACT">Contract</option>
+                  <option value="DEPOSITION">Deposition</option>
+                  <option value="EXHIBIT">Exhibit</option>
+                  <option value="PLEADING">Pleading / Court Filing</option>
+                  <option value="STATUTE_AUTHORITY">Statute / Legal Authority</option>
+                  <option value="WORK_PRODUCT">Work Product / Draft</option>
                 </select>
                 <input
                   type="text"
@@ -336,7 +336,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   }}
                   className="px-3 py-1 rounded bg-amber-500 text-slate-950 font-semibold text-xs"
                 >
-                  Index Document
+                  Save Document
                 </button>
               </div>
             </div>
@@ -402,10 +402,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Matter Fact & Pinpoint Chronology
+                Case Timeline & Facts
               </h3>
               <p className="text-[11px] text-slate-400">
-                Dated record events with mandatory Bates/transcript pinpoints.
+                Key timeline events and record references.
               </p>
             </div>
             <button
@@ -413,7 +413,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-amber-300 border border-slate-700 transition"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Log Fact</span>
+              <span>Add Event</span>
             </button>
           </div>
 
@@ -433,9 +433,9 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   }
                   className="px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100"
                 >
-                  <option value="UNDISPUTED">UNDISPUTED</option>
-                  <option value="DISPUTED">DISPUTED</option>
-                  <option value="NEEDS_CORROBORATION">NEEDS_CORROBORATION</option>
+                  <option value="UNDISPUTED">Undisputed</option>
+                  <option value="DISPUTED">Disputed</option>
+                  <option value="NEEDS_CORROBORATION">Needs Corroboration</option>
                 </select>
               </div>
               <textarea

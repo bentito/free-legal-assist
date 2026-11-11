@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import { LegalDatabase, SecretEncryptor } from './db/database';
 import { LegalAgentLoop } from './agent/LegalAgentLoop';
 import { PromptAssembler } from './agent/PromptAssembler';
@@ -480,8 +481,29 @@ function registerIpcHandlers(): void {
   );
 }
 
+function resolveAppIconPath(): string | undefined {
+  const candidates = [
+    path.join(__dirname, '../../build/icon.png'),
+    path.join(process.cwd(), 'build/icon.png'),
+    path.join(app.getAppPath(), 'build/icon.png'),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
 async function createWindow(): Promise<void> {
   const isMac = process.platform === 'darwin';
+  const appIcon = resolveAppIconPath();
+
+  if (isMac && app.dock && appIcon) {
+    try {
+      app.dock.setIcon(appIcon);
+    } catch {
+      // ignore in dev if dock is not available
+    }
+  }
 
   mainWindow = new BrowserWindow({
     width: 1480,
@@ -490,6 +512,7 @@ async function createWindow(): Promise<void> {
     minHeight: 720,
     title: 'LexHarness — Legal Agent Control Surface',
     backgroundColor: '#020617',
+    icon: appIcon,
     ...(isMac
       ? {
           titleBarStyle: 'hiddenInset',

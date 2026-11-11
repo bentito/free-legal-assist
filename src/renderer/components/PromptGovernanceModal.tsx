@@ -237,7 +237,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
       criticOpposingCounselPrompt: opposingPrompt,
     });
     flashSaved(
-      `Saved ${activeProfile?.name ?? 'Legal'} System Prompts & Adversarial Critic Instructions`
+      `Saved ${activeProfile?.name ?? 'Practice'} Settings & Reviewer Instructions`
     );
   };
 
@@ -271,14 +271,14 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             <div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-base font-semibold text-slate-100">
-                  Legal System Prompt & Multi-LLM Governance Studio
+                  Practice Settings & Attorney Instructions
                 </h2>
                 <span className="px-2.5 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
                   Profile: {activeProfile?.name ?? 'Vermont Criminal Defense Lawyer'}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Select your Practitioner Profile, customize the 4-layer legal system prompt hierarchy, and manage T3 CLI/ACP agent models and adversarial critics.
+                Select your practice profile, customize instructions and legal standards, and configure review models and research tools.
               </p>
             </div>
           </div>
@@ -403,9 +403,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             >
               <ShieldAlert className="w-4 h-4 shrink-0" />
               <div>
-                <div className="font-semibold">Layer 4: Adversarial Critics</div>
+                <div className="font-semibold">Reviewers & Opposing Counsel</div>
                 <div className="text-[10px] opacity-75">
-                  Record Auditor & Prosecutor Critic
+                  Citation Auditor & Opposing Perspective
                 </div>
               </div>
             </button>
@@ -420,9 +420,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             >
               <KeyRound className="w-4 h-4 shrink-0" />
               <div>
-                <div className="font-semibold">Multi-LLM & CLI Agents</div>
+                <div className="font-semibold">AI Agents & Models</div>
                 <div className="text-[10px] opacity-75">
-                  Codex, agy ACP, Claude & API Keys
+                  Codex, Claude, Models & API Keys
                 </div>
               </div>
             </button>
@@ -642,23 +642,23 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 4 — Multi-LLM Adversarial Reviewer Prompts ({activeProfile?.name})
+                      Reviewer & Opposing Perspective Instructions ({activeProfile?.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Govern the system prompts for the independent reviewer models that audit every candidate response before completion.
+                      Customize instructions for the reviewer models that audit citations and evaluate opposing arguments before delivery.
                     </p>
                   </div>
                   <button
                     onClick={handleSavePrompts}
                     className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
                   >
-                    Save Adversarial Critic Prompts
+                    Save Reviewer Instructions
                   </button>
                 </div>
 
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-emerald-400">
-                    Critic #1: Citation & Discovery Record Auditor System Prompt
+                    Reviewer #1: Citation & Discovery Record Auditor Instructions
                   </label>
                   <textarea
                     value={auditorPrompt}
@@ -670,7 +670,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-rose-400">
-                    Critic #2: Adversarial Opposing Counsel / Prosecutor & Judge System Prompt
+                    Reviewer #2: Opposing Counsel & Judicial Perspective Instructions
                   </label>
                   <textarea
                     value={opposingPrompt}
@@ -686,10 +686,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               <div className="space-y-6">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-100">
-                    Multi-LLM Adversarial Role Assignment & Provider Credentials
+                    Review Team Roles & API Credentials
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Assign distinct model families to Primary Drafting, Citation Auditing, and Opposing Critique. API keys are encrypted via macOS Keychain / Windows DPAPI (`safeStorage`).
+                    Assign models to Lead Drafting, Citation Auditing, and Opposing Review. API keys are encrypted securely on your device.
                   </p>
                 </div>
 
@@ -697,7 +697,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="grid grid-cols-3 gap-4 p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <div>
                     <div className="text-xs font-semibold text-amber-300 mb-2">
-                      1. Primary Defense / Lead Counsel
+                      1. Lead Counsel / Primary Drafter
                     </div>
                     <select
                       value={adversarialConfig.primaryProvider}
@@ -708,7 +708,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                           primaryProvider: prov,
                           primaryModel: cat?.defaultModel || '',
                         });
-                        flashSaved('Updated Primary Counsel Model');
+                        flashSaved('Updated Lead Drafter Model');
                       }}
                       className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 mb-2"
                     >
@@ -730,7 +730,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
                   <div>
                     <div className="text-xs font-semibold text-emerald-300 mb-2">
-                      2. Citation & Record Auditor Critic
+                      2. Citation & Record Auditor
                     </div>
                     <select
                       value={adversarialConfig.citationAuditorProvider}
@@ -741,7 +741,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                           citationAuditorProvider: prov,
                           citationAuditorModel: cat?.defaultModel || '',
                         });
-                        flashSaved('Updated Citation Auditor Critic Model');
+                        flashSaved('Updated Citation Auditor Model');
                       }}
                       className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 mb-2"
                     >
@@ -765,7 +765,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
                   <div>
                     <div className="text-xs font-semibold text-rose-300 mb-2">
-                      3. State's Attorney / Opposing Critic
+                      3. Opposing Counsel / Judicial Perspective
                     </div>
                     <select
                       value={adversarialConfig.opposingCounselProvider}
@@ -776,7 +776,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                           opposingCounselProvider: prov,
                           opposingCounselModel: cat?.defaultModel || '',
                         });
-                        flashSaved('Updated Opposing Critic Model');
+                        flashSaved('Updated Opposing Review Model');
                       }}
                       className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 mb-2"
                     >
@@ -1015,10 +1015,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div>
                   <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
                     <Server className="w-4 h-4 text-amber-400" />
-                    Legal MCP Toolsets & External Agent Configurations
+                    Legal Research Tools (CourtListener MCP)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Model Context Protocol (MCP) servers run directly within your local AI agent runtimes (OpenAI Codex, Claude Code, Antigravity ACP). LexHarness ensures at least one active client is equipped with live legal research tools.
+                    Legal research tools connect directly to your local AI agents (OpenAI Codex, Claude Code, Antigravity ACP). LexHarness ensures at least one active agent is equipped with live legal research capabilities.
                   </p>
                 </div>
 

@@ -386,12 +386,12 @@ export const App: React.FC = () => {
           <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>
-              Gate:{' '}
+              Review:{' '}
               {turnReviewMode === 'multi_llm_default'
-                ? 'Multi-LLM Adversarial (Default)'
+                ? 'Full Peer Review'
                 : turnReviewMode === 'single_critic'
-                  ? 'Single-Critic Audit'
-                  : 'Direct Bypass'}
+                  ? 'Quick Review'
+                  : 'Off'}
             </span>
           </div>
 
@@ -508,11 +508,11 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom Multi-LLM Adversarial Panel Card */}
+          {/* Bottom Active Review Team Panel Card */}
           <div className="p-3 border-t border-slate-800 bg-slate-950/80 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Active Multi-LLM Gate
+                Active Review Team
               </span>
               <button
                 onClick={() => {
@@ -527,19 +527,19 @@ export const App: React.FC = () => {
 
             <div className="space-y-1.5 text-[11px]">
               <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-slate-900 border border-slate-800">
-                <span className="text-slate-400">Primary Counsel:</span>
+                <span className="text-slate-400">Lead Drafter:</span>
                 <span className="font-mono text-amber-300 truncate max-w-[130px]">
                   {state.adversarialConfig.primaryModel}
                 </span>
               </div>
               <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-slate-900 border border-slate-800">
-                <span className="text-slate-400">Record Auditor:</span>
+                <span className="text-slate-400">Citation Auditor:</span>
                 <span className="font-mono text-emerald-300 truncate max-w-[130px]">
                   {state.adversarialConfig.citationAuditorModel}
                 </span>
               </div>
               <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-slate-900 border border-slate-800">
-                <span className="text-slate-400">Opposing Critic:</span>
+                <span className="text-slate-400">Opposing Review:</span>
                 <span className="font-mono text-rose-300 truncate max-w-[130px]">
                   {state.adversarialConfig.opposingCounselModel}
                 </span>
@@ -548,7 +548,7 @@ export const App: React.FC = () => {
           </div>
         </aside>
 
-        {/* CENTER PANE: Legal Agent Loop & Multi-LLM Adversarial Stream */}
+        {/* CENTER PANE: Legal Workspace & Messages */}
         <main className="flex-1 flex flex-col min-w-0 bg-slate-950">
           {/* Active Matter Subheader */}
           <div className="px-6 py-3 bg-slate-900/50 border-b border-slate-800/80 flex items-center justify-between">
@@ -573,7 +573,7 @@ export const App: React.FC = () => {
                 <span className="text-slate-300 font-medium">
                   {activeMatter.jurisdiction}
                 </span>{' '}
-                &bull; Corpus: {state.documents.length} Indexed Files
+                &bull; Documents: {state.documents.length} Files
               </p>
             </div>
 
@@ -582,7 +582,7 @@ export const App: React.FC = () => {
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition"
             >
               <Eye className="w-3.5 h-3.5 text-amber-400" />
-              <span>Inspect Live System Prompt</span>
+              <span>Attorney Instructions</span>
             </button>
           </div>
 
@@ -647,8 +647,8 @@ export const App: React.FC = () => {
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
                         <span>
-                          Adversarial Gate: {msg.adversarialReviews.length}{' '}
-                          Critics • {totalObjections} Objection(s) Cured
+                          Peer Review: {msg.adversarialReviews.length}{' '}
+                          Checks &bull; {totalObjections} Revision(s)
                         </span>
                         {isReviewExpanded ? (
                           <ChevronDown className="w-3.5 h-3.5" />
@@ -665,7 +665,7 @@ export const App: React.FC = () => {
                       <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                         <Wrench className="w-3 h-3 text-amber-400" />
                         <span>
-                          Local Legal & MCP Tool Executions ({msg.toolCalls.length})
+                          Research & Tool Searches ({msg.toolCalls.length})
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -709,14 +709,14 @@ export const App: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Collapsible Multi-LLM Adversarial Review Scorecard & Dissent Drawer */}
+                  {/* Collapsible Peer Review Drawer */}
                   {isReviewExpanded && msg.adversarialReviews.length > 0 && (
                     <div className="p-5 bg-slate-950/90 border-b border-slate-800 space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <ShieldAlert className="w-4 h-4 text-amber-400" />
                           <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-300">
-                            Multi-LLM Adversarial Review Scorecard & Audit Trail
+                            Peer Review Notes & Audit Trail
                           </h4>
                         </div>
 
@@ -731,8 +731,8 @@ export const App: React.FC = () => {
                             className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 border border-slate-700 transition"
                           >
                             {showingInitialDraft
-                              ? 'Show Final Cured Work Product'
-                              : 'Compare Pre-Audit Initial Candidate Draft'}
+                              ? 'Show Final Revised Draft'
+                              : 'View Draft Before Review'}
                           </button>
                         )}
                       </div>
@@ -812,9 +812,8 @@ export const App: React.FC = () => {
                           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                           <span>
                             Viewing{' '}
-                            <strong>Pre-Review Initial Candidate Draft</strong>{' '}
-                            (Intercepted by Multi-LLM Adversarial Gate before
-                            reaching you).
+                            <strong>Draft Before Review</strong>{' '}
+                            (Revised after peer review before delivery).
                           </span>
                         </div>
                         <div className="prose prose-invert max-w-none font-serif text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
@@ -838,12 +837,12 @@ export const App: React.FC = () => {
                   <div className="flex items-center gap-2.5">
                     <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
                     <span className="text-xs font-semibold text-amber-300 uppercase tracking-wider">
-                      Local Legal Agent Loop —{' '}
+                      Legal Assistant —{' '}
                       {liveProgress.phase.replace(/_/g, ' ')}
                     </span>
                   </div>
                   <span className="text-[11px] font-mono text-slate-400">
-                    Multi-LLM Gate Active
+                    Peer Review Active
                   </span>
                 </div>
                 <div className="text-sm font-medium text-slate-100">
@@ -969,7 +968,7 @@ export const App: React.FC = () => {
                       ))}
                     </select>
 
-                    {/* Adversarial Gate Mode Selector */}
+                    {/* Review Mode Selector */}
                     <select
                       value={turnReviewMode}
                       onChange={(e) =>
@@ -978,25 +977,25 @@ export const App: React.FC = () => {
                         )
                       }
                       className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-emerald-300 hover:border-slate-600 transition cursor-pointer"
-                      title="Multi-LLM Adversarial Gate Mode"
+                      title="Review Mode"
                     >
                       <option
                         value="multi_llm_default"
                         className="bg-slate-900 text-slate-100"
                       >
-                        Gate: Multi-LLM Review
+                        Review: Peer Review (Recommended)
                       </option>
                       <option
                         value="single_critic"
                         className="bg-slate-900 text-slate-100"
                       >
-                        Gate: Single Critic
+                        Review: Quick Check
                       </option>
                       <option
                         value="direct_bypass"
                         className="bg-slate-900 text-slate-100"
                       >
-                        Gate: Direct Bypass
+                        Review: Off
                       </option>
                     </select>
                   </div>
