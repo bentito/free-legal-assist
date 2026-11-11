@@ -1067,6 +1067,16 @@ export const App: React.FC = () => {
             const updated = await ipcBridge.createDocument(payload);
             setState(updated);
           }}
+          onUpdateDocument={async (payload) => {
+            const updated = await ipcBridge.updateDocument(payload);
+            setState(updated);
+          }}
+          onRequestReview={(doc) => {
+            const promptText = `Run a comprehensive peer review on the updated document "${doc.title}" (Bates: ${doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
+            setPromptInput(promptText);
+            setTurnReviewMode('multi_llm_default');
+            handleSubmitPrompt(promptText);
+          }}
           onAddChronologyFact={async (payload) => {
             const updated = await ipcBridge.addChronologyFact(payload);
             setState(updated);

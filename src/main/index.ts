@@ -298,6 +298,24 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    'legal:update-document',
+    async (
+      _event,
+      payload: {
+        docId: string;
+        title?: string;
+        content?: string;
+        category?: DocumentCategory;
+        batesRange?: string;
+        summary?: string;
+      }
+    ) => {
+      db.updateDocument(payload.docId, payload);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
     'legal:add-chronology-fact',
     async (
       _event,

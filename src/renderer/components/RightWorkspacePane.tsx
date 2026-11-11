@@ -8,12 +8,17 @@ import {
 import {
   BookOpen,
   CalendarClock,
+  Check,
   Clock,
+  Edit3,
   FileDiff,
   FilePlus2,
   FileText,
   Plus,
+  RotateCcw,
+  ShieldAlert,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 
 interface RightWorkspacePaneProps {
@@ -32,6 +37,15 @@ interface RightWorkspacePaneProps {
     summary: string;
     content: string;
   }) => Promise<void>;
+  onUpdateDocument?: (payload: {
+    docId: string;
+    title?: string;
+    content?: string;
+    category?: DocumentCategory;
+    batesRange?: string;
+    summary?: string;
+  }) => Promise<void>;
+  onRequestReview?: (doc: MatterDocument) => void;
   onAddChronologyFact: (payload: {
     matterId: string;
     factDate: string;
@@ -51,6 +65,8 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   selectedDocId,
   onSelectDoc,
   onCreateDocument,
+  onUpdateDocument,
+  onRequestReview,
   onAddChronologyFact,
 }) => {
   const [activeTab, setActiveTab] = useState<RightTab>('redline');
@@ -60,6 +76,12 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   const [newDocCategory, setNewDocCategory] = useState<DocumentCategory>('EXHIBIT');
   const [newDocBates, setNewDocBates] = useState('EX-0100');
   const [newDocContent, setNewDocContent] = useState('');
+
+  // In-line document edit state
+  const [isEditingDoc, setIsEditingDoc] = useState(false);
+  const [editDocTitle, setEditDocTitle] = useState('');
+  const [editDocContent, setEditDocContent] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Chronology form state
   const [showAddFactForm, setShowAddFactForm] = useState(false);
@@ -395,14 +417,23 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
             ))}
           </div>
 
-          {/* Active Document Reader */}
+          {/* Active Document Reader & Editor */}
           {activeDoc && (
             <div className="mt-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <div>
-                  <div className="text-xs font-semibold text-slate-200">
-                    {activeDoc.title}
-                  </div>
+                <div className="min-w-0">
+                  {isEditingDoc ? (
+                    <input
+                      type="text"
+                      value={editDocTitle}
+                      onChange={(e) => setEditDocTitle(e.target.value)}
+                      className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-100 w-full"
+                    />
+                  ) : (
+                    <div className="text-xs font-semibold text-slate-200 truncate">
+                      {activeDoc.title}
+                    </div>
+                  )}
                   <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2 mt-0.5">
                     <span>{activeDoc.fileName} &bull; Bates: {activeDoc.batesRange}</span>
                     <span>&bull;</span>
@@ -410,28 +441,126 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                       <Clock className="w-3 h-3 text-slate-500" />
                       Indexed: {new Date(activeDoc.createdAt).toLocaleDateString()}
                     </span>
+                    {activeDoc.updatedAt !== activeDoc.createdAt && (
+                      <span className="text-amber-400/90 flex items-center gap-1">
+                        &bull; (Edited {new Date(activeDoc.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {documentVersions.some((v) => v.documentId === activeDoc.id && v.versionNumber > 1) ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                      <ShieldCheck className="w-3 h-3" />
-                      Peer Reviewed
-                    </span>
+
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  {/* Status Badge: If changed after review, drop Peer Reviewed and show Needs Review */}
+                  {(() => {
+                    const latestVersion = documentVersions
+                      .filter((v) => v.documentId === activeDoc.id && v.versionNumber > 1)
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+                    const isOutdated = latestVersion && new Date(activeDoc.updatedAt).getTime() > new Date(latestVersion.createdAt).getTime();
+
+                    if (isOutdated) {
+                      return (
+                        <button
+                          onClick={() => onRequestReview?.(activeDoc)}
+                          title="This document was edited after the last peer review. Click to request a fresh peer review."
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition cursor-pointer font-medium"
+                        >
+                          <ShieldAlert className="w-3 h-3 text-amber-400" />
+                          <span>Changed &bull; Needs Review</span>
+                        </button>
+                      );
+                    }
+
+                    if (latestVersion) {
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium">
+                          <ShieldCheck className="w-3 h-3" />
+                          Peer Reviewed
+                        </span>
+                      );
+                    }
+
+                    return (
+                      <button
+                        onClick={() => onRequestReview?.(activeDoc)}
+                        title="Click to run a peer review on this document"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        <span>Run Review</span>
+                      </button>
+                    );
+                  })()}
+
+                  {/* Edit Toggle / Action Buttons */}
+                  {isEditingDoc ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        disabled={isSavingEdit}
+                        onClick={async () => {
+                          if (!onUpdateDocument) return;
+                          setIsSavingEdit(true);
+                          try {
+                            await onUpdateDocument({
+                              docId: activeDoc.id,
+                              title: editDocTitle,
+                              content: editDocContent,
+                            });
+                            setIsEditingDoc(false);
+                          } finally {
+                            setIsSavingEdit(false);
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-[10px] flex items-center gap-1 transition"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>Save</span>
+                      </button>
+                      <button
+                        onClick={() => setIsEditingDoc(false)}
+                        className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-slate-800 text-slate-400">
-                      <Clock className="w-3 h-3" />
-                      Source Document
-                    </span>
+                    <button
+                      onClick={() => {
+                        setEditDocTitle(activeDoc.title);
+                        setEditDocContent(activeDoc.content);
+                        setIsEditingDoc(true);
+                      }}
+                      title="Edit this document"
+                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
                   )}
+
                   <span className="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300">
                     {activeDoc.category}
                   </span>
                 </div>
               </div>
-              <pre className="text-[11px] font-mono text-slate-200 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-                {activeDoc.content}
-              </pre>
+
+              {isEditingDoc ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editDocContent}
+                    onChange={(e) => setEditDocContent(e.target.value)}
+                    rows={12}
+                    className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500/60 leading-relaxed"
+                  />
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                    <span>Editing will update the document timestamp and drop its reviewed badge until re-checked.</span>
+                    <span>{editDocContent.length} chars</span>
+                  </div>
+                </div>
+              ) : (
+                <pre className="text-[11px] font-mono text-slate-200 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+                  {activeDoc.content}
+                </pre>
+              )}
             </div>
           )}
         </div>

@@ -96,6 +96,14 @@ export interface LexHarnessBridge {
     summary: string;
     content: string;
   }): Promise<AppBootstrapState>;
+  updateDocument(payload: {
+    docId: string;
+    title?: string;
+    content?: string;
+    category?: DocumentCategory;
+    batesRange?: string;
+    summary?: string;
+  }): Promise<AppBootstrapState>;
   addChronologyFact(payload: {
     matterId: string;
     factDate: string;
@@ -148,6 +156,7 @@ const bridge: LexHarnessBridge = {
   openExternalUrl: (payload) =>
     ipcRenderer.invoke('legal:open-external-url', payload),
   createDocument: (payload) => ipcRenderer.invoke('legal:create-document', payload),
+  updateDocument: (payload) => ipcRenderer.invoke('legal:update-document', payload),
   addChronologyFact: (payload) =>
     ipcRenderer.invoke('legal:add-chronology-fact', payload),
   onAgentProgress: (callback) => {

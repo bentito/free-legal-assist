@@ -97,6 +97,14 @@ declare global {
         summary: string;
         content: string;
       }): Promise<AppBootstrapState>;
+      updateDocument(payload: {
+        docId: string;
+        title?: string;
+        content?: string;
+        category?: DocumentCategory;
+        batesRange?: string;
+        summary?: string;
+      }): Promise<AppBootstrapState>;
       addChronologyFact(payload: {
         matterId: string;
         factDate: string;
@@ -269,6 +277,17 @@ export const ipcBridge = {
     content: string;
   }): Promise<AppBootstrapState> {
     return window.lexharness!.createDocument(payload);
+  },
+
+  async updateDocument(payload: {
+    docId: string;
+    title?: string;
+    content?: string;
+    category?: DocumentCategory;
+    batesRange?: string;
+    summary?: string;
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.updateDocument(payload);
   },
 
   async addChronologyFact(payload: {

@@ -5,6 +5,7 @@ import {
   AdversarialConfig,
   ChronologyFact,
   CustomLegalMcpServer,
+  DocumentCategory,
   DocumentVersion,
   LegalMessage,
   LLMProviderId,
@@ -524,8 +525,8 @@ export class LegalDatabase {
 
   insertDocument(doc: MatterDocument, flush = true): MatterDocument {
     this.db.run(
-      `INSERT OR REPLACE INTO documents (id, matter_id, title, file_name, category, bates_range, page_count, summary, content, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO documents (id, matter_id, title, file_name, category, bates_range, page_count, summary, content, created_at, updated_at)` +
+        ` VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         doc.id,
         doc.matterId,
@@ -542,6 +543,44 @@ export class LegalDatabase {
     );
     if (flush) this.persist();
     return doc;
+  }
+
+  updateDocument(
+    docId: string,
+    payload: {
+      title?: string;
+      content?: string;
+      category?: DocumentCategory;
+      batesRange?: string;
+      summary?: string;
+    },
+    flush = true
+  ): MatterDocument | null {
+    const stmt = this.db.prepare('SELECT * FROM documents WHERE id = ?');
+    stmt.bind([docId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return null;
+    }
+    const r = stmt.getAsObject() as Record<string, unknown>;
+    stmt.free();
+
+    const newContent = payload.content !== undefined ? payload.content : String(r.content);
+    const updated: MatterDocument = {
+      id: String(r.id),
+      matterId: String(r.matter_id),
+      title: payload.title !== undefined ? payload.title.trim() : String(r.title),
+      fileName: String(r.file_name),
+      category: (payload.category || r.category) as DocumentCategory,
+      batesRange: payload.batesRange !== undefined ? payload.batesRange.trim() : String(r.bates_range),
+      pageCount: Math.max(1, Math.ceil(newContent.length / 1800)),
+      summary: payload.summary !== undefined ? payload.summary.trim() : String(r.summary),
+      content: newContent,
+      createdAt: String(r.created_at),
+      updatedAt: new Date().toISOString(),
+    };
+
+    return this.insertDocument(updated, flush);
   }
 
   listDocumentVersions(matterId: string): DocumentVersion[] {
