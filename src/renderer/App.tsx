@@ -141,10 +141,28 @@ export const App: React.FC = () => {
       .then((initial) => {
         setState(initial);
         setTurnReviewMode(initial.adversarialConfig.mode);
-        const activeProvider =
-          initial.adversarialConfig.primaryProvider || 'agy-acp';
+
+        // Auto-select a provider that is actually installed & ready on this system
+        const configured = initial.providers.find(
+          (p) => p.id === initial.adversarialConfig.primaryProvider
+        );
+        const isConfiguredReady =
+          configured && (configured.hasApiKey || configured.runtimeStatus?.installed);
+
+        const firstReady =
+          initial.providers.find(
+            (p) => p.hasApiKey || p.runtimeStatus?.installed
+          ) || initial.providers[0];
+
+        const activeConfig = isConfiguredReady ? configured! : firstReady;
+        const activeProvider = activeConfig.id;
         const activeModel =
-          initial.adversarialConfig.primaryModel || 'gemini-4-argon';
+          (isConfiguredReady
+            ? initial.adversarialConfig.primaryModel
+            : activeConfig.defaultModel) ||
+          activeConfig.defaultModel ||
+          'gpt-6-luna';
+
         setTurnProvider(activeProvider);
         setTurnModel(activeModel);
         const activeMatter = initial.matters.find(
@@ -892,15 +910,18 @@ export const App: React.FC = () => {
                         className="bg-transparent text-xs font-medium text-amber-300 focus:outline-none cursor-pointer"
                         title="Select Executing Agent Harness (as per T3)"
                       >
-                        {state.providers.map((p) => (
-                          <option
-                            key={p.id}
-                            value={p.id}
-                            className="bg-slate-900 text-slate-100"
-                          >
-                            {formatAgentLabel(p)}
-                          </option>
-                        ))}
+                        {state.providers.map((p) => {
+                          const isReady = p.hasApiKey || Boolean(p.runtimeStatus?.installed);
+                          return (
+                            <option
+                              key={p.id}
+                              value={p.id}
+                              className="bg-slate-900 text-slate-100"
+                            >
+                              {formatAgentLabel(p)}{!isReady ? ' · (Not Installed)' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 

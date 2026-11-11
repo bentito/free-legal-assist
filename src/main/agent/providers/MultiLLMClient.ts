@@ -37,6 +37,7 @@ export class MultiLLMClient {
 
   hasLiveCredentials(provider: LLMProviderId): boolean {
     if (provider === 'legal-simulator') return false;
+    if (process.env.VITEST && !process.env.TEST_LIVE_CLI) return false;
     if (this.isCliAgentProvider(provider)) {
       const overrides = this.db.getCliOverrides()[provider];
       const status = CliAgentDriverManager.probeProviderStatusSync(

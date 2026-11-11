@@ -837,9 +837,22 @@ export class CliAgentDriverManager {
       antigravity: 'Antigravity ACP (agy)',
     };
 
+    const isMockHome = Boolean(options?.homeDir);
+    const codexBinaryInstalled = isMockHome || Boolean(this.resolveBinaryPath('codex-cli'));
+    const claudeBinaryInstalled = isMockHome || Boolean(this.resolveBinaryPath('claude-cli'));
+    const agyBinaryInstalled = isMockHome || Boolean(this.resolveBinaryPath('agy-acp'));
+
     let activeDriver: 'codex' | 'claudeAgent' | 'antigravity' | null = options?.preferredDriver || null;
     if (!activeDriver || !installedDrivers.includes(activeDriver)) {
-      activeDriver = installedDrivers[0] || null;
+      activeDriver =
+        installedDrivers.find((d) => {
+          if (d === 'codex') return codexBinaryInstalled;
+          if (d === 'claudeAgent') return claudeBinaryInstalled;
+          if (d === 'antigravity') return agyBinaryInstalled;
+          return false;
+        }) ||
+        installedDrivers[0] ||
+        null;
     }
 
     return {

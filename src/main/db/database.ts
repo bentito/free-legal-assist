@@ -800,12 +800,72 @@ export class LegalDatabase {
     return fresh;
   }
 
-  // --- Adversarial Config ---
-  getAdversarialConfig(): AdversarialConfig {
-    return (
-      this.getKeyValue<AdversarialConfig>('adversarial_config') ??
-      DEFAULT_ADVERSARIAL_CONFIG
+  // --- Dynamic Provider Resolution & Adversarial Config ---
+  resolveBestAvailableProvider(preferredId?: LLMProviderId): {
+    providerId: LLMProviderId;
+    model: string;
+  } {
+    const configs = this.listProviderConfigs();
+
+    // 1. If preferredId is ready and authenticated, keep it
+    if (preferredId) {
+      const match = configs.find((p) => p.id === preferredId);
+      if (match && match.hasApiKey) {
+        return { providerId: match.id, model: match.defaultModel };
+      }
+    }
+
+    // 2. Look for ready CLI agent harnesses in priority order: codex-cli -> agy-acp -> claude-cli
+    const codex = configs.find((p) => p.id === 'codex-cli');
+    if (codex && codex.hasApiKey) {
+      return { providerId: 'codex-cli', model: codex.defaultModel };
+    }
+    const agy = configs.find((p) => p.id === 'agy-acp');
+    if (agy && agy.hasApiKey) {
+      return { providerId: 'agy-acp', model: agy.defaultModel };
+    }
+    const claude = configs.find((p) => p.id === 'claude-cli');
+    if (claude && claude.hasApiKey) {
+      return { providerId: 'claude-cli', model: claude.defaultModel };
+    }
+
+    // 3. Look for any HTTP provider with configured API key
+    const anyReady = configs.find(
+      (p) => p.hasApiKey && p.id !== 'legal-simulator'
     );
+    if (anyReady) {
+      return { providerId: anyReady.id, model: anyReady.defaultModel };
+    }
+
+    // 4. Fallback to installed CLI agent even if auth is pending
+    if (codex?.runtimeStatus?.installed) {
+      return { providerId: 'codex-cli', model: codex.defaultModel };
+    }
+    if (agy?.runtimeStatus?.installed) {
+      return { providerId: 'agy-acp', model: agy.defaultModel };
+    }
+
+    return { providerId: 'codex-cli', model: 'gpt-6-luna' };
+  }
+
+  getAdversarialConfig(): AdversarialConfig {
+    const raw =
+      this.getKeyValue<AdversarialConfig>('adversarial_config') ??
+      DEFAULT_ADVERSARIAL_CONFIG;
+
+    // Verify if raw.primaryProvider is actually usable or if it points to an uninstalled agent like Claude
+    const resolved = this.resolveBestAvailableProvider(raw.primaryProvider);
+    if (resolved.providerId !== raw.primaryProvider) {
+      const updated: AdversarialConfig = {
+        ...raw,
+        primaryProvider: resolved.providerId,
+        primaryModel: resolved.model,
+      };
+      this.setKeyValue('adversarial_config', updated, true);
+      return updated;
+    }
+
+    return raw;
   }
 
   saveAdversarialConfig(updated: Partial<AdversarialConfig>): AdversarialConfig {

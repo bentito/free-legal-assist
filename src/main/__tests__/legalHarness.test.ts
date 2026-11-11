@@ -368,4 +368,39 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
       }
     }
   });
+
+  it('auto-selects installed ready agent harnesses (codex-cli / agy-acp) and prevents selecting uninstalled Claude', () => {
+    // 1. Verify probeProviderStatusSync detects when Claude CLI is not found on PATH
+    const claudeStatus = CliAgentDriverManager.probeProviderStatusSync('claude-cli');
+    if (!fs.existsSync('/usr/local/bin/claude') && !fs.existsSync('/opt/homebrew/bin/claude')) {
+      expect(claudeStatus.installed).toBe(false);
+      expect(claudeStatus.authLabel).toBe('CLI Not Installed');
+    }
+
+    // 2. Verify database auto-heals away from uninstalled Claude / unauthenticated providers
+    const resolved = db.resolveBestAvailableProvider('claude-cli');
+    // If Claude is not installed, it must auto-resolve to an installed provider
+    if (!claudeStatus.installed) {
+      expect(resolved.providerId).not.toBe('claude-cli');
+      expect(['codex-cli', 'agy-acp']).toContain(resolved.providerId);
+    }
+
+    // 3. Verify getAdversarialConfig auto-heals if configured with an uninstalled provider
+    db.saveAdversarialConfig({
+      primaryProvider: 'claude-cli',
+      primaryModel: 'claude-sonnet-5-5',
+    });
+    const healedConfig = db.getAdversarialConfig();
+    if (!claudeStatus.installed) {
+      expect(healedConfig.primaryProvider).not.toBe('claude-cli');
+      expect(healedConfig.primaryProvider).not.toBe('anthropic');
+      expect(['codex-cli', 'agy-acp']).toContain(healedConfig.primaryProvider);
+    }
+
+    // 4. Verify probeCourtListenerMcp does not pick Claude as active hosting driver when Claude is uninstalled
+    const realProbe = CliAgentDriverManager.probeCourtListenerMcp({});
+    if (!claudeStatus.installed) {
+      expect(realProbe.configuredAgentDriver).not.toBe('claudeAgent');
+    }
+  });
 });

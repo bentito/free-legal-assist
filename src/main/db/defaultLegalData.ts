@@ -243,10 +243,10 @@ export const DEFAULT_SYSTEM_PROMPT_SETTINGS: SystemPromptSettings = {
 
 export const DEFAULT_ADVERSARIAL_CONFIG: AdversarialConfig = {
   mode: 'multi_llm_default',
-  primaryProvider: 'anthropic',
-  primaryModel: 'claude-3-7-sonnet-latest',
-  citationAuditorProvider: 'gemini',
-  citationAuditorModel: 'gemini-2.5-pro',
+  primaryProvider: 'codex-cli',
+  primaryModel: 'gpt-6-luna',
+  citationAuditorProvider: 'agy-acp',
+  citationAuditorModel: 'gemini-4-argon',
   opposingCounselProvider: 'openai',
   opposingCounselModel: 'o3-mini',
   maxRevisionRounds: 2,
