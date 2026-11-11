@@ -8,10 +8,12 @@ import {
 import {
   BookOpen,
   CalendarClock,
+  Clock,
   FileDiff,
   FilePlus2,
   FileText,
   Plus,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface RightWorkspacePaneProps {
@@ -179,13 +181,34 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   <span>
                     Snapshot v{activeVersion.versionNumber} — {activeVersion.title}
                   </span>
+                  <span className="text-[10px] text-slate-400 font-normal font-mono flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    {new Date(activeVersion.createdAt).toLocaleDateString()}{' '}
+                    {new Date(activeVersion.createdAt).toLocaleTimeString([], {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
                   <span className="font-semibold text-amber-200">Revision Summary: </span>
                   {activeVersion.rationaleSummary}
                 </p>
-                <div className="text-[10px] text-slate-400 mt-1.5 font-mono">
-                  Created by: {activeVersion.createdByModel}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-500/20 text-[10px]">
+                  <span className="text-slate-400 font-mono">
+                    Created by: {activeVersion.createdByModel}
+                  </span>
+                  {activeVersion.versionNumber > 1 ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
+                      <ShieldCheck className="w-3 h-3" />
+                      Peer Reviewed & Cured
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-slate-400">
+                      <Clock className="w-3 h-3" />
+                      Pre-Review Draft
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -380,13 +403,31 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   <div className="text-xs font-semibold text-slate-200">
                     {activeDoc.title}
                   </div>
-                  <div className="text-[10px] font-mono text-slate-400">
-                    {activeDoc.fileName} • Bates: {activeDoc.batesRange}
+                  <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2 mt-0.5">
+                    <span>{activeDoc.fileName} &bull; Bates: {activeDoc.batesRange}</span>
+                    <span>&bull;</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      Indexed: {new Date(activeDoc.createdAt).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300">
-                  {activeDoc.category}
-                </span>
+                <div className="flex items-center gap-2">
+                  {documentVersions.some((v) => v.documentId === activeDoc.id && v.versionNumber > 1) ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      <ShieldCheck className="w-3 h-3" />
+                      Peer Reviewed
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-slate-800 text-slate-400">
+                      <Clock className="w-3 h-3" />
+                      Source Document
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 text-[10px] rounded bg-slate-800 text-slate-300">
+                    {activeDoc.category}
+                  </span>
+                </div>
               </div>
               <pre className="text-[11px] font-mono text-slate-200 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
                 {activeDoc.content}

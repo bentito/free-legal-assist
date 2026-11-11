@@ -20,8 +20,10 @@ import {
   AlertTriangle,
   Bot,
   Briefcase,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clock,
   Cpu,
   Eye,
   FileSearch,
@@ -636,7 +638,7 @@ export const App: React.FC = () => {
                     </div>
 
                     {/* Multi-LLM Adversarial Audit Badge */}
-                    {msg.adversarialReviews.length > 0 && (
+                    {msg.adversarialReviews.length > 0 ? (
                       <button
                         onClick={() =>
                           setExpandedReviewMsgIds((prev) => ({
@@ -645,11 +647,20 @@ export const App: React.FC = () => {
                           }))
                         }
                         className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-medium transition"
+                        title={`Reviewed on ${new Date(
+                          msg.adversarialReviews[0].createdAt
+                        ).toLocaleString()}`}
                       >
                         <ShieldCheck className="w-3.5 h-3.5" />
                         <span>
-                          Peer Review: {msg.adversarialReviews.length}{' '}
-                          Checks &bull; {totalObjections} Revision(s)
+                          Peer Review: {msg.adversarialReviews.length} Checks &bull; {totalObjections} Revision(s)
+                        </span>
+                        <span className="text-[10px] text-emerald-400/80 font-normal pl-1 border-l border-emerald-500/30 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(msg.adversarialReviews[0].createdAt).toLocaleTimeString([], {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
                         </span>
                         {isReviewExpanded ? (
                           <ChevronDown className="w-3.5 h-3.5" />
@@ -657,6 +668,11 @@ export const App: React.FC = () => {
                           <ChevronRight className="w-3.5 h-3.5" />
                         )}
                       </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 text-xs font-normal">
+                        <Clock className="w-3 h-3" />
+                        <span>Not yet reviewed</span>
+                      </div>
                     )}
                   </div>
 
@@ -716,9 +732,18 @@ export const App: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <ShieldAlert className="w-4 h-4 text-amber-400" />
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-300">
-                            Peer Review Notes & Audit Trail
-                          </h4>
+                          <div>
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-300">
+                              Peer Review Notes & Audit Trail
+                            </h4>
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              <span>
+                                Reviewed {new Date(msg.adversarialReviews[0].createdAt).toLocaleDateString()}{' '}
+                                at {new Date(msg.adversarialReviews[0].createdAt).toLocaleTimeString()}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
                         {msg.initialDraftBeforeReview && (
