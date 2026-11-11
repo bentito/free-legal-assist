@@ -580,9 +580,10 @@ export const App: React.FC = () => {
             <button
               onClick={() => setIsStudioOpen(true)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition"
+              title="Open Practice Settings & Legal Instructions"
             >
-              <Eye className="w-3.5 h-3.5 text-amber-400" />
-              <span>Attorney Instructions</span>
+              <Settings2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Settings</span>
             </button>
           </div>
 

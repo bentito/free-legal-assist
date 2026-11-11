@@ -271,7 +271,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             <div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-base font-semibold text-slate-100">
-                  Practice Settings & Attorney Instructions
+                  Settings
                 </h2>
                 <span className="px-2.5 py-0.5 text-[11px] font-medium rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
                   Profile: {activeProfile?.name ?? 'Vermont Criminal Defense Lawyer'}
