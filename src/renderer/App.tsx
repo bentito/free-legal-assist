@@ -269,6 +269,10 @@ export const App: React.FC = () => {
     );
   }
 
+  const isMac =
+    typeof navigator !== 'undefined' &&
+    /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
+
   const activeMatter =
     state.matters.find((m) => m.id === state.activeMatterId) ?? state.matters[0];
   const activeProfile =
@@ -399,10 +403,14 @@ export const App: React.FC = () => {
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 select-none overflow-hidden">
       {/* Top macOS-friendly Titlebar & Control Surface Header */}
-      <header className="h-13 shrink-0 bg-slate-950 border-b border-slate-800/90 flex items-center justify-between pl-24 pr-4 app-drag-region">
+      <header
+        className={`h-[52px] shrink-0 bg-slate-950 border-b border-slate-800/90 flex items-center justify-between ${
+          isMac ? 'pl-24' : 'pl-4'
+        } pr-4 app-drag-region`}
+      >
         <div className="flex items-center gap-3 app-no-drag">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400">
+          <div className="flex items-center gap-2 h-8">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
               <Scale className="w-4 h-4" />
             </div>
             <span className="font-semibold text-sm tracking-tight text-slate-100">
@@ -422,7 +430,7 @@ export const App: React.FC = () => {
                 matter: activeMatter,
               });
             }}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs"
+            className="h-8 flex items-center gap-2 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs"
             title="Right-click or click gear to edit Matter Settings"
           >
             <Briefcase className="w-3.5 h-3.5 text-amber-400" />
@@ -441,7 +449,7 @@ export const App: React.FC = () => {
             </button>
           </div>
 
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/70 border border-slate-800/80 text-[11px] text-slate-300">
+          <div className="hidden lg:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-900/70 border border-slate-800/80 text-[11px] text-slate-300">
             <Gavel className="w-3.5 h-3.5 text-amber-400/80" />
             <span className="truncate max-w-xs">
               {activeMatter.jurisdiction}
@@ -452,22 +460,24 @@ export const App: React.FC = () => {
         <div className="flex items-center gap-2.5 app-no-drag">
           <button
             onClick={() => setIsConnectAgentsOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] text-slate-200 transition"
+            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-200 transition cursor-pointer"
             title="Connect your agents (Codex, Claude, Antigravity & Multi-Account ChatGPT)"
           >
             <Plug className="w-3.5 h-3.5 text-emerald-400" />
             <span>
               Agents:{' '}
-              {
-                (state.agentOnboarding?.agentInstances || []).filter(
-                  (i) => i.status === 'ready'
-                ).length
-              }{' '}
-              Ready
+              <strong className="text-emerald-400 font-semibold">
+                {
+                  (state.agentOnboarding?.agentInstances || []).filter(
+                    (i) => i.status === 'ready'
+                  ).length
+                }{' '}
+                Ready
+              </strong>
             </span>
           </button>
 
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
+          <div className="hidden md:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-medium">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>
               Review:{' '}
@@ -484,7 +494,7 @@ export const App: React.FC = () => {
               setStudioInitialTab('layer1_core');
               setIsStudioOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium transition cursor-pointer"
+            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium transition cursor-pointer"
           >
             <Settings2 className="w-3.5 h-3.5" />
             <span>Profile: {activeProfile.name}</span>
@@ -497,7 +507,7 @@ export const App: React.FC = () => {
               }
               setIsTutorialOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
+            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
             title="Start Interactive Guided Tour with Live Sample Casework"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />

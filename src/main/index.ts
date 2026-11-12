@@ -556,7 +556,7 @@ async function createWindow(): Promise<void> {
     ...(isMac
       ? {
           titleBarStyle: 'hiddenInset',
-          trafficLightPosition: { x: 16, y: 16 },
+          trafficLightPosition: { x: 18, y: 20 },
         }
       : {}),
     webPreferences: {

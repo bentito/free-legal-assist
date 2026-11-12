@@ -20,6 +20,9 @@ module.exports = {
         serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
         mono: ['SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
+      spacing: {
+        13: '3.25rem', // 52px
+      },
     },
   },
   plugins: [],
