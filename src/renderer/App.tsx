@@ -16,6 +16,7 @@ import {
   StudioTab,
 } from './components/PromptGovernanceModal';
 import { RightWorkspacePane } from './components/RightWorkspacePane';
+import { TutorialOverlay } from './components/TutorialOverlay';
 import {
   AlertTriangle,
   Bot,
@@ -41,6 +42,7 @@ import {
   Sparkles,
   Trash2,
   Wrench,
+  X,
 } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -64,6 +66,16 @@ export const App: React.FC = () => {
   // Modals & UI drawers
   const [isConnectAgentsOpen, setIsConnectAgentsOpen] = useState(false);
   const [isStudioOpen, setIsStudioOpen] = useState(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [rightPaneTab, setRightPaneTab] = useState<'redline' | 'corpus' | 'chronology'>('redline');
+  const [lastUserMatterId, setLastUserMatterId] = useState<string | null>(null);
+  const [tutorialBannerDismissed, setTutorialBannerDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('lexharness_tutorial_seen') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [studioInitialTab, setStudioInitialTab] =
     useState<StudioTab>('layer1_core');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
@@ -315,6 +327,36 @@ export const App: React.FC = () => {
     }
   };
 
+  const isSampleCaseLoaded =
+    state.activeMatterId === 'matter-1794160132556' ||
+    Boolean(state.matters.some((m) => m.id === 'matter-1794160132556'));
+
+  const handleLoadSampleCase = async () => {
+    if (state.activeMatterId && state.activeMatterId !== 'matter-1794160132556') {
+      setLastUserMatterId(state.activeMatterId);
+    }
+    const next = await ipcBridge.loadTutorialCase();
+    setState(next);
+    const active = next.matters.find((m) => m.id === next.activeMatterId);
+    if (active) setTurnPracticeArea(active.practiceArea);
+  };
+
+  const handleCloseSampleCase = async (options?: { removeSample?: boolean }) => {
+    const fallback =
+      lastUserMatterId && state.matters.some((m) => m.id === lastUserMatterId)
+        ? lastUserMatterId
+        : state.matters.find((m) => m.id !== 'matter-1794160132556')?.id;
+    const next = await ipcBridge.closeTutorialCase({
+      fallbackMatterId: fallback,
+      removeSample: options?.removeSample ?? false,
+    });
+    setState(next);
+    if (next.activeMatterId) {
+      const active = next.matters.find((m) => m.id === next.activeMatterId);
+      if (active) setTurnPracticeArea(active.practiceArea);
+    }
+  };
+
   const handleSubmitPrompt = async (customPrompt?: string) => {
     const text = (customPrompt ?? promptInput).trim();
     if (!text || isRunningTurn) return;
@@ -442,10 +484,24 @@ export const App: React.FC = () => {
               setStudioInitialTab('layer1_core');
               setIsStudioOpen(true);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium transition cursor-pointer"
           >
             <Settings2 className="w-3.5 h-3.5" />
             <span>Profile: {activeProfile.name}</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              if (state.activeMatterId !== 'matter-1794160132556') {
+                await handleLoadSampleCase();
+              }
+              setIsTutorialOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
+            title="Start Interactive Guided Tour with Live Sample Casework"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Tour</span>
           </button>
         </div>
       </header>
@@ -524,7 +580,7 @@ export const App: React.FC = () => {
             </div>
 
             {/* Matter Overview */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2">
+            <div id="tour-matter-overview" className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                   Matter Overview
@@ -619,18 +675,72 @@ export const App: React.FC = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => setIsStudioOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition"
-              title="Open Practice Settings & Legal Instructions"
-            >
-              <Settings2 className="w-3.5 h-3.5 text-amber-400" />
-              <span>Settings</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  if (state.activeMatterId !== 'matter-1794160132556') {
+                    await handleLoadSampleCase();
+                  }
+                  setIsTutorialOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-xs text-amber-300 font-medium transition cursor-pointer"
+                title="Start Interactive Guided Tour with Live Sample Casework"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Tour</span>
+              </button>
+
+              <button
+                id="tour-settings-button"
+                onClick={() => setIsStudioOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition cursor-pointer"
+                title="Open Practice Settings & Legal Instructions"
+              >
+                <Settings2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>Settings</span>
+              </button>
+            </div>
           </div>
 
           {/* Messages & Agent Loop Stream */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 select-text">
+            {!tutorialBannerDismissed && (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-200">
+                <div className="flex items-center gap-2.5">
+                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>
+                    New to Free Legal Assist? Take our 2-minute transparent guided tour with pre-loaded John Doe sample casework.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={async () => {
+                      if (state.activeMatterId !== 'matter-1794160132556') {
+                        await handleLoadSampleCase();
+                      }
+                      setIsTutorialOpen(true);
+                    }}
+                    className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition cursor-pointer"
+                  >
+                    Start Tour
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTutorialBannerDismissed(true);
+                      try {
+                        localStorage.setItem('lexharness_tutorial_seen', 'true');
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="p-1 rounded text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                    title="Dismiss welcome tour prompt"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
             {state.messages.map((msg: ThreadMessage) => {
               if (msg.role === 'user') {
                 return (
@@ -657,6 +767,7 @@ export const App: React.FC = () => {
               return (
                 <div
                   key={msg.id}
+                  id={msg.adversarialReviews.length > 0 ? 'tour-review-gate' : undefined}
                   className="max-w-4xl rounded-2xl bg-slate-900/90 border border-slate-800 overflow-hidden shadow-xl"
                 >
                   {/* Assistant Header Bar */}
@@ -924,7 +1035,7 @@ export const App: React.FC = () => {
           </div>
 
           {/* Bottom Legal Prompt Composer */}
-          <div className="p-4 bg-slate-900/90 border-t border-slate-800 space-y-3">
+          <div id="tour-composer" className="p-4 bg-slate-900/90 border-t border-slate-800 space-y-3">
             {/* Profile-Specific Quick Sample Prompts & Actions */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
               {docNeedingReview && (
@@ -1117,6 +1228,8 @@ export const App: React.FC = () => {
           chronologyFacts={state.chronologyFacts}
           selectedDocId={selectedDocId}
           onSelectDoc={setSelectedDocId}
+          currentTab={rightPaneTab}
+          onTabChange={setRightPaneTab}
           onCreateDocument={async (payload) => {
             const updated = await ipcBridge.createDocument(payload);
             setState(updated);
@@ -1447,6 +1560,10 @@ export const App: React.FC = () => {
         onOpenExternalUrl={async (url) => {
           await ipcBridge.openExternalUrl(url);
         }}
+        isSampleCaseLoaded={state.activeMatterId === 'matter-1794160132556'}
+        onStartTutorial={() => setIsTutorialOpen(true)}
+        onLoadSampleCase={handleLoadSampleCase}
+        onCloseSampleCase={handleCloseSampleCase}
       />
 
       {/* New Legal Matter Modal */}
@@ -1618,6 +1735,25 @@ export const App: React.FC = () => {
           }}
         />
       )}
+
+      {/* Interactive Guided Tour & Tutorial Overlay */}
+      <TutorialOverlay
+        isOpen={isTutorialOpen}
+        onClose={() => {
+          setIsTutorialOpen(false);
+          try {
+            localStorage.setItem('lexharness_tutorial_seen', 'true');
+          } catch {
+            // ignore
+          }
+          setTutorialBannerDismissed(true);
+        }}
+        activeMatterId={activeMatter.id}
+        isSampleCaseLoaded={state.activeMatterId === 'matter-1794160132556'}
+        onLoadSampleCase={handleLoadSampleCase}
+        onCloseSampleCase={handleCloseSampleCase}
+        onSelectTab={setRightPaneTab}
+      />
     </div>
   );
 };

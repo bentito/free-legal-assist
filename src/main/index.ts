@@ -172,6 +172,28 @@ function registerIpcHandlers(): void {
     }
   );
 
+  ipcMain.handle('legal:load-tutorial-case', async () => {
+    const sampleMatter = db.loadTutorialSampleCase();
+    activeMatterId = sampleMatter.id;
+    return buildBootstrapState();
+  });
+
+  ipcMain.handle(
+    'legal:close-tutorial-case',
+    async (
+      _event,
+      payload?: { fallbackMatterId?: string; removeSample?: boolean }
+    ) => {
+      const res = db.closeTutorialSampleCase(
+        undefined,
+        payload?.fallbackMatterId,
+        payload?.removeSample ?? false
+      );
+      activeMatterId = res.activeMatterId;
+      return buildBootstrapState();
+    }
+  );
+
   ipcMain.handle(
     'legal:update-matter-jurisdiction',
     async (

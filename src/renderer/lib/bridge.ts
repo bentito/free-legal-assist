@@ -29,6 +29,11 @@ declare global {
       }): Promise<AppBootstrapState>;
       updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState>;
       deleteMatter(matterId: string): Promise<AppBootstrapState>;
+      loadTutorialCase(): Promise<AppBootstrapState>;
+      closeTutorialCase(payload?: {
+        fallbackMatterId?: string;
+        removeSample?: boolean;
+      }): Promise<AppBootstrapState>;
       updateMatterJurisdiction(payload: {
         matterId: string;
         jurisdiction: string;
@@ -153,6 +158,17 @@ export const ipcBridge = {
 
   async deleteMatter(matterId: string): Promise<AppBootstrapState> {
     return window.lexharness!.deleteMatter(matterId);
+  },
+
+  async loadTutorialCase(): Promise<AppBootstrapState> {
+    return window.lexharness!.loadTutorialCase();
+  },
+
+  async closeTutorialCase(payload?: {
+    fallbackMatterId?: string;
+    removeSample?: boolean;
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.closeTutorialCase(payload);
   },
 
   async updateMatterJurisdiction(payload: {

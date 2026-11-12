@@ -28,6 +28,11 @@ export interface LexHarnessBridge {
   }): Promise<AppBootstrapState>;
   updateMatter(payload: UpdateMatterPayload): Promise<AppBootstrapState>;
   deleteMatter(matterId: string): Promise<AppBootstrapState>;
+  loadTutorialCase(): Promise<AppBootstrapState>;
+  closeTutorialCase(payload?: {
+    fallbackMatterId?: string;
+    removeSample?: boolean;
+  }): Promise<AppBootstrapState>;
   updateMatterJurisdiction(payload: {
     matterId: string;
     jurisdiction: string;
@@ -121,6 +126,9 @@ const bridge: LexHarnessBridge = {
   createMatter: (payload) => ipcRenderer.invoke('legal:create-matter', payload),
   updateMatter: (payload) => ipcRenderer.invoke('legal:update-matter', payload),
   deleteMatter: (matterId) => ipcRenderer.invoke('legal:delete-matter', matterId),
+  loadTutorialCase: () => ipcRenderer.invoke('legal:load-tutorial-case'),
+  closeTutorialCase: (payload) =>
+    ipcRenderer.invoke('legal:close-tutorial-case', payload),
   updateMatterJurisdiction: (payload) =>
     ipcRenderer.invoke('legal:update-matter-jurisdiction', payload),
   selectPractitionerProfile: (profileId) =>

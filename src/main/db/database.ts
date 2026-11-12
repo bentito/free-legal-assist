@@ -29,6 +29,14 @@ import {
   SEEDED_MATTERS,
   SEEDED_MESSAGES,
 } from './defaultLegalData';
+import {
+  TUTORIAL_SAMPLE_CHRONOLOGY_FACTS,
+  TUTORIAL_SAMPLE_DOCUMENTS,
+  TUTORIAL_SAMPLE_DOCUMENT_VERSIONS,
+  TUTORIAL_SAMPLE_MATTER,
+  TUTORIAL_SAMPLE_MATTER_ID,
+  TUTORIAL_SAMPLE_MESSAGES,
+} from './tutorialSampleCase';
 
 export interface SecretEncryptor {
   encrypt(plainText: string): string;
@@ -557,6 +565,47 @@ export class LegalDatabase {
       remainingMatters: remaining,
       nextActiveMatterId: remaining[0].id,
     };
+  }
+
+  // --- Tutorial Sample Casework (John Doe v State of Vermont) ---
+  loadTutorialSampleCase(): Matter {
+    this.insertMatter(TUTORIAL_SAMPLE_MATTER, false);
+    for (const doc of TUTORIAL_SAMPLE_DOCUMENTS) {
+      this.insertDocument(doc, false);
+    }
+    for (const ver of TUTORIAL_SAMPLE_DOCUMENT_VERSIONS) {
+      this.insertDocumentVersion(ver, false);
+    }
+    for (const fact of TUTORIAL_SAMPLE_CHRONOLOGY_FACTS) {
+      this.insertChronologyFact(fact, false);
+    }
+    for (const msg of TUTORIAL_SAMPLE_MESSAGES) {
+      this.insertMessage(msg, false);
+    }
+    this.persist();
+    return TUTORIAL_SAMPLE_MATTER;
+  }
+
+  closeTutorialSampleCase(
+    sampleMatterId: string = TUTORIAL_SAMPLE_MATTER_ID,
+    fallbackMatterId?: string,
+    removeSample = false
+  ): { activeMatterId: string } {
+    if (removeSample) {
+      const res = this.deleteMatter(sampleMatterId);
+      const chosenFallback =
+        fallbackMatterId && this.getMatter(fallbackMatterId)
+          ? fallbackMatterId
+          : res.nextActiveMatterId;
+      return { activeMatterId: chosenFallback };
+    }
+
+    const matters = this.listMatters();
+    if (fallbackMatterId && matters.some((m) => m.id === fallbackMatterId)) {
+      return { activeMatterId: fallbackMatterId };
+    }
+    const nonSample = matters.find((m) => m.id !== sampleMatterId);
+    return { activeMatterId: nonSample?.id ?? matters[0]?.id ?? sampleMatterId };
   }
 
   // --- Documents & Versions ---

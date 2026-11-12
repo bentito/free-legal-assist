@@ -473,4 +473,48 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
       }
     }
   });
+
+  it('loads, inspects, and closes the John Doe tutorial sample casework', async () => {
+    // 1. Load sample case into fresh test db
+    const sampleMatter = db.loadTutorialSampleCase();
+    expect(sampleMatter.id).toBe('matter-1794160132556');
+    expect(sampleMatter.name).toBe('John Doe v State of Vermont');
+
+    // 2. Verify documents are loaded (Work product + Discovery exhibits)
+    const docs = db.listDocuments('matter-1794160132556');
+    expect(docs.length).toBeGreaterThanOrEqual(5);
+    const wpDoc = docs.find((d) => d.category === 'WORK_PRODUCT');
+    expect(wpDoc).toBeDefined();
+    expect(wpDoc?.title).toContain('John Doe v State of Vermont');
+
+    // 3. Verify document versions
+    const versions = db.listDocumentVersions('matter-1794160132556');
+    expect(versions.length).toBeGreaterThanOrEqual(2);
+    const curedVer = versions.find((v) => v.versionNumber === 2);
+    expect(curedVer?.rationaleSummary).toContain('Cured 2 critical objections');
+
+    // 4. Verify thread messages and adversarial reviews
+    const msgs = db.listMessages('matter-1794160132556');
+    expect(msgs.length).toBe(2);
+    const assistantMsg = msgs.find((m) => m.role === 'assistant');
+    expect(assistantMsg?.adversarialReviews.length).toBe(2);
+    expect(assistantMsg?.toolCalls.length).toBeGreaterThanOrEqual(4);
+
+    // 5. Test closeTutorialSampleCase with fallback
+    const closeRes = db.closeTutorialSampleCase(
+      'matter-1794160132556',
+      'matter-vt-state-v-thorne',
+      false
+    );
+    expect(closeRes.activeMatterId).toBe('matter-vt-state-v-thorne');
+
+    // 6. Test closeTutorialSampleCase with removeSample
+    const removeRes = db.closeTutorialSampleCase(
+      'matter-1794160132556',
+      'matter-vt-state-v-thorne',
+      true
+    );
+    expect(removeRes.activeMatterId).toBe('matter-vt-state-v-thorne');
+    expect(db.listMatters().some((m) => m.id === 'matter-1794160132556')).toBe(false);
+  });
 });

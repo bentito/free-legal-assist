@@ -40,7 +40,8 @@ export type StudioTab =
   | 'layer4_critics'
   | 'providers_models'
   | 'legal_mcp'
-  | 'live_preview';
+  | 'live_preview'
+  | 'tutorial_tour';
 
 interface PromptGovernanceModalProps {
   isOpen: boolean;
@@ -53,6 +54,10 @@ interface PromptGovernanceModalProps {
   assembledPromptPreview: AssembledPromptPreview;
   courtListenerAssurance?: CourtListenerMcpAssuranceState;
   customMcpServers?: CustomLegalMcpServer[];
+  isSampleCaseLoaded?: boolean;
+  onStartTutorial?: () => void;
+  onLoadSampleCase?: () => Promise<void>;
+  onCloseSampleCase?: () => Promise<void>;
   onSelectPractitionerProfile: (profileId: PractitionerProfileId) => Promise<void>;
   onSavePromptSettings: (updated: Partial<SystemPromptSettings>) => Promise<void>;
   onResetPromptSettings: () => Promise<void>;
@@ -93,6 +98,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   assembledPromptPreview,
   courtListenerAssurance,
   customMcpServers = [],
+  isSampleCaseLoaded = false,
+  onStartTutorial,
+  onLoadSampleCase,
+  onCloseSampleCase,
   onSelectPractitionerProfile,
   onSavePromptSettings,
   onResetPromptSettings,
@@ -304,6 +313,17 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               Reset Profile Defaults
             </button>
             <button
+              onClick={() => {
+                onClose();
+                onStartTutorial?.();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-xs text-amber-300 border border-amber-500/40 transition cursor-pointer"
+              title="Launch the transparent guided tutorial overlay"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Guided Tour
+            </button>
+            <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition"
             >
@@ -451,7 +471,24 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               </div>
             </button>
 
-            <div className="mt-auto pt-3 border-t border-slate-800">
+            <div className="mt-auto pt-3 border-t border-slate-800 space-y-1.5">
+              <button
+                onClick={() => setActiveTab('tutorial_tour')}
+                className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
+                  activeTab === 'tutorial_tour'
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+                <div>
+                  <div className="font-semibold">Guided Tour & Tutorial</div>
+                  <div className="text-[10px] opacity-75">
+                    Workflow Guide & Sample Case
+                  </div>
+                </div>
+              </button>
+
               <button
                 onClick={() => setActiveTab('live_preview')}
                 className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
@@ -1546,6 +1583,137 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                     <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
                       {assembledPromptPreview.opposingCounselSystemPrompt}
                     </pre>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'tutorial_tour' && (
+              <div className="space-y-6">
+                {/* Header Card */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-950 border border-amber-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-100">
+                          Guided Tour & Intended Workflow
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          Learn how Free Legal Assist guards evidentiary integrity with Multi-LLM adversarial review.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onStartTutorial?.();
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs shadow-lg transition active:scale-95 cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>Start Interactive Tour Overlay</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sample Casework Management Card */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                        Tutorial Sample Casework
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {isSampleCaseLoaded
+                          ? 'Active: John Doe v. State of Vermont (Docket 25-CR-00123) is currently loaded.'
+                          : 'John Doe sample casework is not currently loaded in your workspace.'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {!isSampleCaseLoaded ? (
+                        <button
+                          onClick={async () => {
+                            await onLoadSampleCase?.();
+                            flashSaved('Loaded Sample Case: John Doe v. State of Vermont');
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-medium transition cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Load Sample Case</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            await onCloseSampleCase?.();
+                            flashSaved('Closed Sample Case and returned to previous matter');
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-medium transition cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Close Sample Case</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Workflow Architecture Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Step 1 */}
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                      <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
+                        1
+                      </span>
+                      <span>Matter Corpus & Bates Pinpointing</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Upload or index police affidavits, BWC transcripts, Rule 15 depositions, and statutory authority. AI agents query the corpus with exact Bates numbers to prevent hallucinations.
+                    </p>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                      <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
+                        2
+                      </span>
+                      <span>Practitioner Prompts & Presets</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Governed prompts inject constitutional primacy (such as Chapter I, Article 11 over federal Mimms) and forum citation standards directly into every drafting turn.
+                    </p>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                      <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
+                        3
+                      </span>
+                      <span>Multi-LLM Adversarial Review Gate</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Candidate work product is audited in parallel by the Citation Auditor (Gemini Pro) and Opposing Counsel Critic (o3-mini). Objections are cured and redlined before presentation.
+                    </p>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                      <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
+                        4
+                      </span>
+                      <span>In-Place Editing & 1-Click Re-Audit</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      Review redlines, toggle draft versions, or edit directly in place. Changing a reviewed document updates the status badge to "Changed" and offers a 1-click re-audit.
+                    </p>
                   </div>
                 </div>
               </div>

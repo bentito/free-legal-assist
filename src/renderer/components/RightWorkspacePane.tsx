@@ -53,9 +53,11 @@ interface RightWorkspacePaneProps {
     sourceCitation: string;
     status: ChronologyFact['status'];
   }) => Promise<void>;
+  currentTab?: RightTab;
+  onTabChange?: (tab: RightTab) => void;
 }
 
-type RightTab = 'redline' | 'corpus' | 'chronology';
+export type RightTab = 'redline' | 'corpus' | 'chronology';
 
 export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   matterId,
@@ -68,8 +70,15 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   onUpdateDocument,
   onRequestReview,
   onAddChronologyFact,
+  currentTab,
+  onTabChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<RightTab>('redline');
+  const [internalTab, setInternalTab] = useState<RightTab>('redline');
+  const activeTab = currentTab ?? internalTab;
+  const setActiveTab = (t: RightTab) => {
+    setInternalTab(t);
+    onTabChange?.(t);
+  };
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [showAddDocForm, setShowAddDocForm] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
@@ -122,10 +131,11 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   };
 
   return (
-    <div className="w-[430px] xl:w-[480px] shrink-0 bg-slate-900/90 border-l border-slate-800 flex flex-col h-full">
+    <div id="tour-workspace-pane" className="w-[430px] xl:w-[480px] shrink-0 bg-slate-900/90 border-l border-slate-800 flex flex-col h-full">
       {/* Top Tab Bar */}
       <div className="flex items-center border-b border-slate-800 bg-slate-950/70 px-2 pt-2">
         <button
+          id="tour-redline-tab"
           onClick={() => setActiveTab('redline')}
           className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition ${
             activeTab === 'redline'
@@ -141,6 +151,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
         </button>
 
         <button
+          id="tour-corpus-tab"
           onClick={() => setActiveTab('corpus')}
           className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition ${
             activeTab === 'corpus'
@@ -173,7 +184,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
 
       {/* Tab 1: Redline & Version Viewer */}
       {activeTab === 'redline' && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div id="tour-redline-pane" className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
