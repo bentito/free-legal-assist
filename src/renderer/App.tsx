@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AdversarialReviewMode,
   AgentProgressEvent,
@@ -275,8 +275,61 @@ export const App: React.FC = () => {
     }
   };
 
+  const docNeedingReview = useMemo(() => {
+    if (!state) return null;
+    // 1. Check currently selected document first
+    const selectedDoc = state.documents.find((d) => d.id === selectedDocId);
+    if (selectedDoc) {
+      const versions = state.documentVersions.filter(
+        (v) => v.documentId === selectedDoc.id && v.versionNumber > 1
+      );
+      const latestVer = versions.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+      const isEdited =
+        latestVer &&
+        new Date(selectedDoc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
+      const isUnreviewedWorkProduct =
+        !latestVer &&
+        (selectedDoc.category === 'WORK_PRODUCT' ||
+          selectedDoc.category === 'PLEADING' ||
+          selectedDoc.updatedAt !== selectedDoc.createdAt);
+
+      if (isEdited || isUnreviewedWorkProduct) {
+        return { doc: selectedDoc, reason: isEdited ? ('edited' as const) : ('new' as const) };
+      }
+    }
+
+    // 2. Otherwise check any other document in the matter
+    for (const doc of state.documents) {
+      const versions = state.documentVersions.filter(
+        (v) => v.documentId === doc.id && v.versionNumber > 1
+      );
+      const latestVer = versions.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+      const isEdited =
+        latestVer &&
+        new Date(doc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
+      const isUnreviewedWorkProduct =
+        !latestVer &&
+        (doc.category === 'WORK_PRODUCT' ||
+          doc.category === 'PLEADING' ||
+          doc.updatedAt !== doc.createdAt);
+
+      if (isEdited || isUnreviewedWorkProduct) {
+        return { doc, reason: isEdited ? ('edited' as const) : ('new' as const) };
+      }
+    }
+
+    return null;
+  }, [state?.documents, state?.documentVersions, selectedDocId]);
+
   const handleSubmitPrompt = async (customPrompt?: string) => {
-    const text = (customPrompt ?? promptInput).trim();
+    let text = (customPrompt ?? promptInput).trim();
+    if (!text && docNeedingReview) {
+      text = `Run a comprehensive peer review on the ${docNeedingReview.reason === 'edited' ? 'updated' : 'new'} document "${docNeedingReview.doc.title}" (Bates: ${docNeedingReview.doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
+    }
     if (!text || isRunningTurn) return;
 
     setPromptInput('');
@@ -483,11 +536,11 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Active Matter Grounding Overview */}
+            {/* Matter Overview */}
             <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Active Matter Grounding
+                  Matter Overview
                 </span>
                 <span className="text-[10px] font-mono text-amber-400">
                   {state.documents.length} Files
@@ -915,7 +968,11 @@ export const App: React.FC = () => {
                     }
                   }}
                   rows={2}
-                  placeholder={`Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile.name}... (⌘+Enter to send)`}
+                  placeholder={
+                    !promptInput.trim() && docNeedingReview
+                      ? `Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel})... or press Send / ⌘+Enter to Peer Review "${docNeedingReview.doc.title}"`
+                      : `Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile.name}... (⌘+Enter to send)`
+                  }
                   className="w-full bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none"
                 />
 
@@ -974,14 +1031,14 @@ export const App: React.FC = () => {
                       </select>
                     </div>
 
-                    {/* Task Persona Selector */}
+                    {/* Practice Task Selector */}
                     <select
                       value={turnPracticeArea}
                       onChange={(e) =>
                         setTurnPracticeArea(e.target.value as PracticeAreaId)
                       }
                       className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-slate-300 hover:border-slate-600 transition cursor-pointer"
-                      title="Task Directive Persona"
+                      title="Practice Task"
                     >
                       {state.promptSettings.practiceAreaPresets.map((p) => (
                         <option
@@ -994,7 +1051,7 @@ export const App: React.FC = () => {
                       ))}
                     </select>
 
-                    {/* Review Mode Selector */}
+                    {/* Review Mode Selector (simplified and lit up when doc needs review) */}
                     <select
                       value={turnReviewMode}
                       onChange={(e) =>
@@ -1002,26 +1059,34 @@ export const App: React.FC = () => {
                           e.target.value as AdversarialReviewMode
                         )
                       }
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-emerald-300 hover:border-slate-600 transition cursor-pointer"
-                      title="Review Mode"
+                      className={`px-2.5 py-1 rounded-lg border text-xs transition cursor-pointer font-medium ${
+                        docNeedingReview
+                          ? 'bg-amber-500/15 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                          : 'bg-slate-900 border-slate-700/80 text-emerald-300 hover:border-slate-600'
+                      }`}
+                      title={
+                        docNeedingReview
+                          ? `Peer Review recommended: "${docNeedingReview.doc.title}" was ${docNeedingReview.reason === 'edited' ? 'edited' : 'added'}`
+                          : 'Review Mode'
+                      }
                     >
                       <option
                         value="multi_llm_default"
                         className="bg-slate-900 text-slate-100"
                       >
-                        Review: Peer Review (Recommended)
+                        Peer Review (Recommended)
                       </option>
                       <option
                         value="single_critic"
                         className="bg-slate-900 text-slate-100"
                       >
-                        Review: Quick Check
+                        Quick Check
                       </option>
                       <option
                         value="direct_bypass"
                         className="bg-slate-900 text-slate-100"
                       >
-                        Review: Off
+                        Off
                       </option>
                     </select>
                   </div>
@@ -1031,15 +1096,28 @@ export const App: React.FC = () => {
                       ⌘↵
                     </span>
                     <button
-                      disabled={isRunningTurn || !promptInput.trim()}
+                      disabled={isRunningTurn || (!promptInput.trim() && !docNeedingReview)}
                       onClick={() => handleSubmitPrompt()}
-                      title={`Send prompt to ${formatAgentLabel(currentProviderConfig)} (${turnModel}) — ⌘+Enter`}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:hover:bg-amber-500 text-slate-950 font-semibold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                      title={
+                        !promptInput.trim() && docNeedingReview
+                          ? `Send Peer Review for "${docNeedingReview.doc.title}" — ⌘+Enter`
+                          : `Send prompt to ${formatAgentLabel(currentProviderConfig)} (${turnModel}) — ⌘+Enter`
+                      }
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs shadow-sm transition active:scale-95 cursor-pointer font-semibold ${
+                        !promptInput.trim() && docNeedingReview
+                          ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-[0_0_16px_rgba(251,191,36,0.45)] ring-1 ring-amber-300'
+                          : 'bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:hover:bg-amber-500 text-slate-950'
+                      }`}
                     >
                       {isRunningTurn ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           <span>Running...</span>
+                        </>
+                      ) : !promptInput.trim() && docNeedingReview ? (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                          <span>Peer Review</span>
                         </>
                       ) : (
                         <>

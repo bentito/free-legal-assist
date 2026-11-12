@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import initSqlJs from 'sql.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LegalDatabase } from '../db/database';
 import { PromptAssembler } from '../agent/PromptAssembler';
@@ -401,6 +402,75 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     const realProbe = CliAgentDriverManager.probeCourtListenerMcp({});
     if (!claudeStatus.installed) {
       expect(realProbe.configuredAgentDriver).not.toBe('claudeAgent');
+    }
+  });
+
+  it('migrates legacy SQLite databases with messages.thread_id NOT NULL without errors', async () => {
+    const legacyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lexharness-legacy-test-'));
+    try {
+      // 1. Synthesize a legacy database with thread_id TEXT NOT NULL
+      const SQL = await initSqlJs();
+      const rawDb = new SQL.Database();
+      rawDb.run(`
+        CREATE TABLE messages (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          initial_draft_before_review TEXT,
+          primary_provider TEXT,
+          primary_model TEXT,
+          review_mode_used TEXT,
+          assembled_system_prompt_snapshot TEXT,
+          tool_calls_json TEXT NOT NULL,
+          adversarial_reviews_json TEXT NOT NULL,
+          revision_rounds_completed INTEGER DEFAULT 0,
+          created_at TEXT NOT NULL
+        );
+        INSERT INTO messages VALUES (
+          'legacy-msg-1',
+          'thread-123',
+          'user',
+          'Legacy prompt',
+          NULL,
+          'codex-cli',
+          'gpt-5',
+          'multi_llm_default',
+          NULL,
+          '[]',
+          '[]',
+          0,
+          '2026-11-01T00:00:00.000Z'
+        );
+      `);
+      const buffer = Buffer.from(rawDb.export());
+      fs.writeFileSync(path.join(legacyDir, 'lexharness.sqlite'), buffer);
+
+      // 2. Initialize LegalDatabase on this directory — migration must succeed
+      const migratedDb = new LegalDatabase(legacyDir);
+      await migratedDb.initialize();
+
+      // 3. Test insertMessage without thread_id (simulating legal:run-turn)
+      const newMsg = migratedDb.insertMessage({
+        id: 'new-msg-2',
+        matterId: 'matter-vt-state-v-thorne',
+        role: 'assistant',
+        content: 'Review complete',
+        createdAt: new Date().toISOString(),
+      });
+      expect(newMsg.id).toBe('new-msg-2');
+
+      // 4. Verify listMessages returns both messages plus 2 seeded initial messages
+      const msgs = migratedDb.listMessages('matter-vt-state-v-thorne');
+      expect(msgs.length).toBe(4);
+      expect(msgs.some((m) => m.id === 'legacy-msg-1')).toBe(true);
+      expect(msgs.some((m) => m.id === 'new-msg-2')).toBe(true);
+    } finally {
+      try {
+        fs.rmSync(legacyDir, { recursive: true, force: true });
+      } catch {
+        // Cleanup
+      }
     }
   });
 });

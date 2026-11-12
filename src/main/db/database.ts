@@ -279,26 +279,89 @@ export class LegalDatabase {
       );
     `);
 
-    // Migrate messages table if existing DB had thread_id instead of matter_id
+    // Migrate messages table if existing DB had thread_id (which had legacy NOT NULL constraint)
     try {
       const tableInfo = this.db.exec('PRAGMA table_info(messages)');
       const cols = tableInfo[0]?.values?.map((row) => String(row[1])) || [];
-      if (cols.length > 0 && !cols.includes('matter_id')) {
-        this.db.run('ALTER TABLE messages ADD COLUMN matter_id TEXT');
-        try {
-          this.db.run(`
-            UPDATE messages
-            SET matter_id = COALESCE(
-              (SELECT matter_id FROM threads WHERE threads.id = messages.thread_id),
-              'matter-vt-state-v-thorne'
-            )
-          `);
-        } catch {
-          this.db.run("UPDATE messages SET matter_id = 'matter-vt-state-v-thorne'");
+      if (cols.includes('thread_id')) {
+        this.db.run('DROP TABLE IF EXISTS messages_migration_temp;');
+        this.db.run(`
+          CREATE TABLE messages_migration_temp (
+            id TEXT PRIMARY KEY,
+            matter_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            initial_draft_before_review TEXT,
+            primary_provider TEXT,
+            primary_model TEXT,
+            review_mode_used TEXT,
+            assembled_system_prompt_snapshot TEXT,
+            tool_calls_json TEXT NOT NULL,
+            adversarial_reviews_json TEXT NOT NULL,
+            revision_rounds_completed INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
+          );
+        `);
+
+        const hasMatterId = cols.includes('matter_id');
+        const threadsTableCheck = this.db.exec(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='threads'"
+        );
+        const hasThreadsTable = Boolean(threadsTableCheck[0]?.values?.length);
+
+        let selectMatterIdExpr: string;
+        if (hasMatterId && hasThreadsTable) {
+          selectMatterIdExpr = `COALESCE(
+            CASE WHEN matter_id IN (SELECT id FROM matters) THEN matter_id ELSE NULL END,
+            (SELECT matter_id FROM threads WHERE threads.id = messages.thread_id),
+            'matter-vt-state-v-thorne'
+          )`;
+        } else if (hasMatterId) {
+          selectMatterIdExpr = `COALESCE(
+            CASE WHEN matter_id IN (SELECT id FROM matters) THEN matter_id ELSE NULL END,
+            'matter-vt-state-v-thorne'
+          )`;
+        } else if (hasThreadsTable) {
+          selectMatterIdExpr = `COALESCE(
+            (SELECT matter_id FROM threads WHERE threads.id = messages.thread_id),
+            'matter-vt-state-v-thorne'
+          )`;
+        } else {
+          selectMatterIdExpr = "'matter-vt-state-v-thorne'";
         }
+
+        this.db.run(`
+          INSERT OR REPLACE INTO messages_migration_temp (
+            id, matter_id, role, content, initial_draft_before_review,
+            primary_provider, primary_model, review_mode_used,
+            assembled_system_prompt_snapshot, tool_calls_json, adversarial_reviews_json,
+            revision_rounds_completed, created_at
+          )
+          SELECT
+            id,
+            ${selectMatterIdExpr},
+            role,
+            content,
+            initial_draft_before_review,
+            primary_provider,
+            primary_model,
+            review_mode_used,
+            assembled_system_prompt_snapshot,
+            COALESCE(tool_calls_json, '[]'),
+            COALESCE(adversarial_reviews_json, '[]'),
+            COALESCE(revision_rounds_completed, 0),
+            created_at
+          FROM messages;
+        `);
+
+        this.db.run('DROP TABLE messages;');
+        this.db.run('ALTER TABLE messages_migration_temp RENAME TO messages;');
+      } else if (cols.length > 0 && !cols.includes('matter_id')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN matter_id TEXT');
+        this.db.run("UPDATE messages SET matter_id = 'matter-vt-state-v-thorne' WHERE matter_id IS NULL");
       }
-    } catch {
-      // Ignored if table not created yet
+    } catch (err) {
+      console.error('Failed migrating messages table schema:', err);
     }
   }
 

@@ -481,7 +481,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       Layer 1 — Core Legal Mandate ({activeProfile?.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Governs every turn for this Practitioner Profile. Enforces constitutional primacy, record-grounding rules, and zero-hallucination citation discipline.
+                      Governs every turn for this Practitioner Profile. Enforces constitutional primacy, record pinpoint citations, and strict legal standards.
                     </p>
                   </div>
                   <button
