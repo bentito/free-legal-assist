@@ -191,6 +191,56 @@ export const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  const docNeedingReview = useMemo(() => {
+    if (!state) return null;
+    // 1. Check currently selected document first
+    const selectedDoc = state.documents.find((d) => d.id === selectedDocId);
+    if (selectedDoc) {
+      const versions = state.documentVersions.filter(
+        (v) => v.documentId === selectedDoc.id && v.versionNumber > 1
+      );
+      const latestVer = versions.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+      const isEdited =
+        latestVer &&
+        new Date(selectedDoc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
+      const isUnreviewedWorkProduct =
+        !latestVer &&
+        (selectedDoc.category === 'WORK_PRODUCT' ||
+          selectedDoc.category === 'PLEADING' ||
+          selectedDoc.updatedAt !== selectedDoc.createdAt);
+
+      if (isEdited || isUnreviewedWorkProduct) {
+        return { doc: selectedDoc, reason: isEdited ? ('edited' as const) : ('new' as const) };
+      }
+    }
+
+    // 2. Otherwise check any other document in the matter
+    for (const doc of state.documents) {
+      const versions = state.documentVersions.filter(
+        (v) => v.documentId === doc.id && v.versionNumber > 1
+      );
+      const latestVer = versions.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+      const isEdited =
+        latestVer &&
+        new Date(doc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
+      const isUnreviewedWorkProduct =
+        !latestVer &&
+        (doc.category === 'WORK_PRODUCT' ||
+          doc.category === 'PLEADING' ||
+          doc.updatedAt !== doc.createdAt);
+
+      if (isEdited || isUnreviewedWorkProduct) {
+        return { doc, reason: isEdited ? ('edited' as const) : ('new' as const) };
+      }
+    }
+
+    return null;
+  }, [state?.documents, state?.documentVersions, selectedDocId]);
+
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-slate-200">
@@ -274,56 +324,6 @@ export const App: React.FC = () => {
       // Non-blocking sync
     }
   };
-
-  const docNeedingReview = useMemo(() => {
-    if (!state) return null;
-    // 1. Check currently selected document first
-    const selectedDoc = state.documents.find((d) => d.id === selectedDocId);
-    if (selectedDoc) {
-      const versions = state.documentVersions.filter(
-        (v) => v.documentId === selectedDoc.id && v.versionNumber > 1
-      );
-      const latestVer = versions.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0];
-      const isEdited =
-        latestVer &&
-        new Date(selectedDoc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
-      const isUnreviewedWorkProduct =
-        !latestVer &&
-        (selectedDoc.category === 'WORK_PRODUCT' ||
-          selectedDoc.category === 'PLEADING' ||
-          selectedDoc.updatedAt !== selectedDoc.createdAt);
-
-      if (isEdited || isUnreviewedWorkProduct) {
-        return { doc: selectedDoc, reason: isEdited ? ('edited' as const) : ('new' as const) };
-      }
-    }
-
-    // 2. Otherwise check any other document in the matter
-    for (const doc of state.documents) {
-      const versions = state.documentVersions.filter(
-        (v) => v.documentId === doc.id && v.versionNumber > 1
-      );
-      const latestVer = versions.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0];
-      const isEdited =
-        latestVer &&
-        new Date(doc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
-      const isUnreviewedWorkProduct =
-        !latestVer &&
-        (doc.category === 'WORK_PRODUCT' ||
-          doc.category === 'PLEADING' ||
-          doc.updatedAt !== doc.createdAt);
-
-      if (isEdited || isUnreviewedWorkProduct) {
-        return { doc, reason: isEdited ? ('edited' as const) : ('new' as const) };
-      }
-    }
-
-    return null;
-  }, [state?.documents, state?.documentVersions, selectedDocId]);
 
   const handleSubmitPrompt = async (customPrompt?: string) => {
     let text = (customPrompt ?? promptInput).trim();
