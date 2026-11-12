@@ -203,16 +203,11 @@ export const App: React.FC = () => {
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
       const isEdited =
-        latestVer &&
-        new Date(selectedDoc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
-      const isUnreviewedWorkProduct =
-        !latestVer &&
-        (selectedDoc.category === 'WORK_PRODUCT' ||
-          selectedDoc.category === 'PLEADING' ||
-          selectedDoc.updatedAt !== selectedDoc.createdAt);
+        (latestVer && new Date(selectedDoc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime()) ||
+        (!latestVer && selectedDoc.updatedAt !== selectedDoc.createdAt);
 
-      if (isEdited || isUnreviewedWorkProduct) {
-        return { doc: selectedDoc, reason: isEdited ? ('edited' as const) : ('new' as const) };
+      if (isEdited) {
+        return { doc: selectedDoc, reason: 'edited' as const };
       }
     }
 
@@ -225,16 +220,11 @@ export const App: React.FC = () => {
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
       const isEdited =
-        latestVer &&
-        new Date(doc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime();
-      const isUnreviewedWorkProduct =
-        !latestVer &&
-        (doc.category === 'WORK_PRODUCT' ||
-          doc.category === 'PLEADING' ||
-          doc.updatedAt !== doc.createdAt);
+        (latestVer && new Date(doc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime()) ||
+        (!latestVer && doc.updatedAt !== doc.createdAt);
 
-      if (isEdited || isUnreviewedWorkProduct) {
-        return { doc, reason: isEdited ? ('edited' as const) : ('new' as const) };
+      if (isEdited) {
+        return { doc, reason: 'edited' as const };
       }
     }
 
@@ -326,10 +316,7 @@ export const App: React.FC = () => {
   };
 
   const handleSubmitPrompt = async (customPrompt?: string) => {
-    let text = (customPrompt ?? promptInput).trim();
-    if (!text && docNeedingReview) {
-      text = `Run a comprehensive peer review on the ${docNeedingReview.reason === 'edited' ? 'updated' : 'new'} document "${docNeedingReview.doc.title}" (Bates: ${docNeedingReview.doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
-    }
+    const text = (customPrompt ?? promptInput).trim();
     if (!text || isRunningTurn) return;
 
     setPromptInput('');
@@ -938,8 +925,22 @@ export const App: React.FC = () => {
 
           {/* Bottom Legal Prompt Composer */}
           <div className="p-4 bg-slate-900/90 border-t border-slate-800 space-y-3">
-            {/* Profile-Specific Quick Sample Prompts */}
+            {/* Profile-Specific Quick Sample Prompts & Actions */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {docNeedingReview && (
+                <button
+                  disabled={isRunningTurn}
+                  onClick={() => {
+                    const promptText = `Run a comprehensive peer review on the updated document "${docNeedingReview.doc.title}" (Bates: ${docNeedingReview.doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
+                    setPromptInput(promptText);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] font-medium text-amber-300 transition shrink-0 cursor-pointer shadow-sm"
+                  title="Click to populate peer review prompt for this edited document"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span>Peer Review Edited "{docNeedingReview.doc.title}"</span>
+                </button>
+              )}
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-amber-400" />
                 <span>{activeProfile.name} Prompts:</span>
@@ -949,7 +950,7 @@ export const App: React.FC = () => {
                   key={i}
                   disabled={isRunningTurn}
                   onClick={() => handleSubmitPrompt(qp)}
-                  className="px-2.5 py-1 rounded-full bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-[11px] text-slate-300 truncate max-w-xs transition shrink-0"
+                  className="px-2.5 py-1 rounded-full bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-[11px] text-slate-300 truncate max-w-xs transition shrink-0 cursor-pointer"
                 >
                   {qp}
                 </button>
@@ -968,11 +969,7 @@ export const App: React.FC = () => {
                     }
                   }}
                   rows={2}
-                  placeholder={
-                    !promptInput.trim() && docNeedingReview
-                      ? `Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel})... or press Send / ⌘+Enter to Peer Review "${docNeedingReview.doc.title}"`
-                      : `Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile.name}... (⌘+Enter to send)`
-                  }
+                  placeholder={`Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile.name}... (⌘+Enter to send)`}
                   className="w-full bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none"
                 />
 
@@ -1051,7 +1048,7 @@ export const App: React.FC = () => {
                       ))}
                     </select>
 
-                    {/* Review Mode Selector (simplified and lit up when doc needs review) */}
+                    {/* Turn Review Gate */}
                     <select
                       value={turnReviewMode}
                       onChange={(e) =>
@@ -1059,16 +1056,8 @@ export const App: React.FC = () => {
                           e.target.value as AdversarialReviewMode
                         )
                       }
-                      className={`px-2.5 py-1 rounded-lg border text-xs transition cursor-pointer font-medium ${
-                        docNeedingReview
-                          ? 'bg-amber-500/15 border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
-                          : 'bg-slate-900 border-slate-700/80 text-emerald-300 hover:border-slate-600'
-                      }`}
-                      title={
-                        docNeedingReview
-                          ? `Peer Review recommended: "${docNeedingReview.doc.title}" was ${docNeedingReview.reason === 'edited' ? 'edited' : 'added'}`
-                          : 'Review Mode'
-                      }
+                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-emerald-300 hover:border-slate-600 transition cursor-pointer"
+                      title="Turn Review Gate"
                     >
                       <option
                         value="multi_llm_default"
@@ -1096,28 +1085,15 @@ export const App: React.FC = () => {
                       ⌘↵
                     </span>
                     <button
-                      disabled={isRunningTurn || (!promptInput.trim() && !docNeedingReview)}
+                      disabled={isRunningTurn || !promptInput.trim()}
                       onClick={() => handleSubmitPrompt()}
-                      title={
-                        !promptInput.trim() && docNeedingReview
-                          ? `Send Peer Review for "${docNeedingReview.doc.title}" — ⌘+Enter`
-                          : `Send prompt to ${formatAgentLabel(currentProviderConfig)} (${turnModel}) — ⌘+Enter`
-                      }
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs shadow-sm transition active:scale-95 cursor-pointer font-semibold ${
-                        !promptInput.trim() && docNeedingReview
-                          ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-[0_0_16px_rgba(251,191,36,0.45)] ring-1 ring-amber-300'
-                          : 'bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:hover:bg-amber-500 text-slate-950'
-                      }`}
+                      title={`Send prompt to ${formatAgentLabel(currentProviderConfig)} (${turnModel}) — ⌘+Enter`}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:hover:bg-amber-500 text-slate-950 font-semibold text-xs shadow-sm transition active:scale-95 cursor-pointer"
                     >
                       {isRunningTurn ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           <span>Running...</span>
-                        </>
-                      ) : !promptInput.trim() && docNeedingReview ? (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-                          <span>Peer Review</span>
                         </>
                       ) : (
                         <>
