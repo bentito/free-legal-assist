@@ -11,7 +11,10 @@
 3. **Re-Visiting, Editing & Deleting Matter / Docket Settings**: Lawyers can revisit and update any Matter's settings at any time by **right-clicking** the Matter in the left sidebar (or clicking the **Settings gear icon** on the Matter card or top header bar) to open the **Matter Settings Dialog** and edit the **Matter/Case Name**, **Docket ID / Matter Number**, **Client / Defendant Name**, **Governing Jurisdiction & Forum**, **Citation Style**, **Default Task Persona**, and **Local Folder Path**, or permanently delete a Matter through a **Confirm Permanent Matter Deletion** dialog.
 4. **Separation of Concerns: Agent-Native MCP Toolsets**: Model Context Protocol (MCP) tooling is fundamentally a capability and function of the agents (e.g., Anthropic Claude Code, OpenAI Codex, Antigravity ACP), which natively configure, authenticate, and run their own MCP servers (such as CourtListener, PACER/RECAP, or custom bar citators). LexHarness intentionally avoids centrally managing, configuring, or hosting MCP servers on their behalf, preserving agent autonomy while focusing the harness on client privilege, matter evidence isolation, and multi-LLM adversarial review.
 5. **Default Multi-LLM Adversarial Review Gate**: Before any final answer or drafted legal artifact is presented to the user, the local agent loop automatically intercepts the candidate output and routes it in parallel through independent reviewer models (e.g., Anthropic Claude as Primary Defense/Lead Counsel, Google Gemini 2.5 Pro as **Citation & Record Auditor**, and OpenAI o3-mini / GPT-4o as **Adversarial Opposing Counsel / State's Attorney & Trial Judge Critic**) to catch unsupported citations, record mismatches, constitutional/procedural omissions, and drafting risks, forcing an automatic revision pass when material objections are raised.
-6. **Phase 2 — On-Device Local Model Router & Privileged PII Scrubbing Gateway**: A local small-model router running on the same computer as LexHarness (via Ollama / `llama.cpp` / ONNX) that (a) classifies request complexity to route simple tasks to fast/low-cost or local models and complex motions to frontier reasoning models, and (b) strips and pseudonymizes client PII and privileged identifiers before any payload is sent to external frontier models, re-hydrating the real client details locally upon return.
+6. **Phase 2 — Embedded In-Process ONNX Model Router, Privileged PII Scrubbing Gateway & Decision Debug Logger**: An embedded, zero-dependency local runtime powered by **ONNX Runtime (`onnxruntime-node`)** that runs directly within the Electron Main Process:
+   - **Always-On by Default**: Every turn automatically evaluates request complexity to route mechanical/procedural queries to fast/economy models and high-stakes legal arguments to frontier reasoning models, controlling costs without manual user friction.
+   - **Privileged PII Scrubbing & Reversible Pseudonymization**: Pairs deterministic Matter Roster matching with an embedded quantized ONNX NER model to strip confidential identifiers before cloud dispatch, re-hydrating original client names locally upon response return.
+   - **Routing Decision Debug Mode & Structured Telemetry**: A comprehensive debug logging subsystem that captures detailed decision metrics (intent classification logits, complexity scores, detected PII entities, selected tier, and cost delta) to structured JSONL logs and an in-app diagnostic drawer.
 
 ---
 
@@ -35,17 +38,22 @@ flowchart TB
             IPC["Typed IPC Handlers (src/main/index.ts & src/preload/index.ts)"]
             Orchestrator["LegalAgentLoop (src/main/agent/LegalAgentLoop.ts)"]
             PromptAssembler["PromptAssembler (src/main/agent/PromptAssembler.ts)"]
-            RouterGateway["Phase 2: LocalPrivacyModelRouter & PiiScrubber (On-Device SLM + Deterministic Vault)"]
+            RouterGateway["Phase 2: LocalPrivacyModelRouter (Embedded ONNX Classifier + PiiScrubberVault + DebugLogger)"]
             CliDrivers["CliAgentDriverManager (src/main/agent/providers/CliAgentDriverManager.ts)"]
             AdversarialEngine["AdversarialCoordinator (src/main/agent/AdversarialCoordinator.ts)"]
             LLMClient["MultiLLMClient (src/main/agent/providers/MultiLLMClient.ts)"]
             ToolRunner["LegalToolExecutor (src/main/tools/LegalToolExecutor.ts)"]
-            DB[("LegalDatabase SQLite + Encrypted PII Pseudonym Vault\n<userData>/lexharness-data/lexharness.sqlite")]
+            DB[("LegalDatabase SQLite + Encrypted PII Pseudonym Vault + Routing Logs\n<userData>/lexharness-data/lexharness.sqlite")]
         end
     end
 
+    subgraph EmbeddedAI["Embedded In-Process ONNX Runtime (onnxruntime-node)"]
+        OnnxRouter["Complexity & Intent Classifier (legal-complexity-router.onnx - 40MB INT8)"]
+        OnnxNER["Contextual Legal PII Scrubber (legal-ner-scrubber.onnx - 65MB INT8)"]
+    end
+
     subgraph Providers["Local On-Device SLM + Multi-LLM Frontier Providers & Legal MCP Endpoints"]
-        LocalSLM["On-Device Local Model (Ollama / llama.cpp: Qwen-2.5-3B / Llama-3.2-3B / Phi-4-mini)"]
+        LocalSLM["Optional On-Device Local Model (Ollama: Qwen-2.5-3B / Llama-3.2-3B / Phi-4)"]
         CLI["T3 CLI Agent Harnesses: Antigravity ACP (agy), Codex CLI (codex exec), Claude Code (claude --mcp-config)"]
         CloudAPIs["Direct HTTPS APIs: Anthropic Claude, Google Gemini, OpenAI, OpenRouter"]
         Sim["Built-In Local Legal Harness Engine (Zero-Key Mac/Win Test Mode)"]
@@ -58,6 +66,7 @@ flowchart TB
     Orchestrator <--> ToolRunner
     ToolRunner <--> DB
     Orchestrator <--> RouterGateway
+    RouterGateway <--> EmbeddedAI
     RouterGateway <--> LocalSLM
     RouterGateway <--> DB
     RouterGateway <--> LLMClient
@@ -211,85 +220,152 @@ While the harness does not proxy or host MCP servers, it **actively assures that
 
 ---
 
-## 7. Phase 2 Design & Roadmap: On-Device Local Model Router & Client PII Scrubbing Gateway (`LocalPrivacyModelRouter`)
+### 7. Phase 2 Design & Roadmap: Embedded In-Process ONNX Model Router, Privileged PII Scrubbing Gateway & Decision Debug Logger (`LocalPrivacyModelRouter`)
 
 > [!IMPORTANT]
-> **Attorney-Client Privilege & Cost/Latency Mandate**: Phase 2 introduces an **On-Device Local Model Router & PII Scrubbing Gateway** running directly on the same Mac or Windows computer as LexHarness. No client-identifying PII or privileged personal identifiers leave the machine un-scrubbed when calling external frontier models, and simple requests are routed to fast/economy or local models automatically.
+> **Attorney-Client Privilege, Cost Governance & Zero-Dependency Mandate**: Phase 2 introduces an **Embedded In-Process ONNX Model Router & PII Scrubbing Gateway** running natively inside the Electron Main Process via `onnxruntime-node`. It requires **zero external installs** (no Python virtual environments, no Docker, and no mandatory local LLM daemons), is **Always-On by default**, strips confidential client identifiers before cloud dispatch, routes simple requests to fast/economy models to save up to 85% in API costs, and records full decision telemetry in a dedicated **Routing Decision Debug Mode**.
 
-### 7.1 Architecture & Dataflow of the Phase 2 Local Model Router
+### 7.1 Architecture & End-to-End Dataflow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Lawyer as Attorney UI
+    participant Lawyer as Attorney UI (Composer & Stream)
     participant AgentLoop as LegalAgentLoop
-    participant LocalSLM as Local Router SLM (Ollama or llama.cpp)
-    participant Vault as Local Encrypted Pseudonym Vault
+    participant Router as LocalPrivacyModelRouter (Always-On)
+    participant OnnxEngine as Embedded ONNX Runtime (onnxruntime-node)
+    participant Vault as Local Encrypted Pseudonym Vault (SQLite)
+    participant DebugLogger as RoutingDebugLogger (JSONL & SQLite)
     participant Frontier as Target Model Tier (Local, Fast-Economy, or Frontier)
 
     Lawyer->>AgentLoop: Submits Prompt + Matter Discovery Excerpts
-    AgentLoop->>LocalSLM: 1. Classify Complexity and Scan for Privileged PII
-    LocalSLM->>Vault: 2. Register Reversible Pseudonyms (Marcus Thorne -> CLIENT_DEFENDANT_1, 26-CR-04118 -> DOCKET_ID_1)
-    LocalSLM-->>AgentLoop: 3. Return routeTier, targetModel, scrubbedPrompt, scrubbedContext
+    AgentLoop->>Router: 1. Evaluate Turn (Always-On Default Routing & Scrubbing)
+    Router->>OnnxEngine: 2. Run Contextual NER Model (legal-ner-scrubber.onnx)
+    Router->>Vault: 3. Register Reversible Pseudonyms (Marcus Thorne -> [CLIENT_DEFENDANT_1], 26-CR-04118 -> [DOCKET_ID_1])
+    Router->>OnnxEngine: 4. Run Complexity Classifier (legal-complexity-router.onnx)
+    OnnxEngine-->>Router: 5. Return Intent, Complexity Logits & Recommended Route Tier
+    Router->>DebugLogger: 6. Record Structured Decision Telemetry (Inputs, Logits, Scrubbed PII Count, Cost Delta)
+    DebugLogger-->>Lawyer: Stream Real-Time Debug Event to UI Inspector
     alt Route Tier is LOCAL_PRIVATE (Simple Task or Air-Gapped Matter)
-        AgentLoop->>LocalSLM: 4a. Execute Turn Entirely On-Device (Zero External Network Calls)
-        LocalSLM-->>AgentLoop: Local Draft Response
+        Router->>Frontier: 7a. Execute Turn via Embedded Engine or Local Ollama
+        Frontier-->>Router: Local Draft Response
     else Route Tier is FAST_ECONOMY or FRONTIER_REASONING
-        AgentLoop->>Frontier: 4b. Send ONLY Scrubbed Prompt and Scrubbed Evidence (CLIENT_DEFENDANT_1)
-        Frontier-->>AgentLoop: Scrubbed Draft and Critic Verdict Referencing Pseudonyms
-        AgentLoop->>Vault: 5. Re-Hydrate Pseudonyms Locally (CLIENT_DEFENDANT_1 -> Marcus Thorne)
-        Vault-->>AgentLoop: Fully Restored Attorney-Facing Legal Work Product
+        Router->>Frontier: 7b. Send ONLY Scrubbed Prompt & Evidence ([CLIENT_DEFENDANT_1])
+        Frontier-->>Router: Scrubbed Draft and Critic Verdict Referencing Pseudonyms
+        Router->>Vault: 8. Re-Hydrate Pseudonyms Locally ([CLIENT_DEFENDANT_1] -> Marcus Thorne)
+        Vault-->>Router: Fully Restored Attorney-Facing Legal Work Product
     end
-    AgentLoop-->>Lawyer: Present Restored Work Product + Routing and PII Audit Badge
+    Router-->>AgentLoop: Restored Work Product + Route Decision + Telemetry Record
+    AgentLoop-->>Lawyer: Present Restored Work Product + PII Shield Badge + Routing Scorecard
 ```
 
-### 7.2 On-Device Local Model Runtime (`LocalSlmRuntime`)
+### 7.2 Embedded In-Process ONNX Runtime (`OnnxRouterEngine` & `OnnxPiiClassifier`)
 
-To ensure the router itself never leaks privileged data to the cloud and operates with sub-200ms classification overhead:
-- **Primary Local Runtime (`Ollama` / `llama.cpp` / `node-llama-cpp`)**:
-  - Connects to a local inference endpoint on `http://127.0.0.1:11434` (Ollama) or an embedded `llama.cpp` binary managed by LexHarness (`~/.lexharness/models/`).
-  - **Recommended Default Local Router Models**:
-    - `qwen2.5:3b-instruct-q4_K_M` (~1.9 GB RAM/VRAM — fast structured JSON output & entity extraction)
-    - `llama3.2:3b-instruct-q4_K_M` (~2.0 GB RAM/VRAM — strong legal entity & complexity classification)
-    - `phi4-mini` (~2.4 GB RAM/VRAM — high precision on statutory/factual triage)
-- **Deterministic Fallback Engine**:
-  - If the user has not yet downloaded a local GGUF/Ollama model, a deterministic **Rule + Legal Regex + Matter Roster Classifier** executes in-process with zero external network calls so PII scrubbing and complexity routing remain 100% functional out of the box.
+To guarantee zero setup friction for attorneys, predictable sub-50ms latency, and absolute local privacy without requiring users to download gigabytes of GGUF weights or manage external daemons:
 
-### 7.3 Complexity, Speed & Cost Routing Tiers (`ModelRouteTier`)
+- **Embedded ONNX Runtime (`onnxruntime-node`)**:
+  - Executes directly inside the Electron Main Process via native C++ bindings with **zero external Python or runtime dependencies**.
+  - Leverages platform-native hardware acceleration:
+    - **macOS**: Apple Silicon Neural Engine & GPU via CoreML / Accelerate execution provider.
+    - **Windows**: DirectML / Windows ML execution provider for Intel/AMD/Nvidia GPUs and NPUs, with graceful fallback to multi-threaded CPU.
+- **Dual Quantized INT8 In-Process Models** (bundled in `resources/models/`):
+  1. **`legal-complexity-router.onnx` (~40MB INT8)**:
+     - Multi-task sequence classifier trained on legal intent archetypes and reasoning complexity benchmarks.
+     - Classifies incoming prompt + matter corpus token volume into actionable intent categories (e.g., citation formatting, single-rule lookup, fact-checking, contract clause review, substantive constitutional motion, multi-transcript impeachment).
+     - Outputs normalized routing probabilities and confidence logits across `LOCAL_PRIVATE`, `FAST_ECONOMY`, and `FRONTIER_REASONING`.
+     - **Inference Latency**: ~10–25ms on modern Apple Silicon / x64 CPUs.
+  2. **`legal-ner-scrubber.onnx` (~65MB INT8)**:
+     - Compact token-classification model (quantized GLiNER / DeBERTa legal distillation) tuned for entity extraction across legal discovery documents.
+     - Detects non-cataloged names, unlisted witnesses, confidential informants, medical diagnoses, juvenile records, and private settlement numbers.
+     - **Inference Latency**: ~30–60ms on typical prompt contexts.
+- **Optional Local SLM Extension (Ollama / Local REST API)**:
+  - If the attorney runs Ollama (`localhost:11434`) or LM Studio, LexHarness can connect to it as an optional execution target for Tier 0 (`LOCAL_PRIVATE`) offline drafting. However, **complexity classification and PII scrubbing are fully self-contained in the embedded ONNX engine** and never require an external server.
 
-The local router evaluates each incoming prompt along four dimensions (**Task Type**, **Reasoning Depth Required**, **Corpus Token Volume**, and **Matter Privacy Level**) and selects one of three routing tiers:
+### 7.3 Always-On Default Routing Policy & Three-Tier Cost Control
 
-| Route Tier | When Selected by Local Router | Default Target Models | Speed & Cost Profile |
+Routing is **enabled by default on every turn**, protecting attorney privilege and optimizing API costs without requiring explicit configuration:
+
+| Route Tier | When Selected by Embedded ONNX Router | Default Target Models | Speed & Cost Profile |
 | :--- | :--- | :--- | :--- |
-| **Tier 0: `LOCAL_PRIVATE`** | • Matter marked *"Strict Local-Only / Air-Gapped Privilege"*<br/>• Simple chronology date extraction, formatting, or local snippet summarization | On-device local model (`qwen2.5:7b` / `llama3.2:3b`) | **\$0.00 cost** • 100% on-device • Zero external traffic |
-| **Tier 1: `FAST_ECONOMY`** | • Single-issue procedural or statutory lookup (`13 V.S.A. § 7554` text check)<br/>• Citation format normalization<br/>• Short factual Q&A on a single exhibit<br/>• Single-Critic Audit pass on minor edits | `gemini-3.8-flash`, `claude-3-5-haiku`, `o4-mini`, `gpt-4o-mini` | **~70–85% lower token cost** • **3–5x faster latency** • Outbound PII scrubbed |
-| **Tier 2: `FRONTIER_REASONING`** | • Dispositive motions (e.g., V.R.Cr.P. 12(b)(3) Article 11 Motion to Suppress & Dismiss)<br/>• Cross-document BWC vs. Affidavit impeachment matrices<br/>• Appellate brief drafting & full Multi-LLM Adversarial Review Gate | `claude-opus-5-5` / `claude-3-7-sonnet`, `gemini-4-argon` / `gemini-2.5-pro`, `gpt-6-luna` / `o3` | **Maximum legal reasoning depth** • Full 2-Critic Adversarial Gate • Outbound PII scrubbed |
+| **Tier 0: `LOCAL_PRIVATE`** | • Matter marked *"Air-Gapped Privilege / Local Only"*<br/>• Mechanical formatting, date parsing, local document summarization | Embedded rule/template engine or local Ollama (`llama3.2:3b` / `qwen2.5:3b`) | **$0.00 cost** • 100% on-device • Zero external network traffic |
+| **Tier 1: `FAST_ECONOMY`** | • Single-statute / procedural rule inquiry (`13 V.S.A. § 7554`)<br/>• Bluebook citation verification & format alignment<br/>• Short factual Q&A on single discovery exhibit<br/>• Minor redline explanation or single-critic audit | `gemini-3.8-flash`, `claude-3-5-haiku`, `o4-mini`, `gpt-4o-mini` | **~70–85% cost savings** • **3–5x faster response** • Outbound PII scrubbed |
+| **Tier 2: `FRONTIER_REASONING`** | • Dispositive suppression motions (Vt. Const. ch. I, art. 11 / V.R.Cr.P. 12)<br/>• Cross-document BWC vs. Affidavit impeachment matrices<br/>• Complex statutory ambiguity & appellate preservation<br/>• Full Multi-LLM Adversarial Review Gate | `claude-opus-5-5` / `claude-3-7-sonnet`, `gemini-4-argon` / `gemini-2.5-pro`, `gpt-6-luna` / `o3` | **Deepest legal reasoning** • Full 2-Critic Adversarial Review Gate • Outbound PII scrubbed |
 
-### 7.4 Bidirectional PII Stripping & Privileged Information Safeguarding (`PiiScrubber` & `PseudonymVault`)
+#### Attorney Governance & Matter-Level Overrides
+While routing is always on by default, attorneys retain full governance through a dedicated **Routing & Privacy Settings** control in the Prompt Governance Studio and Matter Settings:
+1. **Dynamic Smart Routing (Default - Recommended)**: Automatically triages between Tier 1 and Tier 2 based on ONNX complexity classification, saving substantial API spend while escalating high-stakes motions to frontier models.
+2. **Always Force Frontier Reasoning**: Bypasses the economy tier, sending all queries directly to frontier models (e.g. Claude 3.7 Sonnet / o3), while **retaining full local PII scrubbing and pseudonymization**.
+3. **Strict Local-Only (Air-Gapped)**: Completely disables external API calls for ultra-sensitive matters; all operations are fulfilled on-device.
+4. **Pre-Dispatch Review Gate**: An optional compliance toggle requiring the attorney to visually inspect and approve the scrubbed payload and pseudonym table before data leaves the machine.
 
-Crucially for legal practice, before any prompt or discovery excerpt is transmitted to Tier 1 (`FAST_ECONOMY`) or Tier 2 (`FRONTIER_REASONING`) cloud/CLI frontier models, the local router executes a **Two-Stage De-Identification Pass**:
+### 7.4 Bidirectional PII Stripping, Reversible Pseudonymization & Vault (`PiiScrubberVault`)
+
+Before any payload is dispatched to Tier 1 or Tier 2 cloud endpoints, the local engine executes a **Two-Stage De-Identification Pass**:
 
 1. **Stage A — Deterministic Matter Roster & Legal Regex Scrubber**:
-   - Automatically matches the active Matter's `clientName`, known co-defendants, victims, minor/juvenile initials, law enforcement officer names, and docket numbers (`matterNumber`).
-   - Scrubs structured identifiers via strict patterns:
-     - **Social Security Numbers (SSNs)** & **Tax IDs (EIN/ITIN)** -> `[SSN_REDACTED_#]`
-     - **Dates of Birth (DOB)** & **Driver's License / State ID Numbers** -> `[DOB_REDACTED_#]`, `[DL_NUMBER_#]`
-     - **Home Street Addresses, Phone Numbers & Personal Emails** -> `[ADDRESS_REDACTED_#]`, `[PHONE_REDACTED_#]`, `[EMAIL_REDACTED_#]`
-     - **Financial / Bank Account / Credit Card / Wire Numbers** -> `[ACCOUNT_REDACTED_#]`
-     - **Medical / Substance Treatment / Juvenile Record Identifiers** -> `[PROTECTED_HEALTH_ID_#]`
-2. **Stage B — On-Device Local Model Contextual NER & Privilege Scrubber**:
-   - The local model (`qwen2.5:3b` / `llama3.2:3b`) scans the prompt and retrieved discovery excerpts for contextual named entities (unlisted witnesses, family members, confidential informants, employer names, or privileged settlement figures) that regex alone cannot catch.
-   - Replaces each entity with a **semantically typed, consistent pseudonym token** (e.g., `Marcus Thorne` -> `[CLIENT_DEFENDANT_1]`, `Trooper Keller` -> `[LAW_ENFORCEMENT_WITNESS_1]`, `Chittenden Docket 26-CR-04118` -> `[MATTER_DOCKET_1]`).
-   - **Preserves Legal & Evidentiary Structure**: Statutory citations (`13 V.S.A. § 7554`), case law citations (*State v. Bauder*, `2007 VT 16`), constitutional provisions (`Vt. Const. ch. I, art. 11`), timestamps (`23:14:08`), and Bates numbers (`[STATE-BWC-0004]`) are explicitly allowlisted so frontier legal analysis and citation auditing remain 100% accurate.
-3. **Encrypted Local Pseudonym Vault & Automatic Inbound Re-Hydration**:
-   - All `pseudonymToken <-> realValue` mappings for the Matter are stored locally in SQLite encrypted with OS `safeStorage` (macOS Keychain / Windows DPAPI).
-   - When the frontier model and Adversarial Critics return their drafted motion or critique referencing `[CLIENT_DEFENDANT_1]` and `[LAW_ENFORCEMENT_WITNESS_1]`, the `LocalPrivacyModelRouter` **automatically re-hydrates** the exact client and witness names locally before displaying the output or saving a redline snapshot.
-4. **UI Transparency & Controls (Planned for Phase 2 Implementation)**:
-   - **Privacy & Routing Badge on Every Turn**: Displays the routing decision (`Tier 1: Fast Economy` vs. `Tier 2: Frontier Reasoning`), estimated token/cost savings, and a clickable **`PII Shield: 7 Privileged Identifiers Scrubbed`** pill that lets the lawyer inspect the exact scrubbed outbound payload versus the re-hydrated local work product.
-   - **Per-Matter Privacy Policy Toggle**: Allows setting any Matter to:
-     - `Standard PII Scrubbing before Frontier Calls (Default)`
-     - `Require Attorney Approval of Scrubbed Payload Before Cloud Send`
-     - `Strict Local-Only (Never Send Matter Data to External Models)`
+   - Automatically cross-references the active Matter's known entities: `clientName`, docket number (`matterNumber`), assigned judge, prosecutor, defense counsel, and known witnesses stored in the SQLite database.
+   - Scrubs structured patterns:
+     - **Social Security Numbers (SSNs) & Tax IDs** -> `[SSN_REDACTED_#]`
+     - **Dates of Birth (DOB) & Driver's License Numbers** -> `[DOB_REDACTED_#]`, `[DL_NUMBER_#]`
+     - **Home Addresses, Personal Phones & Private Emails** -> `[ADDRESS_REDACTED_#]`, `[PHONE_REDACTED_#]`, `[EMAIL_REDACTED_#]`
+     - **Financial Accounts & Credit Card / Wire Numbers** -> `[ACCOUNT_REDACTED_#]`
+2. **Stage B — Embedded ONNX Contextual Legal NER Scrubber (`legal-ner-scrubber.onnx`)**:
+   - Identifies non-cataloged names, incidental family members, unlisted law enforcement officers, confidential informants, and proprietary commercial terms.
+   - Assigns **semantically typed, consistent pseudonym tokens** (e.g., `Marcus Thorne` -> `[CLIENT_DEFENDANT_1]`, `Officer David Chen` -> `[LAW_ENFORCEMENT_WITNESS_1]`, `25-CR-00123` -> `[DOCKET_ID_1]`).
+   - **Legal Citation & Evidentiary Allowlist**: Guarantees that legal authority (`13 V.S.A. § 7554`, `2007 VT 16`, `Vt. Const. ch. I, art. 11`), record Bates stamps (`[STATE-BWC-0014]`), timestamps (`02:14:22`), and statutory elements are never scrubbed.
+3. **Encrypted Local Pseudonym Vault & Inbound Re-Hydration**:
+   - Mappings are stored in SQLite encrypted with OS `safeStorage` (macOS Keychain / Windows DPAPI).
+   - Upon receiving the frontier model's response or critic verdict, the vault automatically re-hydrates `[CLIENT_DEFENDANT_1]` back to `Marcus Thorne` prior to rendering in the UI or saving a document redline.
+
+### 7.5 Routing Decision Debug Mode & Structured Telemetry Logging (`RoutingDebugLogger`)
+
+To enable attorneys, IT compliance officers, and developers to audit, verify, and fine-tune routing decisions, Phase 2 implements a comprehensive **Routing Decision Debug Mode**:
+
+1. **Global & Per-Session Debug Toggle**:
+   - Accessible via **Prompt Governance Studio -> Privacy & Routing -> "Enable Routing Decision Debug Mode"** or keyboard shortcut (`Cmd+Shift+D` / `Ctrl+Shift+D`).
+   - When enabled, an interactive **Routing & Privacy Debug Inspector Drawer** appears directly below the Composer, offering real-time insight into the decision pipeline.
+2. **Structured Telemetry Schema (`RoutingDecisionLog`)**:
+   Each routing evaluation records a structured JSON record:
+   ```json
+   {
+     "id": "route-evt-20261113-9a8f21",
+     "timestamp": "2026-11-13T13:50:22.104Z",
+     "matterId": "matter-vt-001",
+     "turnNumber": 4,
+     "metrics": {
+       "rawPromptLength": 482,
+       "corpusExcerptTokens": 1850,
+       "totalInputTokens": 2332
+     },
+     "classification": {
+       "inferredIntent": "vt_suppression_art11",
+       "onnxComplexityScore": 0.884,
+       "onnxLogits": {
+         "LOCAL_PRIVATE": 0.042,
+         "FAST_ECONOMY": 0.118,
+         "FRONTIER_REASONING": 0.840
+       },
+       "decisionReason": "High substantive constitutional complexity (Vt. Const. art. 11 exit order) with multi-transcript factual contradictions"
+     },
+     "selectedTier": "FRONTIER_REASONING",
+     "selectedModel": "claude-opus-5-5",
+     "costEstimate": {
+       "selectedModelCostUSD": 0.0384,
+       "frontierBaselineCostUSD": 0.0384,
+       "estimatedSavingsUSD": 0.0
+     },
+     "piiAudit": {
+       "entitiesDetectedCount": 5,
+       "categories": { "CLIENT_NAME": 1, "DOCKET_ID": 1, "OFFICER_NAME": 2, "ADDRESS": 1 },
+       "tokensMasked": ["[CLIENT_DEFENDANT_1]", "[DOCKET_ID_1]", "[LAW_ENFORCEMENT_WITNESS_1]", "[LAW_ENFORCEMENT_WITNESS_2]", "[ADDRESS_REDACTED_1]"],
+       "rehydrationSuccessful": true
+     }
+   }
+   ```
+3. **Dual Persistence & Export**:
+   - **Local Append-Only JSON Lines Log**: Streamed to `<userData>/lexharness-data/logs/routing-decisions.jsonl` for offline analysis, benchmark evaluation, and compliance auditing.
+   - **SQLite Audit Table (`routing_debug_logs`)**: Queryable directly via the internal database for quick history inspection.
+   - **One-Click Export**: Attorneys or administrators can export a sanitized diagnostic bundle (`Export Routing Audit Log (JSON)`) directly from Settings to submit bug reports or verify ethics compliance without leaking client data.
 
 ---
 
@@ -308,25 +384,32 @@ free-legal-assist/
 ├── electron-builder.yml                          # Packaging config for macOS (.dmg/.zip) and Windows (nsis/.zip)
 ├── index.html                                    # Renderer HTML entry point
 ├── README.md                                     # Launch & test instructions
+├── resources/
+│   └── models/                                   # [Phase 2] Quantized embedded ONNX models
+│       ├── legal-complexity-router.onnx          # ~40MB INT8 intent & complexity router
+│       └── legal-ner-scrubber.onnx               # ~65MB INT8 contextual legal PII extractor
 ├── docs/
 │   └── PLAN.md                                   # Architectural & implementation specification (mirrors this document)
 └── src/
     ├── shared/
-    │   └── types.ts                              # Shared domain & IPC contracts (PractitionerProfile, LegalMcpServerConfig, etc.)
+    │   └── types.ts                              # Shared domain & IPC contracts (PractitionerProfile, RoutingDecisionLog, etc.)
     ├── preload/
     │   └── index.ts                              # Electron contextBridge exposing window.lexharness
     ├── main/
     │   ├── index.ts                              # Electron main process, BrowserWindow, safeStorage & IPC handlers
     │   ├── db/
     │   │   ├── defaultLegalData.ts               # Built-in Practitioner Profiles (1. VT Criminal Defense, 2. General Practice) & seeded matters
-    │   │   └── database.ts                       # SQLite (sql.js) persistence, profile switching, updateMatter, deleteMatter, CLI & MCP state
+    │   │   └── database.ts                       # SQLite (sql.js) persistence, profiles, updateMatter, deleteMatter, CLI state & routing logs
     │   ├── agent/
     │   │   ├── PromptAssembler.ts                # 4-layer dynamic legal system prompt composer 
     │   │   ├── AdversarialCoordinator.ts         # Parallel Multi-LLM critic evaluation & JSON verdict parser
     │   │   ├── LegalAgentLoop.ts                 # Autonomous grounded tool execution, primary draft, adversarial gate & revision loop
-    │   │   ├── router/                           # [Phase 2 Planned] On-Device Local Model Router & PII Scrubbing Gateway
-    │   │   │   ├── LocalPrivacyModelRouter.ts    # [Phase 2 Planned] Complexity/cost classifier & routing orchestrator (Ollama / llama.cpp)
-    │   │   │   └── PiiScrubberVault.ts           # [Phase 2 Planned] Bidirectional PII pseudonymizer & local safeStorage re-hydration vault
+    │   │   ├── router/                           # [Phase 2] Embedded ONNX Local Model Router, PII Scrubber & Debug Subsystem
+    │   │   │   ├── LocalPrivacyModelRouter.ts    # Main routing orchestrator (always-on default, tier resolution, scrub & dispatch)
+    │   │   │   ├── OnnxRouterEngine.ts           # Embedded onnxruntime-node wrapper for legal-complexity-router.onnx
+    │   │   │   ├── OnnxPiiClassifier.ts          # Embedded onnxruntime-node wrapper for legal-ner-scrubber.onnx
+    │   │   │   ├── PiiScrubberVault.ts           # Deterministic regex + matter roster + pseudonym vault + safeStorage re-hydration
+    │   │   │   └── RoutingDebugLogger.ts         # Structured JSONL & SQLite decision logger with diagnostic stream
     │   │   └── providers/
     │   │       ├── CliAgentDriverManager.ts      # T3-style CLI/ACP agent driver for Antigravity ACP, Codex CLI & Claude Code CLI 
     │   │       └── MultiLLMClient.ts             # Dispatches to CLI Agent Harnesses, direct HTTPS APIs, or Local Legal Engine
@@ -343,6 +426,7 @@ free-legal-assist/
         └── components/
             ├── ConnectAgentsModal.tsx            # T3-style "Connect your agents" onboarding, multi-account ChatGPT & auth terminal modal
             ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 7-tab modal (Layers 1–4, CLI Agents & Preview)
+            ├── RoutingDebugDrawer.tsx            # [Phase 2] Expandable real-time decision telemetry & PII audit inspector drawer
             └── RightWorkspacePane.tsx            # 3-tab right pane: Work-Product Redline, Matter Corpus & Chronology
 ```
 
