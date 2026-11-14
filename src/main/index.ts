@@ -24,7 +24,7 @@ import {
 let mainWindow: BrowserWindow | null = null;
 let db: LegalDatabase;
 let agentLoop: LegalAgentLoop;
-let activeMatterId = 'matter-vt-state-v-thorne';
+let activeMatterId = '';
 
 function createSafeStorageEncryptor(): SecretEncryptor {
   return {
@@ -53,9 +53,16 @@ function createSafeStorageEncryptor(): SecretEncryptor {
 
 function buildBootstrapState(): AppBootstrapState {
   const matters = db.listMatters();
+  const savedActiveId = db.getLastActiveMatterId();
   const currentMatter =
-    matters.find((m) => m.id === activeMatterId) ?? matters[0] ?? null;
+    (activeMatterId ? matters.find((m) => m.id === activeMatterId) : null) ??
+    (savedActiveId ? matters.find((m) => m.id === savedActiveId) : null) ??
+    matters[0] ??
+    null;
   activeMatterId = currentMatter ? currentMatter.id : '';
+  if (savedActiveId !== activeMatterId) {
+    db.setLastActiveMatterId(activeMatterId);
+  }
 
   const messages = activeMatterId ? db.listMessages(activeMatterId) : [];
   const documents = activeMatterId ? db.listDocuments(activeMatterId) : [];
@@ -113,6 +120,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('legal:select-matter', async (_event, matterId: string) => {
     activeMatterId = matterId;
+    db.setLastActiveMatterId(matterId);
     return buildBootstrapState();
   });
 
@@ -144,6 +152,7 @@ function registerIpcHandlers(): void {
       };
       db.insertMatter(newMatter);
       activeMatterId = newMatter.id;
+      db.setLastActiveMatterId(activeMatterId);
 
       const initialDoc: MatterDocument = {
         id: `doc-${Date.now()}`,
@@ -179,6 +188,7 @@ function registerIpcHandlers(): void {
       if (activeMatterId === matterId) {
         activeMatterId = nextActiveMatterId;
       }
+      db.setLastActiveMatterId(activeMatterId);
       return buildBootstrapState();
     }
   );
@@ -186,6 +196,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle('legal:load-tutorial-case', async () => {
     const sampleMatter = db.loadTutorialSampleCase();
     activeMatterId = sampleMatter.id;
+    db.setLastActiveMatterId(activeMatterId);
     return buildBootstrapState();
   });
 

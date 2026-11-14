@@ -137,7 +137,7 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(db.listChronologyFacts('matter-apex-meridian').length).toBe(0);
   });
 
-  it('allows deleting the last remaining matter without generating unwanted ghost matters', () => {
+  it('allows deleting the last remaining matter and does not bounce back or re-seed on relaunch', async () => {
     expect(db.listMatters().length).toBe(2);
     db.deleteMatter('matter-apex-meridian');
     expect(db.listMatters().length).toBe(1);
@@ -148,6 +148,12 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(remainingMatters.length).toBe(0);
     expect(nextActiveMatterId).toBe('');
     expect(db.listMatters().length).toBe(0);
+
+    // Simulate quitting and relaunching the app with the existing database file on disk
+    const reopenedDb = new LegalDatabase(tmpDir);
+    await reopenedDb.initialize();
+    expect(reopenedDb.listMatters().length).toBe(0);
+    expect(reopenedDb.getLastActiveMatterId()).toBe('');
   });
 
   it('exposes T3-style CLI Agent Harnesses (agy-acp, codex-cli, claude-cli) and persists binary path, reasoning effort, and runtime mode overrides', () => {

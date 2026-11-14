@@ -404,8 +404,10 @@ export class LegalDatabase {
       for (const msg of SEEDED_MESSAGES) {
         this.insertMessage(msg, false);
       }
-      this.setKeyValue('seeded_initial_matters', true, false);
     }
+
+    // Always record that initial seeding phase has occurred so matters never resurrect on app relaunch
+    this.setKeyValue('seeded_initial_matters', true, false);
 
     const promptSettings = this.getKeyValue<SystemPromptSettings>(
       'system_prompt_settings'
@@ -448,6 +450,14 @@ export class LegalDatabase {
       [key, JSON.stringify(value), new Date().toISOString()]
     );
     if (flush) this.persist();
+  }
+
+  getLastActiveMatterId(): string | null {
+    return this.getKeyValue<string>('last_active_matter_id');
+  }
+
+  setLastActiveMatterId(matterId: string, flush = true): void {
+    this.setKeyValue('last_active_matter_id', matterId, flush);
   }
 
   // --- Matters ---
@@ -550,10 +560,13 @@ export class LegalDatabase {
     this.db.run('DELETE FROM matters WHERE id = ?', [matterId]);
 
     const remaining = this.listMatters();
+    const nextActiveMatterId = remaining.length > 0 ? remaining[0].id : '';
+    this.setLastActiveMatterId(nextActiveMatterId, false);
+    this.setKeyValue('seeded_initial_matters', true, false);
     this.persist();
     return {
       remainingMatters: remaining,
-      nextActiveMatterId: remaining.length > 0 ? remaining[0].id : '',
+      nextActiveMatterId,
     };
   }
 
