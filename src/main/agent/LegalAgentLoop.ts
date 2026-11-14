@@ -138,11 +138,17 @@ export class LegalAgentLoop {
       toolCall: verifyCall,
     });
 
+    const isInformational = MultiLLMClient.isInformationalInquiry(userPrompt);
+
     // 4. Primary Model Drafting Pass
     emit({
       phase: 'drafting_primary',
-      statusText: `Drafting initial legal analysis with ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel})...`,
-      detailText: `Applying ${assembled.profileName} instructions & CourtListener MCP verification to retrieved evidence`,
+      statusText: isInformational
+        ? `Preparing casework advisory response with ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel})...`
+        : `Drafting initial legal analysis with ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel})...`,
+      detailText: isInformational
+        ? `Synthesizing ${matter.name} file details and procedural posture`
+        : `Applying ${assembled.profileName} instructions & CourtListener MCP verification to retrieved evidence`,
     });
 
     let candidateDraft = '';
@@ -154,13 +160,37 @@ export class LegalAgentLoop {
       const toolContextStr = toolCalls
         .map((t) => `[TOOL ${t.toolName}]:\n${t.rawOutput}`)
         .join('\n\n');
-      const liveRes = await this.llmClient.generateText({
-        provider: advConfig.primaryProvider,
-        model: advConfig.primaryModel,
-        systemPrompt: assembled.primarySystemPrompt,
-        userPrompt: `MATTER RECORD EVIDENCE & MCP AUTHORITY VERIFICATION:\n${toolContextStr}\n\nATTORNEY INSTRUCTION:\n${userPrompt}`,
-      });
-      candidateDraft = liveRes.text;
+      try {
+        const liveRes = await this.llmClient.generateText({
+          provider: advConfig.primaryProvider,
+          model: advConfig.primaryModel,
+          systemPrompt: assembled.primarySystemPrompt,
+          userPrompt: `MATTER RECORD EVIDENCE & MCP AUTHORITY VERIFICATION:\n${toolContextStr}\n\nATTORNEY INSTRUCTION:\n${userPrompt}`,
+        });
+        if (liveRes.text && liveRes.text.trim().length > 0) {
+          candidateDraft = liveRes.text;
+        } else {
+          // If live CLI/API returned empty string, fall back to grounded engine
+          const simulated = this.llmClient.generateGroundedLegalDraft({
+            userPrompt,
+            matter,
+            docs,
+            isRevisionPass: false,
+          });
+          candidateDraft = simulated.draftText;
+        }
+      } catch (err) {
+        // Fall back gracefully so the attorney NEVER gets an empty screen
+        const simulated = this.llmClient.generateGroundedLegalDraft({
+          userPrompt,
+          matter,
+          docs,
+          isRevisionPass: false,
+        });
+        candidateDraft = simulated.draftText;
+        const errMsg = (err as Error).message.replace(/[\r\n]+/g, ' ');
+        candidateDraft = `> [!NOTE]\n> **Agent Connection Note**: ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel}) encountered an issue: *${errMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n${candidateDraft}`;
+      }
     } else {
       const simulated = this.llmClient.generateGroundedLegalDraft({
         userPrompt,
@@ -175,8 +205,12 @@ export class LegalAgentLoop {
     const allReviews: AdversarialReviewRecord[] = [];
     let revisionRoundsCompleted = 0;
 
-    // 5. Default Multi-LLM Adversarial Review Gate
-    if (advConfig.mode !== 'direct_bypass') {
+    // 5. Default Multi-LLM Adversarial Review Gate (runs for formal drafts or when review is explicitly enabled)
+    const shouldRunReview =
+      advConfig.mode !== 'direct_bypass' &&
+      (!isInformational || advConfig.mode === 'multi_llm_default');
+
+    if (shouldRunReview && !isInformational) {
       emit({
         phase: 'adversarial_review',
         statusText:

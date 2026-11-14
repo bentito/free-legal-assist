@@ -225,6 +225,8 @@ export interface LegalMessage {
   matterId: string;
   role: 'user' | 'assistant';
   content: string;
+  category?: 'WORK_PRODUCT' | 'ADVISORY' | 'FEEDBACK';
+  isEditedByAttorney?: boolean;
   initialDraftBeforeReview?: string;
   primaryProvider?: LLMProviderId;
   primaryModel?: string;

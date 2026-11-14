@@ -207,6 +207,20 @@ export class MultiLLMClient {
     throw new Error(`Unsupported provider: ${req.provider}`);
   }
 
+  static isInformationalInquiry(prompt: string): boolean {
+    const p = prompt.trim().toLowerCase();
+    const isQuestion =
+      p.endsWith('?') ||
+      /^(what|who|where|when|why|how|which|can you|could you|explain|summarize|tell me|give me|show me|status|update|is there|are we|do we|have we)\b/i.test(
+        p
+      );
+    const isDraftRequest =
+      /\b(draft|write a motion|write the motion|prepare a motion|prepare the brief|compose a motion|file a|motion to suppress|motion to dismiss)\b/i.test(
+        p
+      );
+    return isQuestion && !isDraftRequest;
+  }
+
   generateGroundedLegalDraft(params: {
     userPrompt: string;
     matter: Matter;
@@ -223,6 +237,44 @@ export class MultiLLMClient {
       matter.jurisdiction.toLowerCase().includes('vermont') ||
       matter.id.includes('vt') ||
       matter.practiceArea.startsWith('vt_');
+
+    // Handle conversational, orientation, or status questions gracefully without forcing a 5-page formal motion
+    if (!isRevisionPass && MultiLLMClient.isInformationalInquiry(userPrompt)) {
+      if (isVermontCriminal) {
+        return {
+          draftText: `### Casework Status & Motion Overview (${matter.name})
+
+In response to your inquiry (*"${userPrompt}"*), here is our current defense posture in **${matter.name}** (Docket No. **${matter.matterNumber}**) in **${matter.jurisdiction}**:
+
+#### 1. Primary Pending Motion
+We are preparing an **Article 11 Motion to Suppress Evidence & Dismiss the Information** pursuant to:
+- **Chapter I, Article 11 of the Vermont Constitution** (*State v. Sprague*, 2003 VT 20; *State v. Bauder*, 2007 VT 16; *State v. Savva*, 159 Vt. 75)
+- **V.R.Cr.P. 12(b)(3)** (Pretrial Motion to Suppress Unlawfully Seized Evidence)
+- **V.R.Cr.P. 12(d)** (Motion to Dismiss for Lack of Prima Facie Case)
+
+#### 2. Key Evidentiary Grounds Under Challenge
+- **Unlawful Exit Order (23:16:42)**: Trooper Keller ordered ${matter.clientName} out of his vehicle following a routine equipment stop (\`23 V.S.A. § 1248\`) without reasonable suspicion of criminal activity or officer safety danger, violating *State v. Sprague*.
+- **Warrantless Center Console Search (23:23:05)**: The console search was executed without a warrant or exigent circumstances while ${matter.clientName} was detained outside at the cruiser bumper, violating *State v. Bauder* and *State v. Savva*.
+- **Affidavit Impeachment via Body-Worn Camera**: Trooper Keller's Affidavit claimed an odor of burnt cannabis before the exit order \`[STATE-0003]\`, but BWC footage at 23:21:10 shows him stating he had "zero indicators of DUI" and ordered the exit solely due to out-of-state plates \`[STATE-BWC-0009; Keller Dep. 18:4–21]\`.
+
+#### 3. Recommended Next Steps
+- Ask me to *"Draft the Article 11 exit order suppression argument"* or *"Prepare the V.R.Cr.P. 12(d) motion to dismiss"* to generate formal work product.
+- Click **Peer Review** to run an adversarial review on any drafted section or exhibit.`,
+        };
+      }
+
+      const msaDoc = docs.find((d) => d.category === 'CONTRACT') ?? docs[0];
+      return {
+        draftText: `### Casework Status & Objectives (${matter.name})
+
+In response to your inquiry (*"${userPrompt}"*), here is our current procedural posture in **${matter.name}** (Docket No. **${matter.matterNumber}**) in **${matter.jurisdiction}**:
+
+- **Governing Dispute**: Contractual liability and indemnification claims under the Master Services Agreement (\`${msaDoc?.batesRange ?? 'APEX-0001'}\`).
+- **Key Legal Ground**: Piercing limitation of liability under MSA § 9.2 based on gross negligence and reckless disregard of cryptographic standards, and meeting notice requirements under MSA § 8.2.
+
+*Ask me to "Draft a demand letter" or "Draft a summary judgment brief" to produce formal work product.*`,
+      };
+    }
 
     if (isVermontCriminal) {
       if (!isRevisionPass) {

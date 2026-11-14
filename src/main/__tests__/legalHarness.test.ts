@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LegalDatabase } from '../db/database';
 import { PromptAssembler } from '../agent/PromptAssembler';
 import { LegalAgentLoop } from '../agent/LegalAgentLoop';
+import { MultiLLMClient } from '../agent/providers/MultiLLMClient';
 import { CliAgentDriverManager } from '../agent/providers/CliAgentDriverManager';
 import { CustomLegalMcpServer } from '../../shared/types';
 
@@ -516,5 +517,59 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     );
     expect(removeRes.activeMatterId).toBe('matter-vt-state-v-thorne');
     expect(db.listMatters().some((m) => m.id === 'matter-1794160132556')).toBe(false);
+  });
+
+  it('allows direct inline editing of assistant messages and document versions', async () => {
+    // 1. Edit an existing message
+    const updatedMsg = db.updateMessageContent(
+      'msg-vt-assistant-1',
+      'Custom attorney-edited text for Motion to Suppress Marcus Thorne.'
+    );
+    expect(updatedMsg).not.toBeNull();
+    expect(updatedMsg?.content).toBe(
+      'Custom attorney-edited text for Motion to Suppress Marcus Thorne.'
+    );
+    expect(updatedMsg?.isEditedByAttorney).toBe(true);
+
+    const msgs = db.listMessages('matter-vt-state-v-thorne');
+    const reloadedMsg = msgs.find((m) => m.id === 'msg-vt-assistant-1');
+    expect(reloadedMsg?.content).toBe(
+      'Custom attorney-edited text for Motion to Suppress Marcus Thorne.'
+    );
+    expect(reloadedMsg?.isEditedByAttorney).toBe(true);
+
+    // 2. Edit a document version and check document content synchronization
+    const versions = db.listDocumentVersions('matter-vt-state-v-thorne');
+    expect(versions.length).toBeGreaterThan(0);
+    const targetVersion = versions[0];
+    const updatedVersion = db.updateDocumentVersionContent(
+      targetVersion.id,
+      'Directly modified motion clause by counsel.'
+    );
+    expect(updatedVersion).not.toBeNull();
+    expect(updatedVersion?.content).toBe(
+      'Directly modified motion clause by counsel.'
+    );
+
+    const docs = db.listDocuments('matter-vt-state-v-thorne');
+    const matchedDoc = docs.find((d) => d.id === targetVersion.documentId);
+    expect(matchedDoc?.content).toBe(
+      'Directly modified motion clause by counsel.'
+    );
+  });
+
+  it('detects informational casework inquiries like "What motion are we working on?" for advisory feedback', () => {
+    expect(
+      MultiLLMClient.isInformationalInquiry('What motion are we working on?')
+    ).toBe(true);
+    expect(
+      MultiLLMClient.isInformationalInquiry('what case are we in?')
+    ).toBe(true);
+    expect(
+      MultiLLMClient.isInformationalInquiry('give me an update on progress and feedback')
+    ).toBe(true);
+    expect(
+      MultiLLMClient.isInformationalInquiry('Draft a complete Motion to Suppress under Article 11')
+    ).toBe(false);
   });
 });

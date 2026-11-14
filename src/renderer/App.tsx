@@ -21,11 +21,13 @@ import {
   AlertTriangle,
   Bot,
   Briefcase,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   Clock,
   Cpu,
+  Edit3,
   Eye,
   FileSearch,
   FolderPlus,
@@ -135,6 +137,92 @@ export const App: React.FC = () => {
     setEditPracticeArea(matter.practiceArea);
     setEditFolderPath(matter.folderPath);
     setMatterContextMenu(null);
+  };
+
+  // Resizable pane dimensions with localStorage persistence
+  const [rightPaneWidth, setRightPaneWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('lexharness_right_pane_width');
+      return saved ? Math.max(320, Math.min(parseInt(saved, 10), 900)) : 460;
+    } catch {
+      return 460;
+    }
+  });
+
+  const [composerHeight, setComposerHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('lexharness_composer_height');
+      return saved ? Math.max(140, Math.min(parseInt(saved, 10), 550)) : 200;
+    } catch {
+      return 200;
+    }
+  });
+
+  // Assistant message inline editing state
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editingMsgContent, setEditingMsgContent] = useState<string>('');
+  const [isSavingMsg, setIsSavingMsg] = useState(false);
+
+  const handleStartResizeRight = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = rightPaneWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startX - moveEvent.clientX;
+      const newWidth = Math.max(
+        320,
+        Math.min(startWidth + delta, window.innerWidth * 0.7)
+      );
+      setRightPaneWidth(newWidth);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      try {
+        localStorage.setItem(
+          'lexharness_right_pane_width',
+          String(rightPaneWidth)
+        );
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleStartResizeComposer = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = composerHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startY - moveEvent.clientY;
+      const newHeight = Math.max(
+        140,
+        Math.min(startHeight + delta, window.innerHeight * 0.65)
+      );
+      setComposerHeight(newHeight);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      try {
+        localStorage.setItem(
+          'lexharness_composer_height',
+          String(composerHeight)
+        );
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
   };
 
   const openDeleteMatterConfirm = (matter: Matter) => {
@@ -490,17 +578,20 @@ export const App: React.FC = () => {
           </div>
 
           <button
+            id="tour-settings-button"
             onClick={() => {
               setStudioInitialTab('layer1_core');
               setIsStudioOpen(true);
             }}
-            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-medium transition cursor-pointer"
+            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
+            title="Configure Practice Area, Adversarial Prompts & Multi-LLM Rules"
           >
-            <Settings2 className="w-3.5 h-3.5" />
-            <span>Profile: {activeProfile.name}</span>
+            <Settings2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Settings</span>
           </button>
 
           <button
+            id="tour-top-button"
             onClick={async () => {
               if (state.activeMatterId !== 'matter-1794160132556') {
                 await handleLoadSampleCase();
@@ -684,32 +775,6 @@ export const App: React.FC = () => {
                 &bull; Documents: {state.documents.length} Files
               </p>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={async () => {
-                  if (state.activeMatterId !== 'matter-1794160132556') {
-                    await handleLoadSampleCase();
-                  }
-                  setIsTutorialOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-xs text-amber-300 font-medium transition cursor-pointer"
-                title="Start Interactive Guided Tour with Live Sample Casework"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Tour</span>
-              </button>
-
-              <button
-                id="tour-settings-button"
-                onClick={() => setIsStudioOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 transition cursor-pointer"
-                title="Open Practice Settings & Legal Instructions"
-              >
-                <Settings2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Settings</span>
-              </button>
-            </div>
           </div>
 
           {/* Messages & Agent Loop Stream */}
@@ -773,68 +838,119 @@ export const App: React.FC = () => {
                 (acc, r) => acc + r.objections.length,
                 0
               );
+              const isAdvisory = msg.category === 'ADVISORY';
+              const isEditingThisMsg = editingMsgId === msg.id;
 
               return (
                 <div
                   key={msg.id}
                   id={msg.adversarialReviews.length > 0 ? 'tour-review-gate' : undefined}
-                  className="max-w-4xl rounded-2xl bg-slate-900/90 border border-slate-800 overflow-hidden shadow-xl"
+                  className={`max-w-4xl rounded-2xl overflow-hidden shadow-xl border ${
+                    isAdvisory
+                      ? 'bg-slate-900/95 border-cyan-800/60'
+                      : 'bg-slate-900/90 border-slate-800'
+                  }`}
                 >
                   {/* Assistant Header Bar */}
                   <div className="px-5 py-3 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-1.5 rounded-lg bg-amber-500/15 text-amber-400">
-                        <Scale className="w-4 h-4" />
+                      <div
+                        className={`p-1.5 rounded-lg ${
+                          isAdvisory
+                            ? 'bg-cyan-500/15 text-cyan-400'
+                            : 'bg-amber-500/15 text-amber-400'
+                        }`}
+                      >
+                        {isAdvisory ? (
+                          <Bot className="w-4 h-4" />
+                        ) : (
+                          <Scale className="w-4 h-4" />
+                        )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-semibold text-slate-100">
-                            Verified Legal Work Product
+                            {isAdvisory
+                              ? 'Agent Advisory & Case Status'
+                              : 'Verified Legal Work Product'}
                           </span>
                           <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-amber-300">
                             Primary: {msg.primaryModel || 'claude-3-7-sonnet'}
                           </span>
+                          {msg.isEditedByAttorney && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium">
+                              Edited by Attorney
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Multi-LLM Adversarial Audit Badge */}
-                    {msg.adversarialReviews.length > 0 ? (
-                      <button
-                        onClick={() =>
-                          setExpandedReviewMsgIds((prev) => ({
-                            ...prev,
-                            [msg.id]: !prev[msg.id],
-                          }))
-                        }
-                        className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-medium transition"
-                        title={`Reviewed on ${new Date(
-                          msg.adversarialReviews[0].createdAt
-                        ).toLocaleString()}`}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>
-                          Peer Review: {msg.adversarialReviews.length} Checks &bull; {totalObjections} Revision(s)
-                        </span>
-                        <span className="text-[10px] text-emerald-400/80 font-normal pl-1 border-l border-emerald-500/30 flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      {/* Status / Peer Review Badge */}
+                      {isAdvisory ? (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-950/70 border border-cyan-700/60 text-cyan-300 text-xs font-medium">
+                          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Direct Advisory (No Filing Redline)</span>
+                        </div>
+                      ) : msg.adversarialReviews.length > 0 ? (
+                        <button
+                          onClick={() =>
+                            setExpandedReviewMsgIds((prev) => ({
+                              ...prev,
+                              [msg.id]: !prev[msg.id],
+                            }))
+                          }
+                          className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-medium transition"
+                          title={`Reviewed on ${new Date(
+                            msg.adversarialReviews[0].createdAt
+                          ).toLocaleString()}`}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>
+                            Peer Review: {msg.adversarialReviews.length} Checks &bull; {totalObjections} Revision(s)
+                          </span>
+                          <span className="text-[10px] text-emerald-400/80 font-normal pl-1 border-l border-emerald-500/30 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(msg.adversarialReviews[0].createdAt).toLocaleTimeString([], {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          {isReviewExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 text-xs font-normal">
                           <Clock className="w-3 h-3" />
-                          {new Date(msg.adversarialReviews[0].createdAt).toLocaleTimeString([], {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                        {isReviewExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        ) : (
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        )}
+                          <span>Not yet reviewed</span>
+                        </div>
+                      )}
+
+                      {/* Inline Text Edit Action */}
+                      <button
+                        onClick={() => {
+                          if (isEditingThisMsg) {
+                            setEditingMsgId(null);
+                          } else {
+                            setEditingMsgId(msg.id);
+                            setEditingMsgContent(msg.content);
+                          }
+                        }}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition border ${
+                          isEditingThisMsg
+                            ? 'bg-amber-500 text-slate-950 font-semibold border-amber-400'
+                            : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-slate-100'
+                        }`}
+                        title="Edit text directly"
+                      >
+                        <Edit3 className="w-3 h-3 text-amber-400" />
+                        <span>{isEditingThisMsg ? 'Cancel' : 'Edit Text'}</span>
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 text-xs font-normal">
-                        <Clock className="w-3 h-3" />
-                        <span>Not yet reviewed</span>
-                      </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* Tool Calls Executed in Loop */}
@@ -991,9 +1107,81 @@ export const App: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Main Legal Work Product Content */}
+                  {/* Main Legal Work Product Content or Direct Editor */}
                   <div className="p-6">
-                    {showingInitialDraft && msg.initialDraftBeforeReview ? (
+                    {isEditingThisMsg ? (
+                      <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-amber-500/40">
+                        <div className="flex items-center justify-between text-xs text-amber-300">
+                          <span className="font-semibold flex items-center gap-1.5">
+                            <Edit3 className="w-3.5 h-3.5" />
+                            Direct Attorney Editor
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {editingMsgContent.length} chars
+                          </span>
+                        </div>
+                        <textarea
+                          value={editingMsgContent}
+                          onChange={(e) => setEditingMsgContent(e.target.value)}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                              e.preventDefault();
+                              if (!isSavingMsg) {
+                                setIsSavingMsg(true);
+                                try {
+                                  const updated = await ipcBridge.updateMessage({
+                                    messageId: msg.id,
+                                    content: editingMsgContent,
+                                  });
+                                  setState(updated);
+                                  setEditingMsgId(null);
+                                } finally {
+                                  setIsSavingMsg(false);
+                                }
+                              }
+                            }
+                          }}
+                          rows={14}
+                          className="w-full p-3.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-serif text-slate-100 whitespace-pre-wrap leading-relaxed focus:outline-none focus:border-amber-500/80 resize-y"
+                        />
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            ⌘+Enter to save
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              disabled={isSavingMsg}
+                              onClick={() => setEditingMsgId(null)}
+                              className="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              disabled={isSavingMsg}
+                              onClick={async () => {
+                                setIsSavingMsg(true);
+                                try {
+                                  const updated = await ipcBridge.updateMessage({
+                                    messageId: msg.id,
+                                    content: editingMsgContent,
+                                  });
+                                  setState(updated);
+                                  setEditingMsgId(null);
+                                } finally {
+                                  setIsSavingMsg(false);
+                                }
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>
+                                {isSavingMsg ? 'Saving...' : 'Save Changes'}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : showingInitialDraft && msg.initialDraftBeforeReview ? (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs text-rose-200">
                           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
@@ -1044,10 +1232,23 @@ export const App: React.FC = () => {
             )}
           </div>
 
+          {/* Horizontal Resizer Divider for Composer */}
+          <div
+            onMouseDown={handleStartResizeComposer}
+            className="h-1.5 shrink-0 bg-slate-900 hover:bg-amber-500/50 active:bg-amber-500 cursor-row-resize transition-colors flex items-center justify-center group"
+            title="Drag to resize composer height"
+          >
+            <div className="h-0.5 w-12 rounded-full bg-slate-700 group-hover:bg-amber-400 transition-colors" />
+          </div>
+
           {/* Bottom Legal Prompt Composer */}
-          <div id="tour-composer" className="p-4 bg-slate-900/90 border-t border-slate-800 space-y-3">
+          <div
+            id="tour-composer"
+            style={{ height: `${composerHeight}px` }}
+            className="p-4 bg-slate-900/90 border-t border-slate-800 space-y-3 shrink-0 flex flex-col justify-between"
+          >
             {/* Profile-Specific Quick Sample Prompts & Actions */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 shrink-0">
               {docNeedingReview && (
                 <button
                   disabled={isRunningTurn}
@@ -1078,8 +1279,8 @@ export const App: React.FC = () => {
               ))}
             </div>
 
-            <div className="flex items-end gap-3">
-              <div className="flex-1 bg-slate-950 border border-slate-700/90 focus-within:border-amber-500/70 rounded-xl p-3 space-y-2.5">
+            <div className="flex items-end gap-3 flex-1 min-h-0">
+              <div className="flex-1 h-full bg-slate-950 border border-slate-700/90 focus-within:border-amber-500/70 rounded-xl p-3 flex flex-col justify-between space-y-2.5">
                 <textarea
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
@@ -1089,12 +1290,11 @@ export const App: React.FC = () => {
                       handleSubmitPrompt();
                     }
                   }}
-                  rows={2}
                   placeholder={`Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile.name}... (⌘+Enter to send)`}
-                  className="w-full bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none"
+                  className="w-full flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none overflow-y-auto"
                 />
 
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-slate-800/80">
+                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-800/80 shrink-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {/* T3-Style Agent Selector */}
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 hover:border-amber-500/40 transition">
@@ -1230,8 +1430,18 @@ export const App: React.FC = () => {
           </div>
         </main>
 
+        {/* Vertical Resizer Divider for Right Pane */}
+        <div
+          onMouseDown={handleStartResizeRight}
+          className="w-1.5 shrink-0 bg-slate-900 hover:bg-amber-500/50 active:bg-amber-500 cursor-col-resize transition-colors flex items-center justify-center group"
+          title="Drag to resize workspace pane"
+        >
+          <div className="w-0.5 h-8 rounded-full bg-slate-700 group-hover:bg-amber-400 transition-colors" />
+        </div>
+
         {/* RIGHT PANE: Redline Viewer, Matter Corpus & Chronology */}
         <RightWorkspacePane
+          width={rightPaneWidth}
           matterId={activeMatter.id}
           documents={state.documents}
           documentVersions={state.documentVersions}
@@ -1246,6 +1456,13 @@ export const App: React.FC = () => {
           }}
           onUpdateDocument={async (payload) => {
             const updated = await ipcBridge.updateDocument(payload);
+            setState(updated);
+          }}
+          onUpdateDocumentVersion={async (versionId, content) => {
+            const updated = await ipcBridge.updateDocumentVersion({
+              versionId,
+              content,
+            });
             setState(updated);
           }}
           onRequestReview={(doc) => {

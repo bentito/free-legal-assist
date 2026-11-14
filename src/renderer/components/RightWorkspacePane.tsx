@@ -28,6 +28,7 @@ interface RightWorkspacePaneProps {
   chronologyFacts: ChronologyFact[];
   selectedDocId: string | null;
   onSelectDoc: (docId: string) => void;
+  width?: number;
   onCreateDocument: (payload: {
     matterId: string;
     title: string;
@@ -45,6 +46,10 @@ interface RightWorkspacePaneProps {
     batesRange?: string;
     summary?: string;
   }) => Promise<void>;
+  onUpdateDocumentVersion?: (
+    versionId: string,
+    content: string
+  ) => Promise<void>;
   onRequestReview?: (doc: MatterDocument) => void;
   onAddChronologyFact: (payload: {
     matterId: string;
@@ -66,8 +71,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   chronologyFacts,
   selectedDocId,
   onSelectDoc,
+  width,
   onCreateDocument,
   onUpdateDocument,
+  onUpdateDocumentVersion,
   onRequestReview,
   onAddChronologyFact,
   currentTab,
@@ -91,6 +98,11 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   const [editDocTitle, setEditDocTitle] = useState('');
   const [editDocContent, setEditDocContent] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // In-line draft revision edit state
+  const [isEditingVersion, setIsEditingVersion] = useState(false);
+  const [editVersionContent, setEditVersionContent] = useState('');
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
 
   // Chronology form state
   const [showAddFactForm, setShowAddFactForm] = useState(false);
@@ -131,7 +143,11 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   };
 
   return (
-    <div id="tour-workspace-pane" className="w-[430px] xl:w-[480px] shrink-0 bg-slate-900/90 border-l border-slate-800 flex flex-col h-full">
+    <div
+      id="tour-workspace-pane"
+      className="w-[430px] xl:w-[480px] shrink-0 bg-slate-900/90 border-l border-slate-800 flex flex-col h-full overflow-hidden"
+      style={width ? { width: `${width}px` } : undefined}
+    >
       {/* Top Tab Bar */}
       <div className="flex items-center border-b border-slate-800 bg-slate-950/70 px-2 pt-2">
         <button
@@ -245,7 +261,104 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 </div>
               </div>
 
-              {activeVersion.previousContent ? (
+              {/* Draft View / Edit Toggle Bar */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-1.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px]">
+                  <button
+                    onClick={() => setIsEditingVersion(false)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition ${
+                      !isEditingVersion
+                        ? 'bg-slate-800 text-amber-300 font-medium'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <FileDiff className="w-3 h-3" />
+                    <span>{activeVersion.previousContent ? 'Diff View' : 'Read View'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditVersionContent(activeVersion.content);
+                      setIsEditingVersion(true);
+                    }}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition ${
+                      isEditingVersion
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-medium'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Edit3 className="w-3 h-3" />
+                    <span>Edit Draft</span>
+                  </button>
+                </div>
+                {isEditingVersion && (
+                  <span className="text-[10px] text-amber-400/80 font-mono">
+                    Direct Editor Active
+                  </span>
+                )}
+              </div>
+
+              {isEditingVersion ? (
+                <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/40 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-amber-300 flex items-center gap-1.5">
+                      <Edit3 className="w-3.5 h-3.5" />
+                      Editing Version {activeVersion.versionNumber} Draft
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {editVersionContent.length} chars
+                    </span>
+                  </div>
+                  <textarea
+                    value={editVersionContent}
+                    onChange={(e) => setEditVersionContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        if (onUpdateDocumentVersion && !isSavingVersion) {
+                          setIsSavingVersion(true);
+                          onUpdateDocumentVersion(activeVersion.id, editVersionContent)
+                            .then(() => setIsEditingVersion(false))
+                            .finally(() => setIsSavingVersion(false));
+                        }
+                      }
+                    }}
+                    rows={16}
+                    placeholder="Edit legal draft text..."
+                    className="w-full p-3 rounded-lg bg-slate-900 border border-slate-700 text-xs font-serif text-slate-100 whitespace-pre-wrap leading-relaxed focus:outline-none focus:border-amber-500/80 resize-y"
+                  />
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      ⌘+Enter to save
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={isSavingVersion}
+                        onClick={() => setIsEditingVersion(false)}
+                        className="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        disabled={isSavingVersion}
+                        onClick={async () => {
+                          if (!onUpdateDocumentVersion) return;
+                          setIsSavingVersion(true);
+                          try {
+                            await onUpdateDocumentVersion(activeVersion.id, editVersionContent);
+                            setIsEditingVersion(false);
+                          } finally {
+                            setIsSavingVersion(false);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>{isSavingVersion ? 'Saving...' : 'Save Draft Edits'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : activeVersion.previousContent ? (
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 font-serif text-xs leading-relaxed">
                   <div className="flex items-center gap-3 pb-2 border-b border-slate-800 font-sans text-[11px]">
                     <span className="px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 line-through">

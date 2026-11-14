@@ -398,32 +398,50 @@ export class CliAgentDriverManager {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lexharness-codex-'));
     const outputPath = path.join(tmpDir, 'last-message.txt');
 
-    // Replicates T3 Code's exact `CodexTextGeneration.ts` non-interactive invocation + Legal MCP server injection
-    const args = [
-      'exec',
-      '--config',
-      'features.plugins=false',
-      '--config',
-      'features.apps=false',
-      ...(input.codexConfigFlags || []),
-      '--ephemeral',
-      '--skip-git-repo-check',
-      '-s',
-      'read-only',
-      '--model',
-      input.model,
-      '--config',
-      `model_reasoning_effort="${input.effort}"`,
-      '--output-last-message',
-      outputPath,
-      '-',
-    ];
+    // If model is 'gpt-6-luna', standard external codex CLI doesn't recognize it.
+    // Try input.model first; if that fails with model not found, try standard codex models (o3, o4-mini, gpt-4o).
+    const modelsToTry = [input.model];
+    if (input.model === 'gpt-6-luna') {
+      modelsToTry.push('o3', 'o4-mini', 'gpt-4o');
+    }
 
+    let lastError: Error | null = null;
     try {
-      await this.spawnWithStdin(input.binary, args, input.prompt, input.env, input.cwd, 120_000);
-      if (fs.existsSync(outputPath)) {
-        const text = fs.readFileSync(outputPath, 'utf8').trim();
-        if (text) return text;
+      for (const modelToUse of modelsToTry) {
+        const args = [
+          'exec',
+          '--config',
+          'features.plugins=false',
+          '--config',
+          'features.apps=false',
+          ...(input.codexConfigFlags || []),
+          '--ephemeral',
+          '--skip-git-repo-check',
+          '-s',
+          'read-only',
+          '--model',
+          modelToUse,
+          '--config',
+          `model_reasoning_effort="${input.effort}"`,
+          '--output-last-message',
+          outputPath,
+          '-',
+        ];
+
+        try {
+          await this.spawnWithStdin(input.binary, args, input.prompt, input.env, input.cwd, 120_000);
+          if (fs.existsSync(outputPath)) {
+            const text = fs.readFileSync(outputPath, 'utf8').trim();
+            if (text) return text;
+          }
+        } catch (err) {
+          lastError = err as Error;
+          // If error is about invalid model and we have fallback models, loop will try next
+        }
+      }
+
+      if (lastError) {
+        throw lastError;
       }
       throw new Error('Codex CLI completed without writing an output message.');
     } finally {

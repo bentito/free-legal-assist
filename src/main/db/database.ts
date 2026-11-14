@@ -3,6 +3,7 @@ import path from 'node:path';
 import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import {
   AdversarialConfig,
+  AdversarialReviewMode,
   ChronologyFact,
   CustomLegalMcpServer,
   DocumentCategory,
@@ -367,6 +368,16 @@ export class LegalDatabase {
       } else if (cols.length > 0 && !cols.includes('matter_id')) {
         this.db.run('ALTER TABLE messages ADD COLUMN matter_id TEXT');
         this.db.run("UPDATE messages SET matter_id = 'matter-vt-state-v-thorne' WHERE matter_id IS NULL");
+      }
+
+      // Ensure category and is_edited columns exist
+      const refreshedInfo = this.db.exec('PRAGMA table_info(messages)');
+      const refreshedCols = refreshedInfo[0]?.values?.map((row) => String(row[1])) || [];
+      if (!refreshedCols.includes('category')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN category TEXT;');
+      }
+      if (!refreshedCols.includes('is_edited')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN is_edited INTEGER DEFAULT 0;');
       }
     } catch (err) {
       console.error('Failed migrating messages table schema:', err);
@@ -796,6 +807,8 @@ export class LegalDatabase {
         matterId: String(r.matter_id),
         role: r.role as 'user' | 'assistant',
         content: String(r.content),
+        category: (r.category ? String(r.category) : undefined) as LegalMessage['category'],
+        isEditedByAttorney: Boolean(r.is_edited),
         initialDraftBeforeReview: r.initial_draft_before_review
           ? String(r.initial_draft_before_review)
           : undefined,
@@ -822,16 +835,18 @@ export class LegalDatabase {
   insertMessage(msg: LegalMessage, flush = true): LegalMessage {
     this.db.run(
       `INSERT OR REPLACE INTO messages (
-        id, matter_id, role, content, initial_draft_before_review,
+        id, matter_id, role, content, category, is_edited, initial_draft_before_review,
         primary_provider, primary_model, review_mode_used,
         assembled_system_prompt_snapshot, tool_calls_json, adversarial_reviews_json,
         revision_rounds_completed, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         msg.id,
         msg.matterId,
         msg.role,
         msg.content,
+        msg.category ?? null,
+        msg.isEditedByAttorney ? 1 : 0,
         msg.initialDraftBeforeReview ?? null,
         msg.primaryProvider ?? null,
         msg.primaryModel ?? null,
@@ -845,6 +860,88 @@ export class LegalDatabase {
     );
     if (flush) this.persist();
     return msg;
+  }
+
+  updateMessageContent(
+    messageId: string,
+    content: string,
+    flush = true
+  ): LegalMessage | null {
+    const stmt = this.db.prepare('SELECT * FROM messages WHERE id = ?');
+    stmt.bind([messageId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return null;
+    }
+    const r = stmt.getAsObject() as Record<string, unknown>;
+    stmt.free();
+
+    this.db.run('UPDATE messages SET content = ?, is_edited = 1 WHERE id = ?', [
+      content,
+      messageId,
+    ]);
+    if (flush) this.persist();
+
+    return {
+      id: String(r.id),
+      matterId: String(r.matter_id),
+      role: r.role as 'user' | 'assistant',
+      content,
+      category: (r.category ? String(r.category) : undefined) as LegalMessage['category'],
+      isEditedByAttorney: true,
+      initialDraftBeforeReview: r.initial_draft_before_review
+        ? String(r.initial_draft_before_review)
+        : undefined,
+      primaryProvider: r.primary_provider as LLMProviderId,
+      primaryModel: r.primary_model ? String(r.primary_model) : undefined,
+      reviewModeUsed: r.review_mode_used as AdversarialReviewMode,
+      assembledSystemPromptSnapshot: r.assembled_system_prompt_snapshot
+        ? String(r.assembled_system_prompt_snapshot)
+        : undefined,
+      toolCalls: r.tool_calls_json ? JSON.parse(String(r.tool_calls_json)) : [],
+      adversarialReviews: r.adversarial_reviews_json
+        ? JSON.parse(String(r.adversarial_reviews_json))
+        : [],
+      revisionRoundsCompleted: Number(r.revision_rounds_completed || 0),
+      createdAt: String(r.created_at),
+    };
+  }
+
+  updateDocumentVersionContent(
+    versionId: string,
+    content: string,
+    flush = true
+  ): DocumentVersion | null {
+    const stmt = this.db.prepare('SELECT * FROM document_versions WHERE id = ?');
+    stmt.bind([versionId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return null;
+    }
+    const r = stmt.getAsObject() as Record<string, unknown>;
+    stmt.free();
+
+    this.db.run('UPDATE document_versions SET content = ? WHERE id = ?', [content, versionId]);
+
+    const docId = String(r.document_id);
+    if (docId) {
+      this.updateDocument(docId, { content }, false);
+    }
+
+    if (flush) this.persist();
+
+    return {
+      id: String(r.id),
+      documentId: docId,
+      matterId: String(r.matter_id),
+      versionNumber: Number(r.version_number),
+      title: String(r.title),
+      content,
+      previousContent: r.previous_content ? String(r.previous_content) : '',
+      rationaleSummary: String(r.rationale_summary),
+      createdByModel: String(r.created_by_model),
+      createdAt: String(r.created_at),
+    };
   }
 
   // --- Practitioner Profiles & User-Governed System Prompts ---
