@@ -54,21 +54,32 @@ function createSafeStorageEncryptor(): SecretEncryptor {
 function buildBootstrapState(): AppBootstrapState {
   const matters = db.listMatters();
   const currentMatter =
-    matters.find((m) => m.id === activeMatterId) ?? matters[0];
-  activeMatterId = currentMatter.id;
+    matters.find((m) => m.id === activeMatterId) ?? matters[0] ?? null;
+  activeMatterId = currentMatter ? currentMatter.id : '';
 
-  const messages = db.listMessages(activeMatterId);
-  const documents = db.listDocuments(activeMatterId);
-  const documentVersions = db.listDocumentVersions(activeMatterId);
-  const chronologyFacts = db.listChronologyFacts(activeMatterId);
+  const messages = activeMatterId ? db.listMessages(activeMatterId) : [];
+  const documents = activeMatterId ? db.listDocuments(activeMatterId) : [];
+  const documentVersions = activeMatterId ? db.listDocumentVersions(activeMatterId) : [];
+  const chronologyFacts = activeMatterId ? db.listChronologyFacts(activeMatterId) : [];
   const promptSettings = db.getSystemPromptSettings();
   const adversarialConfig = db.getAdversarialConfig();
   const providers = db.listProviderConfigs();
-  const assembledPromptPreview = PromptAssembler.assembleForMatter(
-    promptSettings,
-    currentMatter,
-    currentMatter.practiceArea
-  );
+  const assembledPromptPreview = currentMatter
+    ? PromptAssembler.assembleForMatter(
+        promptSettings,
+        currentMatter,
+        currentMatter.practiceArea
+      )
+    : {
+        profileName: promptSettings.profiles[0]?.name ?? 'Criminal Defense Counsel',
+        matterName: 'No Active Matter',
+        jurisdiction: 'None Selected',
+        citationStyle: 'Bluebook Standard',
+        practiceAreaName: 'Criminal Defense',
+        primarySystemPrompt: 'No active matter selected. Create a matter to begin.',
+        citationAuditorSystemPrompt: '',
+        opposingCounselSystemPrompt: '',
+      };
 
   const onboardingSaved = db.getAgentOnboardingSavedState();
   const agentOnboarding = CliAgentDriverManager.buildAgentOnboardingState({

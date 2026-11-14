@@ -395,7 +395,7 @@ export const App: React.FC = () => {
     typeof navigator !== 'undefined' &&
     /Mac|iPhone|iPod|iPad/.test(navigator.userAgent);
 
-  const activeMatter =
+  const activeMatter: Matter | undefined =
     state.matters.find((m) => m.id === state.activeMatterId) ?? state.matters[0];
   const activeProfile =
     state.promptSettings.profiles.find(
@@ -485,7 +485,7 @@ export const App: React.FC = () => {
 
   const handleSubmitPrompt = async (customPrompt?: string) => {
     const text = (customPrompt ?? promptInput).trim();
-    if (!text || isRunningTurn) return;
+    if (!text || isRunningTurn || !activeMatter) return;
 
     setPromptInput('');
     setIsRunningTurn(true);
@@ -542,41 +542,50 @@ export const App: React.FC = () => {
 
           <span className="text-slate-700">/</span>
 
-          <div
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setMatterContextMenu({
-                x: e.clientX,
-                y: e.clientY,
-                matter: activeMatter,
-              });
-            }}
-            className="h-8 flex items-center gap-2 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs"
-            title="Right-click or click gear to edit Matter Settings"
-          >
-            <Briefcase className="w-3.5 h-3.5 text-amber-400" />
-            <span className="font-medium text-slate-200">
-              {activeMatter.name}
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">
-              ({activeMatter.matterNumber})
-            </span>
-            <button
-              onClick={() => openEditMatterDialog(activeMatter)}
-              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 transition"
-              title="Edit Matter / Docket Settings"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {activeMatter ? (
+            <>
+              <div
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMatterContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    matter: activeMatter,
+                  });
+                }}
+                className="h-8 flex items-center gap-2 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs"
+                title="Right-click or click gear to edit Matter Settings"
+              >
+                <Briefcase className="w-3.5 h-3.5 text-amber-400" />
+                <span className="font-medium text-slate-200">
+                  {activeMatter.name}
+                </span>
+                <span className="text-[10px] font-mono text-slate-400">
+                  ({activeMatter.matterNumber})
+                </span>
+                <button
+                  onClick={() => openEditMatterDialog(activeMatter)}
+                  className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 transition"
+                  title="Edit Matter / Docket Settings"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-          <div className="hidden lg:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-900/70 border border-slate-800/80 text-[11px] text-slate-300">
-            <Gavel className="w-3.5 h-3.5 text-amber-400/80" />
-            <span className="truncate max-w-xs">
-              {activeMatter.jurisdiction}
-            </span>
-          </div>
+              <div className="hidden lg:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-900/70 border border-slate-800/80 text-[11px] text-slate-300">
+                <Gavel className="w-3.5 h-3.5 text-amber-400/80" />
+                <span className="truncate max-w-xs">
+                  {activeMatter.jurisdiction}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="h-8 flex items-center gap-2 px-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
+              <Briefcase className="w-3.5 h-3.5 text-slate-500" />
+              <span>No Active Matter</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5 app-no-drag">
@@ -667,78 +676,101 @@ export const App: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                {state.matters.map((m) => (
-                  <div
-                    key={m.id}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMatterContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        matter: m,
-                      });
-                    }}
-                    className={`group relative w-full p-2.5 rounded-xl text-left border transition cursor-pointer ${
-                      m.id === activeMatter.id
-                        ? 'bg-amber-500/15 border-amber-500/40 text-slate-100'
-                        : 'bg-slate-950/50 border-slate-800/70 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                    }`}
-                    onClick={async () => {
-                      const updated = await ipcBridge.selectMatter(m.id);
-                      setState(updated);
-                      setTurnPracticeArea(m.practiceArea);
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-1.5">
-                      <div className="text-xs font-semibold truncate">
-                        {m.name}
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditMatterDialog(m);
-                        }}
-                        title="Matter Settings (Change Name, Docket ID, Forum...)"
-                        className="opacity-70 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 transition shrink-0"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                      <span className="truncate">{m.clientName}</span>
-                      <span className="font-mono">{m.matterNumber}</span>
-                    </div>
+                {state.matters.length === 0 ? (
+                  <div className="p-3.5 rounded-xl border border-dashed border-slate-800 text-center space-y-2">
+                    <p className="text-xs text-slate-400 font-medium">No Active Matters</p>
+                    <p className="text-[10px] text-slate-500">
+                      Create a matter to begin organizing legal casework.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
+                        setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
+                        setNewMatterPracticeArea(activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11');
+                        setShowNewMatterModal(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-medium transition cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Create Matter</span>
+                    </button>
                   </div>
-                ))}
+                ) : (
+                  state.matters.map((m) => (
+                    <div
+                      key={m.id}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setMatterContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          matter: m,
+                        });
+                      }}
+                      className={`group relative w-full p-2.5 rounded-xl text-left border transition cursor-pointer ${
+                        m.id === activeMatter?.id
+                          ? 'bg-amber-500/15 border-amber-500/40 text-slate-100'
+                          : 'bg-slate-950/50 border-slate-800/70 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                      onClick={async () => {
+                        const updated = await ipcBridge.selectMatter(m.id);
+                        setState(updated);
+                        setTurnPracticeArea(m.practiceArea);
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="text-xs font-semibold truncate">
+                          {m.name}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditMatterDialog(m);
+                          }}
+                          title="Matter Settings (Change Name, Docket ID, Forum...)"
+                          className="opacity-70 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 transition shrink-0"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span className="truncate">{m.clientName}</span>
+                        <span className="font-mono">{m.matterNumber}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
             {/* Matter Overview */}
-            <div id="tour-matter-overview" className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Matter Overview
-                </span>
-                <span className="text-[10px] font-mono text-amber-400">
-                  {state.documents.length} Files
-                </span>
+            {activeMatter && (
+              <div id="tour-matter-overview" className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Matter Overview
+                  </span>
+                  <span className="text-[10px] font-mono text-amber-400">
+                    {state.documents.length} Files
+                  </span>
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  <div className="text-slate-200 font-medium truncate">
+                    {activeMatter.name}
+                  </div>
+                  <div className="text-slate-400 text-[10px]">
+                    Client: <span className="text-slate-300">{activeMatter.clientName}</span>
+                  </div>
+                  <div className="text-slate-400 text-[10px] font-mono truncate">
+                    Docket: {activeMatter.matterNumber}
+                  </div>
+                  <div className="text-slate-400 text-[10px] truncate">
+                    Forum: {activeMatter.jurisdiction}
+                  </div>
+                </div>
               </div>
-              <div className="space-y-1 text-[11px]">
-                <div className="text-slate-200 font-medium truncate">
-                  {activeMatter.name}
-                </div>
-                <div className="text-slate-400 text-[10px]">
-                  Client: <span className="text-slate-300">{activeMatter.clientName}</span>
-                </div>
-                <div className="text-slate-400 text-[10px] font-mono truncate">
-                  Docket: {activeMatter.matterNumber}
-                </div>
-                <div className="text-slate-400 text-[10px] truncate">
-                  Forum: {activeMatter.jurisdiction}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Bottom Active Review Team Panel Card */}
@@ -785,35 +817,87 @@ export const App: React.FC = () => {
         <main className="flex-1 flex flex-col min-w-0 bg-slate-950">
           {/* Active Matter Subheader */}
           <div className="px-6 py-3 bg-slate-900/50 border-b border-slate-800/80 flex items-center justify-between">
-            <div>
-              <h1 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
-                <Scale className="w-4 h-4 text-amber-400" />
-                <span>{activeMatter.name}</span>
-                <span className="text-xs font-normal text-slate-400 font-mono">
-                  ({activeMatter.matterNumber})
-                </span>
-              </h1>
-              <p className="text-[11px] text-slate-400">
-                Client:{' '}
-                <span className="text-slate-200 font-medium">
-                  {activeMatter.clientName}
-                </span>{' '}
-                &bull; Profile:{' '}
-                <span className="text-amber-300 font-medium">
-                  {activeProfile.name}
-                </span>{' '}
-                &bull; Forum:{' '}
-                <span className="text-slate-300 font-medium">
-                  {activeMatter.jurisdiction}
-                </span>{' '}
-                &bull; Documents: {state.documents.length} Files
-              </p>
-            </div>
+            {activeMatter ? (
+              <div>
+                <h1 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                  <Scale className="w-4 h-4 text-amber-400" />
+                  <span>{activeMatter.name}</span>
+                  <span className="text-xs font-normal text-slate-400 font-mono">
+                    ({activeMatter.matterNumber})
+                  </span>
+                </h1>
+                <p className="text-[11px] text-slate-400">
+                  Client:{' '}
+                  <span className="text-slate-200 font-medium">
+                    {activeMatter.clientName}
+                  </span>{' '}
+                  &bull; Profile:{' '}
+                  <span className="text-amber-300 font-medium">
+                    {activeProfile?.name ?? 'Defense Counsel'}
+                  </span>{' '}
+                  &bull; Forum:{' '}
+                  <span className="text-slate-300 font-medium">
+                    {activeMatter.jurisdiction}
+                  </span>{' '}
+                  &bull; Documents: {state.documents.length} Files
+                </p>
+              </div>
+            ) : (
+              <div>
+                <h1 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <Scale className="w-4 h-4 text-slate-500" />
+                  <span>No Active Matter</span>
+                </h1>
+                <p className="text-[11px] text-slate-500">
+                  Select a matter from the sidebar, or create a new matter to begin.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Messages & Agent Loop Stream */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 select-text">
-            {!tutorialBannerDismissed && (
+            {!activeMatter ? (
+              <div className="max-w-md mx-auto my-16 p-8 rounded-2xl bg-slate-900/40 border border-slate-800/80 text-center space-y-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                  <Briefcase className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-semibold text-slate-100">
+                    No Matters in Workspace
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    All matters have been deleted. You can create a new litigation matter or load the interactive tutorial casework.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2.5 pt-2">
+                  <button
+                    onClick={() => {
+                      setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
+                      setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
+                      setNewMatterPracticeArea(activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11');
+                      setShowNewMatterModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Create Matter</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleLoadSampleCase();
+                      setIsTutorialOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Load Tutorial Case</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {activeMatter && !tutorialBannerDismissed && (
               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-200">
                 <div className="flex items-center gap-2.5">
                   <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
@@ -850,7 +934,7 @@ export const App: React.FC = () => {
                 </div>
               </div>
             )}
-            {state.messages.map((msg: ThreadMessage) => {
+            {activeMatter && state.messages.map((msg: ThreadMessage) => {
               if (msg.role === 'user') {
                 return (
                   <div key={msg.id} className="flex justify-end">
@@ -1371,6 +1455,7 @@ export const App: React.FC = () => {
               <div className="flex-1 h-full bg-slate-950 border border-slate-700/90 focus-within:border-amber-500/70 rounded-xl p-3 flex flex-col justify-between space-y-2.5">
                 <textarea
                   value={promptInput}
+                  disabled={!activeMatter || isRunningTurn}
                   onChange={(e) => setPromptInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -1378,8 +1463,12 @@ export const App: React.FC = () => {
                       handleSubmitPrompt();
                     }
                   }}
-                  placeholder={`Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile.name}... (⌘+Enter to send)`}
-                  className="w-full flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none overflow-y-auto"
+                  placeholder={
+                    activeMatter
+                      ? `Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile?.name ?? 'Defense Counsel'}... (⌘+Enter to send)`
+                      : 'No active matter. Create or select a matter to begin drafting...'
+                  }
+                  className="w-full flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none overflow-y-auto disabled:opacity-50"
                 />
 
                 <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-800/80 shrink-0">
@@ -1392,24 +1481,39 @@ export const App: React.FC = () => {
                       </span>
                       <select
                         value={turnProvider}
-                        onChange={(e) =>
-                          handleProviderChange(e.target.value as LLMProviderId)
-                        }
+                        onChange={(e) => {
+                          if (e.target.value === '__connect__') {
+                            setIsConnectAgentsOpen(true);
+                            return;
+                          }
+                          handleProviderChange(e.target.value as LLMProviderId);
+                        }}
                         className="bg-transparent text-xs font-medium text-amber-300 focus:outline-none cursor-pointer"
-                        title="Select Executing Agent Harness (as per T3)"
+                        title="Select Executing Agent Harness"
                       >
-                        {state.providers.map((p) => {
-                          const isReady = p.hasApiKey || Boolean(p.runtimeStatus?.installed);
-                          return (
+                        {state.providers
+                          .filter(
+                            (p) =>
+                              p.id === 'legal-simulator' ||
+                              p.hasApiKey ||
+                              Boolean(p.runtimeStatus?.installed) ||
+                              p.id === turnProvider
+                          )
+                          .map((p) => (
                             <option
                               key={p.id}
                               value={p.id}
                               className="bg-slate-900 text-slate-100"
                             >
-                              {formatAgentLabel(p)}{!isReady ? ' · (Not Installed)' : ''}
+                              {formatAgentLabel(p)}
                             </option>
-                          );
-                        })}
+                          ))}
+                        <option
+                          value="__connect__"
+                          className="bg-slate-900 text-amber-400 font-medium"
+                        >
+                          + Connect More Agents...
+                        </option>
                       </select>
                     </div>
 
@@ -1530,7 +1634,7 @@ export const App: React.FC = () => {
         {/* RIGHT PANE: Redline Viewer, Matter Corpus & Chronology */}
         <RightWorkspacePane
           width={rightPaneWidth}
-          matterId={activeMatter.id}
+          matterId={activeMatter?.id ?? ''}
           documents={state.documents}
           documentVersions={state.documentVersions}
           chronologyFacts={state.chronologyFacts}
@@ -1741,7 +1845,7 @@ export const App: React.FC = () => {
                       folderPath: editFolderPath,
                     });
                     setState(updated);
-                    if (editingMatter.id === activeMatter.id) {
+                    if (editingMatter.id === activeMatter?.id) {
                       setTurnPracticeArea(editPracticeArea);
                     }
                     setEditingMatter(null);
@@ -1807,6 +1911,7 @@ export const App: React.FC = () => {
                   if (nextActive) {
                     setTurnPracticeArea(nextActive.practiceArea);
                   }
+                  setSelectedDocId(null);
                 }}
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition"
               >
@@ -2008,7 +2113,7 @@ export const App: React.FC = () => {
           onClose={() => setIsConnectAgentsOpen(false)}
           onboarding={state.agentOnboarding}
           matters={state.matters}
-          activeMatterId={activeMatter.id}
+          activeMatterId={activeMatter?.id ?? ''}
           onCompleteOnboarding={async () => {
             const next = await ipcBridge.completeAgentOnboarding();
             setState(next);
@@ -2043,9 +2148,9 @@ export const App: React.FC = () => {
             setState(next);
           }}
           onOpenNewMatterModal={() => {
-            setNewMatterJurisdiction(activeProfile.defaultJurisdiction);
-            setNewMatterCitation(activeProfile.defaultCitationStyle);
-            setNewMatterPracticeArea(activeProfile.activePracticeAreaId);
+            setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
+            setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
+            setNewMatterPracticeArea(activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11');
             setShowNewMatterModal(true);
           }}
         />
@@ -2063,7 +2168,7 @@ export const App: React.FC = () => {
           }
           setTutorialBannerDismissed(true);
         }}
-        activeMatterId={activeMatter.id}
+        activeMatterId={activeMatter?.id ?? ''}
         isSampleCaseLoaded={state.activeMatterId === 'matter-1794160132556'}
         onLoadSampleCase={handleLoadSampleCase}
         onCloseSampleCase={handleCloseSampleCase}

@@ -137,6 +137,19 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(db.listChronologyFacts('matter-apex-meridian').length).toBe(0);
   });
 
+  it('allows deleting the last remaining matter without generating unwanted ghost matters', () => {
+    expect(db.listMatters().length).toBe(2);
+    db.deleteMatter('matter-apex-meridian');
+    expect(db.listMatters().length).toBe(1);
+
+    const { remainingMatters, nextActiveMatterId } = db.deleteMatter(
+      'matter-vt-state-v-thorne'
+    );
+    expect(remainingMatters.length).toBe(0);
+    expect(nextActiveMatterId).toBe('');
+    expect(db.listMatters().length).toBe(0);
+  });
+
   it('exposes T3-style CLI Agent Harnesses (agy-acp, codex-cli, claude-cli) and persists binary path, reasoning effort, and runtime mode overrides', () => {
     const providers = db.listProviderConfigs();
     const providerIds = providers.map((p) => p.id);

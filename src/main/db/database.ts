@@ -540,8 +540,7 @@ export class LegalDatabase {
 
   /**
    * Deletes a Matter and cascades deletion to all associated messages,
-   * documents, document versions, and chronology facts. If the last remaining
-   * Matter is deleted, creates a fresh default Matter so the workspace stays usable.
+   * documents, document versions, and chronology facts.
    */
   deleteMatter(matterId: string): { remainingMatters: Matter[]; nextActiveMatterId: string } {
     this.db.run('DELETE FROM messages WHERE matter_id = ?', [matterId]);
@@ -550,31 +549,11 @@ export class LegalDatabase {
     this.db.run('DELETE FROM chronology_facts WHERE matter_id = ?', [matterId]);
     this.db.run('DELETE FROM matters WHERE id = ?', [matterId]);
 
-    let remaining = this.listMatters();
-    if (remaining.length === 0) {
-      const now = new Date().toISOString();
-      const fallbackMatter: Matter = {
-        id: `matter-${Date.now()}`,
-        name: 'State of Vermont v. New Defense Matter',
-        clientName: 'Client / Defendant',
-        matterNumber: '26-CR-00001 (Chittenden Unit)',
-        practiceArea: 'vt_suppression_art11',
-        jurisdiction:
-          'Vermont Superior Court, Criminal Division (Vt. Const. ch. I, art. 11; 13 V.S.A.; V.R.Cr.P.)',
-        citationStyle:
-          'Vermont Supreme Court / Bluebook (e.g., 2007 VT 16, \u00b6 14; 13 V.S.A. \u00a7 ...; V.R.Cr.P. 12)',
-        folderPath: '~/Matters/26-CR-00001',
-        createdAt: now,
-        updatedAt: now,
-      };
-      this.insertMatter(fallbackMatter, false);
-      remaining = [fallbackMatter];
-    }
-
+    const remaining = this.listMatters();
     this.persist();
     return {
       remainingMatters: remaining,
-      nextActiveMatterId: remaining[0].id,
+      nextActiveMatterId: remaining.length > 0 ? remaining[0].id : '',
     };
   }
 

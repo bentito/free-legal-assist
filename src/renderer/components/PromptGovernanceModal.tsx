@@ -50,7 +50,7 @@ interface PromptGovernanceModalProps {
   promptSettings: SystemPromptSettings;
   adversarialConfig: AdversarialConfig;
   providers: ProviderConfig[];
-  activeMatter: Matter;
+  activeMatter?: Matter | null;
   assembledPromptPreview: AssembledPromptPreview;
   courtListenerAssurance?: CourtListenerMcpAssuranceState;
   customMcpServers?: CustomLegalMcpServer[];
@@ -155,10 +155,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   );
 
   // Matter Layer 3 state
-  const [jurisdiction, setJurisdiction] = useState(activeMatter.jurisdiction);
-  const [citationStyle, setCitationStyle] = useState(activeMatter.citationStyle);
+  const [jurisdiction, setJurisdiction] = useState(activeMatter?.jurisdiction ?? '');
+  const [citationStyle, setCitationStyle] = useState(activeMatter?.citationStyle ?? '');
   const [matterPracticeArea, setMatterPracticeArea] = useState<PracticeAreaId>(
-    activeMatter.practiceArea
+    activeMatter?.practiceArea ?? 'vt_suppression_art11'
   );
 
   // Sync local editor state when active profile or matter changes
@@ -171,9 +171,11 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   }, [promptSettings]);
 
   useEffect(() => {
-    setJurisdiction(activeMatter.jurisdiction);
-    setCitationStyle(activeMatter.citationStyle);
-    setMatterPracticeArea(activeMatter.practiceArea);
+    if (activeMatter) {
+      setJurisdiction(activeMatter.jurisdiction);
+      setCitationStyle(activeMatter.citationStyle);
+      setMatterPracticeArea(activeMatter.practiceArea);
+    }
   }, [activeMatter]);
 
   // Provider API key & CLI runtime inputs
@@ -251,6 +253,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   };
 
   const handleSaveLayer3 = async () => {
+    if (!activeMatter) return;
     await onUpdateMatterJurisdiction({
       matterId: activeMatter.id,
       jurisdiction,
@@ -596,16 +599,21 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             )}
 
             {activeTab === 'layer3_jurisdiction' && (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 3 — Active Matter / Docket Jurisdiction & Citation Manual ({activeMatter.name})
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Injected into both the Primary Legal Model and Adversarial Critics to enforce controlling forum law and citation style.
-                    </p>
-                  </div>
+              !activeMatter ? (
+                <div className="p-8 text-center rounded-xl bg-slate-950 border border-slate-800 text-slate-400 text-xs">
+                  No active matter is selected. Create or select a matter to configure its jurisdiction and citation manual.
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-100">
+                        Layer 3 — Active Matter / Docket Jurisdiction & Citation Manual ({activeMatter.name})
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Injected into both the Primary Legal Model and Adversarial Critics to enforce controlling forum law and citation style.
+                      </p>
+                    </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
@@ -672,7 +680,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   </div>
                 </div>
               </div>
-            )}
+            ))}
 
             {activeTab === 'layer4_critics' && (
               <div className="space-y-5">

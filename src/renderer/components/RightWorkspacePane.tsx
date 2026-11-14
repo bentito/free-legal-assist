@@ -198,6 +198,16 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
         </button>
       </div>
 
+      {!matterId ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-500">
+          <BookOpen className="w-8 h-8 text-slate-600 mb-2" />
+          <p className="text-xs font-medium text-slate-400">No Active Matter</p>
+          <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+            Select or create a matter to manage documents, redline versions, and chronology facts.
+          </p>
+        </div>
+      ) : (
+        <>
       {/* Tab 1: Redline & Version Viewer */}
       {activeTab === 'redline' && (
         <div id="tour-redline-pane" className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -823,6 +833,8 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
             ))}
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
