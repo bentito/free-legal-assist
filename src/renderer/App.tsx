@@ -19,6 +19,7 @@ import { RightWorkspacePane } from './components/RightWorkspacePane';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import {
   AlertTriangle,
+  ArrowRight,
   Bot,
   Briefcase,
   Check,
@@ -35,6 +36,7 @@ import {
   Loader2,
   MessageSquarePlus,
   Plug,
+  Plus,
   Scale,
   Send,
   Settings,
@@ -228,6 +230,38 @@ export const App: React.FC = () => {
   const openDeleteMatterConfirm = (matter: Matter) => {
     setDeletingMatter(matter);
     setMatterContextMenu(null);
+  };
+
+  const detectWorkProductBadge = (msg: ThreadMessage): { badge: string; color: string } => {
+    if (msg.category === 'ADVISORY') {
+      return { badge: 'Case Advisory & Feedback', color: 'border-cyan-500/40 text-cyan-300 bg-cyan-950/70' };
+    }
+    const content = (msg.content || '').slice(0, 350).toLowerCase();
+    if (content.includes('motion to suppress') || content.includes('motion to dismiss')) {
+      return { badge: 'Motion to Suppress', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
+    }
+    if (content.includes('motion') || content.includes('v.r.cr.p. 12') || content.includes('rule 12')) {
+      return { badge: 'Motion', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
+    }
+    if (content.includes('memorandum') || content.includes('memo') || content.includes('legal analysis')) {
+      return { badge: 'Legal Memo', color: 'border-indigo-500/40 text-indigo-300 bg-indigo-950/60' };
+    }
+    if (content.includes('demand letter') || content.includes('notice of breach')) {
+      return { badge: 'Demand Letter', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
+    }
+    if (content.includes('impeachment') || content.includes('bwc audit') || content.includes('affidavit audit')) {
+      return { badge: 'Impeachment Audit', color: 'border-emerald-500/40 text-emerald-300 bg-emerald-950/60' };
+    }
+    if (content.includes('bail') || content.includes('conditions of release') || content.includes('7554')) {
+      return { badge: 'Bail & Release Analysis', color: 'border-blue-500/40 text-blue-300 bg-blue-950/60' };
+    }
+    if (content.includes('plea') || content.includes('sentencing') || content.includes('deferred sentence')) {
+      return { badge: 'Plea & Sentencing Memo', color: 'border-purple-500/40 text-purple-300 bg-purple-950/60' };
+    }
+    if (content.includes('agreement') || content.includes('contract') || content.includes('clause')) {
+      return { badge: 'Contract Draft', color: 'border-teal-500/40 text-teal-300 bg-teal-950/60' };
+    }
+    return { badge: 'Legal Draft', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
   };
 
   useEffect(() => {
@@ -840,6 +874,7 @@ export const App: React.FC = () => {
               );
               const isAdvisory = msg.category === 'ADVISORY';
               const isEditingThisMsg = editingMsgId === msg.id;
+              const workProductType = detectWorkProductBadge(msg);
 
               return (
                 <div
@@ -869,10 +904,8 @@ export const App: React.FC = () => {
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-semibold text-slate-100">
-                            {isAdvisory
-                              ? 'Agent Advisory & Case Status'
-                              : 'Verified Legal Work Product'}
+                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-md border ${workProductType.color}`}>
+                            {workProductType.badge}
                           </span>
                           <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-amber-300">
                             Primary: {msg.primaryModel || 'claude-3-7-sonnet'}
@@ -1201,6 +1234,61 @@ export const App: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Move on to Next Work Product Footer */}
+                  {!isEditingThisMsg && (
+                    <div className="px-5 py-3 bg-slate-950/70 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-400">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="font-medium text-slate-300">
+                          Move to next work product:
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {state.promptSettings.practiceAreaPresets
+                          .filter((p) => p.id !== turnPracticeArea)
+                          .slice(0, 3)
+                          .map((preset) => (
+                            <button
+                              key={preset.id}
+                              disabled={isRunningTurn}
+                              onClick={() => {
+                                setTurnPracticeArea(preset.id);
+                                const nextPrompt =
+                                  preset.id === 'vt_discovery_impeachment'
+                                    ? `Audit Trooper Keller's Affidavit against the BWC timestamps and Rule 15 deposition to draft an impeachment table.`
+                                    : preset.id === 'vt_bail_conditions'
+                                    ? `Draft a motion for amendment of conditions of release under 13 V.S.A. § 7554.`
+                                    : preset.id === 'vt_plea_sentencing'
+                                    ? `Prepare a sentencing memorandum evaluating deferred sentence under 13 V.S.A. § 7041.`
+                                    : `Prepare legal work product for ${preset.shortLabel}.`;
+                                setPromptInput(nextPrompt);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-300 transition text-[11px] cursor-pointer"
+                              title={`Switch task and start drafting ${preset.name}`}
+                            >
+                              <span>{preset.shortLabel}</span>
+                              <ArrowRight className="w-3 h-3 text-slate-500 group-hover:text-amber-400" />
+                            </button>
+                          ))}
+                        <button
+                          disabled={isRunningTurn}
+                          onClick={() => {
+                            setPromptInput('');
+                            const composerEl = document.getElementById('tour-composer');
+                            composerEl?.scrollIntoView({ behavior: 'smooth' });
+                            const textarea = composerEl?.querySelector('textarea');
+                            textarea?.focus();
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 transition text-[11px] font-medium cursor-pointer"
+                          title="Start a new drafting instruction in the composer"
+                        >
+                          <Plus className="w-3 h-3 text-amber-400" />
+                          <span>New Draft</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
