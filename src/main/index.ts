@@ -600,7 +600,7 @@ async function createWindow(): Promise<void> {
     height: 940,
     minWidth: 1120,
     minHeight: 720,
-    title: 'LexHarness — Legal Assistant Workspace',
+    title: 'LexHarness',
     backgroundColor: '#020617',
     icon: appIcon,
     ...(isMac

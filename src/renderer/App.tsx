@@ -371,7 +371,7 @@ export const App: React.FC = () => {
         <div className="flex items-center gap-3">
           <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
           <span className="text-sm font-medium">
-            Opening LexHarness Legal Workspace...
+            Loading LexHarness...
           </span>
         </div>
       </div>
@@ -383,7 +383,7 @@ export const App: React.FC = () => {
       <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-rose-300 p-8">
         <div className="max-w-lg p-6 rounded-xl bg-slate-900 border border-rose-500/40 space-y-2">
           <div className="font-semibold text-base">
-            Failed to open LexHarness workspace
+            Failed to start LexHarness
           </div>
           <p className="text-xs text-slate-300 font-mono">{error}</p>
         </div>
@@ -407,14 +407,14 @@ export const App: React.FC = () => {
 
   const formatAgentLabel = (p?: ProviderConfig) => {
     if (!p) return 'Agent';
-    if (p.id === 'agy-acp') return 'Antigravity Desktop Agent';
-    if (p.id === 'claude-cli') return 'Claude Desktop Agent';
-    if (p.id === 'codex-cli') return 'OpenAI Codex Agent';
-    if (p.id === 'anthropic') return 'Anthropic Claude';
-    if (p.id === 'openai') return 'OpenAI Direct';
-    if (p.id === 'gemini') return 'Google Gemini';
-    if (p.id === 'openrouter') return 'OpenRouter / Custom';
-    if (p.id === 'legal-simulator') return 'Built-In Offline Assistant';
+    if (p.id === 'agy-acp') return 'Antigravity';
+    if (p.id === 'claude-cli') return 'Claude';
+    if (p.id === 'codex-cli') return 'OpenAI Codex';
+    if (p.id === 'anthropic') return 'Claude (API)';
+    if (p.id === 'openai') return 'OpenAI';
+    if (p.id === 'gemini') return 'Gemini';
+    if (p.id === 'openrouter') return 'OpenRouter';
+    if (p.id === 'legal-simulator') return 'Built-In Assistant';
     return p.name;
   };
 
@@ -567,7 +567,7 @@ export const App: React.FC = () => {
                 <button
                   onClick={() => openEditMatterDialog(activeMatter)}
                   className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 transition"
-                  title="Edit Matter / Docket Settings"
+                  title="Edit matter"
                 >
                   <Settings className="w-3.5 h-3.5" />
                 </button>
@@ -592,7 +592,7 @@ export const App: React.FC = () => {
           <button
             onClick={() => setIsConnectAgentsOpen(true)}
             className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-200 transition cursor-pointer"
-            title="Connect your agents (Codex, Claude, Antigravity & Multi-Account ChatGPT)"
+            title="Connect assistants"
           >
             <Plug className="w-3.5 h-3.5 text-emerald-400" />
             <span>
@@ -627,7 +627,7 @@ export const App: React.FC = () => {
               setIsStudioOpen(true);
             }}
             className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
-            title="Configure Practice Area, Review Rules & Model Settings"
+            title="Settings"
           >
             <Settings2 className="w-3.5 h-3.5 text-amber-400" />
             <span>Settings</span>
@@ -642,7 +642,7 @@ export const App: React.FC = () => {
               setIsTutorialOpen(true);
             }}
             className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
-            title="Start Interactive Guided Tour with Live Sample Casework"
+            title="Tour with sample case"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Tour</span>
@@ -902,7 +902,7 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-2.5">
                   <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>
-                    New to LexHarness? Take our 2-minute guided tour with pre-loaded sample casework.
+                    New to LexHarness? Take the 2-minute tour with sample casework.
                   </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -1489,7 +1489,7 @@ export const App: React.FC = () => {
                           handleProviderChange(e.target.value as LLMProviderId);
                         }}
                         className="bg-transparent text-xs font-medium text-amber-300 focus:outline-none cursor-pointer"
-                        title="Select Drafting Assistant"
+                        title="Select assistant"
                       >
                         {state.providers
                           .filter(
@@ -1570,7 +1570,7 @@ export const App: React.FC = () => {
                         )
                       }
                       className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-emerald-300 hover:border-slate-600 transition cursor-pointer"
-                      title="Peer Review Mode"
+                      title="Review mode"
                     >
                       <option
                         value="multi_llm_default"

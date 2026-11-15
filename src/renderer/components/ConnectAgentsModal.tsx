@@ -330,8 +330,7 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
                   How are you setting up LexHarness?
                 </h2>
                 <p className="mt-1 text-sm text-neutral-400">
-                  Run legal assistants directly on this Mac or connect to a
-                  secure remote environment.
+                  Run legal assistants on this Mac or connect to a remote host.
                 </p>
               </div>
 

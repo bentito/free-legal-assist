@@ -2,7 +2,7 @@
   "name": "lexharness-desktop",
   "productName": "LexHarness",
   "version": "0.3.0",
-  "description": "Legal Assistant Workspace for macOS and Windows",
+  "description": "Legal drafting and review workspace",
   "main": "dist-electron/main/index.js",
   "private": true,
   "scripts": {

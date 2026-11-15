@@ -485,9 +485,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               >
                 <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
                 <div>
-                  <div className="font-semibold">Guided Tour & Tutorial</div>
+                  <div className="font-semibold">Tour & Sample Case</div>
                   <div className="text-[10px] opacity-75">
-                    Workflow Guide & Sample Case
+                    Guide and sample matter
                   </div>
                 </div>
               </button>
@@ -502,9 +502,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               >
                 <Eye className="w-4 h-4 shrink-0" />
                 <div>
-                  <div className="font-semibold">Live Assembled Prompt</div>
+                  <div className="font-semibold">Assembled Prompt</div>
                   <div className="text-[10px] opacity-75">
-                    Inspect Exact Instructions Sent to Models
+                    Inspect full instructions
                   </div>
                 </div>
               </button>
@@ -1607,10 +1607,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       </div>
                       <div>
                         <h3 className="text-base font-semibold text-slate-100">
-                          Guided Tour & Intended Workflow
+                          Tour & Sample Case
                         </h3>
                         <p className="text-xs text-slate-400">
-                          Learn how LexHarness safeguards evidentiary integrity through multi-model peer review.
+                          Walkthrough of the LexHarness drafting and review workflow.
                         </p>
                       </div>
                     </div>
@@ -1623,7 +1623,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs shadow-lg transition active:scale-95 cursor-pointer"
                     >
                       <Sparkles className="w-4 h-4" />
-                      <span>Start Interactive Tour Overlay</span>
+                      <span>Start Tour</span>
                     </button>
                   </div>
                 </div>
