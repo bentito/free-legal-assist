@@ -9,6 +9,7 @@ import {
   PracticeAreaId,
   PracticeAreaPreset,
   PractitionerProfileId,
+  PrivacyRoutingSettings,
   ProviderConfig,
   SystemPromptSettings,
 } from '../../shared/types';
@@ -16,21 +17,25 @@ import {
   Bot,
   CheckCircle2,
   Cpu,
+  Download,
   ExternalLink,
   Eye,
   KeyRound,
+  Lock,
   Plus,
   RefreshCw,
   RotateCcw,
   Scale,
   Server,
   ShieldAlert,
+  ShieldCheck,
   Sliders,
   Sparkles,
   Trash2,
   UserCheck,
   Wrench,
   X,
+  Zap,
 } from 'lucide-react';
 
 export type StudioTab =
@@ -40,6 +45,7 @@ export type StudioTab =
   | 'layer4_critics'
   | 'providers_models'
   | 'legal_mcp'
+  | 'privacy_routing'
   | 'live_preview'
   | 'tutorial_tour';
 
@@ -55,6 +61,7 @@ interface PromptGovernanceModalProps {
   courtListenerAssurance?: CourtListenerMcpAssuranceState;
   customMcpServers?: CustomLegalMcpServer[];
   isSampleCaseLoaded?: boolean;
+  privacyRoutingSettings?: PrivacyRoutingSettings;
   onStartTutorial?: () => void;
   onLoadSampleCase?: () => Promise<void>;
   onCloseSampleCase?: () => Promise<void>;
@@ -85,6 +92,9 @@ interface PromptGovernanceModalProps {
   onSaveCustomMcpServer?: (server: CustomLegalMcpServer) => Promise<void>;
   onDeleteCustomMcpServer?: (serverId: string) => Promise<void>;
   onOpenExternalUrl?: (url: string) => Promise<void>;
+  onSavePrivacyRoutingSettings?: (updated: Partial<PrivacyRoutingSettings>) => Promise<void>;
+  onExportRoutingLogs?: () => Promise<void>;
+  onClearRoutingLogs?: () => Promise<void>;
 }
 
 export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
@@ -113,6 +123,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   onSaveCustomMcpServer,
   onDeleteCustomMcpServer,
   onOpenExternalUrl,
+  privacyRoutingSettings,
+  onSavePrivacyRoutingSettings,
+  onExportRoutingLogs,
+  onClearRoutingLogs,
 }) => {
   const [activeTab, setActiveTab] = useState<StudioTab>(initialTab || 'layer1_core');
 
@@ -470,6 +484,25 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   {courtListenerAssurance?.configuredAgentDisplayName
                     ? `Active on ${courtListenerAssurance.configuredAgentDisplayName}`
                     : 'CourtListener & Caselaw Tools'}
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('privacy_routing')}
+              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
+                activeTab === 'privacy_routing'
+                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+              <div>
+                <div className="font-semibold flex items-center gap-1.5">
+                  <span>Privacy & Local Routing</span>
+                </div>
+                <div className="text-[10px] opacity-75 truncate max-w-[170px]">
+                  ONNX Router & PII Gateway
                 </div>
               </div>
             </button>
@@ -1550,6 +1583,167 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'privacy_routing' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Embedded Privacy Model Router & PII Gateway</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Embedded ONNX runtime strips confidential client identifiers and dockets before cloud dispatch,
+                    triages queries to economy models to save up to 85% in API costs, and restores real names locally.
+                  </p>
+                </div>
+
+                {/* Routing Policy Mode Selection Cards */}
+                <div className="space-y-3">
+                  <div className="text-xs font-semibold text-slate-200">
+                    Routing Policy Mode (Always-On Default)
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => onSavePrivacyRoutingSettings?.({ policyMode: 'smart_routing' })}
+                      className={`p-4 rounded-xl border text-left transition ${
+                        (privacyRoutingSettings?.policyMode ?? 'smart_routing') === 'smart_routing'
+                          ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-amber-300">
+                          Dynamic Smart Routing
+                        </span>
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Embedded ONNX classifier evaluates legal complexity. Routes single-statute and citation queries to economy models (~75% savings) and escalates constitutional motions to frontier models.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onSavePrivacyRoutingSettings?.({ policyMode: 'force_frontier' })}
+                      className={`p-4 rounded-xl border text-left transition ${
+                        privacyRoutingSettings?.policyMode === 'force_frontier'
+                          ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-indigo-300">
+                          Force Frontier Reasoning
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Bypasses economy tier, dispatching all queries directly to top frontier models while retaining full local PII scrubbing, Bates protection, and reversible pseudonymization.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onSavePrivacyRoutingSettings?.({ policyMode: 'local_only_airgapped' })}
+                      className={`p-4 rounded-xl border text-left transition ${
+                        privacyRoutingSettings?.policyMode === 'local_only_airgapped'
+                          ? 'bg-amber-500/10 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-cyan-300">
+                          Strict Local-Only (Air-Gapped)
+                        </span>
+                        <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Completely disables external API/cloud network calls. Fulfills drafting and review strictly on-device using local matter corpus and embedded engine.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Governance Toggles */}
+                <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-4">
+                  <div className="text-xs font-semibold text-slate-200">
+                    Decision Telemetry & Compliance Controls
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={privacyRoutingSettings?.debugModeEnabled ?? false}
+                        onChange={(e) =>
+                          onSavePrivacyRoutingSettings?.({ debugModeEnabled: e.target.checked })
+                        }
+                        className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-0 bg-slate-950"
+                      />
+                      <div>
+                        <div className="text-xs font-semibold text-slate-200">
+                          Routing Decision Debug Mode (Inspector Drawer)
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Surfaces real-time decision logits, ONNX complexity scores, scrubbed PII audits, and cost savings telemetry directly below the prompt composer. Shortcut: Cmd+Shift+D.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={privacyRoutingSettings?.preDispatchReviewEnabled ?? false}
+                        onChange={(e) =>
+                          onSavePrivacyRoutingSettings?.({ preDispatchReviewEnabled: e.target.checked })
+                        }
+                        className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-0 bg-slate-950"
+                      />
+                      <div>
+                        <div className="text-xs font-semibold text-slate-200">
+                          Pre-Dispatch Review Gate
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Requires explicit attorney confirmation of the scrubbed payload and pseudonym table before transmitting tokens outside the local machine.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Audit Bundle Export Section */}
+                <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-xs font-semibold text-slate-200">
+                      Audit Telemetry Export & Compliance Verification
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Export a sanitized diagnostic bundle of routing decisions and PII masking audits to verify ethics compliance or submit diagnostic reports.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={onExportRoutingLogs}
+                      className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium flex items-center gap-1.5 transition"
+                    >
+                      <Download className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Export Audit (JSON)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onClearRoutingLogs}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-red-950/40 border border-slate-700 text-slate-400 hover:text-red-300 text-xs font-medium flex items-center gap-1.5 transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Clear Log</span>
+                    </button>
                   </div>
                 </div>
               </div>

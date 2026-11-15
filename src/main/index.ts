@@ -17,6 +17,7 @@ import {
   MatterDocument,
   PracticeAreaId,
   PractitionerProfileId,
+  PrivacyRoutingSettings,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../shared/types';
@@ -110,6 +111,8 @@ function buildBootstrapState(): AppBootstrapState {
     assembledPromptPreview,
     agentOnboarding,
     customMcpServers: db.listCustomMcpServers(),
+    privacyRoutingSettings: db.getPrivacyRoutingSettings(),
+    recentRoutingLogs: db.listRoutingDebugLogs(activeMatterId || undefined, 20),
   };
 }
 
@@ -567,6 +570,41 @@ function registerIpcHandlers(): void {
       if (/^https?:\/\//i.test(payload.url)) {
         await shell.openExternal(payload.url);
       }
+    }
+  );
+
+  // --- Phase 2: Privacy Model Router & Decision Debug Telemetry IPC ---
+  ipcMain.handle('legal:get-privacy-routing-settings', async () => {
+    return db.getPrivacyRoutingSettings();
+  });
+
+  ipcMain.handle(
+    'legal:save-privacy-routing-settings',
+    async (_event, payload: { settings: Partial<PrivacyRoutingSettings> }) => {
+      db.savePrivacyRoutingSettings(payload.settings);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:get-routing-logs',
+    async (_event, payload?: { matterId?: string; limit?: number }) => {
+      return db.listRoutingDebugLogs(payload?.matterId, payload?.limit ?? 50);
+    }
+  );
+
+  ipcMain.handle(
+    'legal:clear-routing-logs',
+    async (_event, payload?: { matterId?: string }) => {
+      agentLoop.getPrivacyRouter().getDebugLogger().clearLogs(payload?.matterId);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:export-routing-logs',
+    async (_event, payload?: { destinationPath?: string }) => {
+      return agentLoop.getPrivacyRouter().getDebugLogger().exportLogs(payload?.destinationPath);
     }
   );
 }

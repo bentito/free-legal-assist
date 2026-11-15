@@ -11,17 +11,24 @@ import { LegalDatabase } from '../db/database';
 import { LegalToolExecutor } from '../tools/LegalToolExecutor';
 import { AdversarialCoordinator } from './AdversarialCoordinator';
 import { PromptAssembler } from './PromptAssembler';
+import { LocalPrivacyModelRouter } from './router/LocalPrivacyModelRouter';
 import { MultiLLMClient } from './providers/MultiLLMClient';
 
 export class LegalAgentLoop {
   private llmClient: MultiLLMClient;
   private toolExecutor: LegalToolExecutor;
   private adversarialCoordinator: AdversarialCoordinator;
+  private privacyRouter: LocalPrivacyModelRouter;
 
   constructor(private db: LegalDatabase) {
     this.llmClient = new MultiLLMClient(db);
     this.toolExecutor = new LegalToolExecutor(db);
     this.adversarialCoordinator = new AdversarialCoordinator(this.llmClient);
+    this.privacyRouter = new LocalPrivacyModelRouter(db);
+  }
+
+  getPrivacyRouter(): LocalPrivacyModelRouter {
+    return this.privacyRouter;
   }
 
   async runTurn(params: {
@@ -140,12 +147,37 @@ export class LegalAgentLoop {
 
     const isInformational = MultiLLMClient.isInformationalInquiry(userPrompt);
 
+    // Tool output & context extraction
+    const toolContextStr = toolCalls
+      .map((t) => `[TOOL ${t.toolName}]:\n${t.rawOutput}`)
+      .join('\n\n');
+
+    // 3.5 Privileged PII Scrubbing Gateway & Embedded ONNX Model Router (Phase 2 Item 7)
+    const routingResult = await this.privacyRouter.evaluateAndScrub({
+      matter,
+      userPrompt,
+      corpusExcerpts: toolContextStr,
+      turnNumber: this.db.listMessages(matterId).length + 1,
+      overrideProvider: advConfig.primaryProvider,
+      overrideModel: advConfig.primaryModel,
+    });
+
+    const { scrubbedPrompt, scrubbedCorpus, vault, decisionLog, selectedTier } = routingResult;
+    const effectivePrimaryModel = routingResult.selectedModel;
+    const effectivePrimaryProvider = routingResult.selectedProvider || advConfig.primaryProvider;
+
+    emit({
+      phase: 'assembling_prompt',
+      statusText: `Privileged PII Shield: ${decisionLog.piiAudit.entitiesDetectedCount} entity token(s) scrubbed \u2022 Route: ${selectedTier}`,
+      detailText: `Intent: ${decisionLog.classification.inferredIntent} \u2022 Model: ${effectivePrimaryModel} (Est. Savings: $${decisionLog.costEstimate.estimatedSavingsUSD.toFixed(4)})`,
+    });
+
     // 4. Primary Model Drafting Pass
     emit({
       phase: 'drafting_primary',
       statusText: isInformational
-        ? `Preparing casework advisory response with ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel})...`
-        : `Drafting initial legal analysis with ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel})...`,
+        ? `Preparing casework advisory response with ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel})...`
+        : `Drafting initial legal analysis with ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel})...`,
       detailText: isInformational
         ? `Synthesizing ${matter.name} file details and procedural posture`
         : `Applying ${assembled.profileName} instructions & CourtListener MCP verification to retrieved evidence`,
@@ -153,19 +185,16 @@ export class LegalAgentLoop {
 
     let candidateDraft = '';
     const hasLivePrimary = this.llmClient.hasLiveCredentials(
-      advConfig.primaryProvider
+      effectivePrimaryProvider
     );
 
     if (hasLivePrimary) {
-      const toolContextStr = toolCalls
-        .map((t) => `[TOOL ${t.toolName}]:\n${t.rawOutput}`)
-        .join('\n\n');
       try {
         const liveRes = await this.llmClient.generateText({
-          provider: advConfig.primaryProvider,
-          model: advConfig.primaryModel,
+          provider: effectivePrimaryProvider,
+          model: effectivePrimaryModel,
           systemPrompt: assembled.primarySystemPrompt,
-          userPrompt: `MATTER RECORD EVIDENCE & MCP AUTHORITY VERIFICATION:\n${toolContextStr}\n\nATTORNEY INSTRUCTION:\n${userPrompt}`,
+          userPrompt: `MATTER RECORD EVIDENCE & MCP AUTHORITY VERIFICATION:\n${scrubbedCorpus}\n\nATTORNEY INSTRUCTION:\n${scrubbedPrompt}`,
         });
         if (liveRes.text && liveRes.text.trim().length > 0) {
           candidateDraft = liveRes.text;
@@ -189,7 +218,7 @@ export class LegalAgentLoop {
         });
         candidateDraft = simulated.draftText;
         const errMsg = (err as Error).message.replace(/[\r\n]+/g, ' ');
-        candidateDraft = `> [!NOTE]\n> **Agent Connection Note**: ${advConfig.primaryProvider.toUpperCase()} (${advConfig.primaryModel}) encountered an issue: *${errMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n${candidateDraft}`;
+        candidateDraft = `> [!NOTE]\n> **Agent Connection Note**: ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel}) encountered an issue: *${errMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n${candidateDraft}`;
       }
     } else {
       const simulated = this.llmClient.generateGroundedLegalDraft({
@@ -204,6 +233,8 @@ export class LegalAgentLoop {
     const initialDraftBeforeReview = candidateDraft;
     const allReviews: AdversarialReviewRecord[] = [];
     let revisionRoundsCompleted = 0;
+    let revisedRedlineContent: string | undefined;
+    let revisedRedlineRationale: string | undefined;
 
     // 5. Default Multi-LLM Adversarial Review Gate (runs for formal drafts or when review is explicitly enabled)
     const shouldRunReview =
@@ -226,7 +257,7 @@ export class LegalAgentLoop {
       const gateResult = await this.adversarialCoordinator.runAdversarialGate({
         messageId: assistantMessageId,
         round: 1,
-        userPrompt,
+        userPrompt: scrubbedPrompt,
         candidateDraft,
         toolCalls,
         matter,
@@ -253,9 +284,6 @@ export class LegalAgentLoop {
             'Primary model is incorporating Record Auditor & Opposing Critic objections and generating redline snapshot',
         });
 
-        let revisedRedlineContent: string | undefined;
-        let revisedRedlineRationale: string | undefined;
-
         if (hasLivePrimary) {
           const objectionsFormatted = gateResult.combinedObjections
             .map(
@@ -265,12 +293,12 @@ export class LegalAgentLoop {
             .join('\n');
 
           const revRes = await this.llmClient.generateText({
-            provider: advConfig.primaryProvider,
-            model: advConfig.primaryModel,
+            provider: effectivePrimaryProvider,
+            model: effectivePrimaryModel,
             systemPrompt: assembled.primarySystemPrompt,
             userPrompt: [
-              `ORIGINAL ATTORNEY PROMPT:\n${userPrompt}`,
-              `RETRIEVED RECORD:\n${toolCalls.map((t) => t.rawOutput).join('\n\n')}`,
+              `ORIGINAL ATTORNEY PROMPT:\n${scrubbedPrompt}`,
+              `RETRIEVED RECORD:\n${scrubbedCorpus}`,
               `YOUR INITIAL CANDIDATE DRAFT:\n${candidateDraft}`,
               `MANDATORY ADVERSARIAL REVIEW OBJECTIONS TO CURE:\n${objectionsFormatted}`,
               `Produce the final, verified legal work product curing every objection above with exact record pinpoints.`,
@@ -293,15 +321,17 @@ export class LegalAgentLoop {
         }
 
         if (revisedRedlineContent) {
+          // Rehydrate proposed redline content for the attorney workspace
+          const restoredRedlineContent = this.privacyRouter.rehydrate(revisedRedlineContent, vault);
           const redlineCall = await this.toolExecutor.executeTool(
             matterId,
             'propose_document_redline',
             {
-              newContent: revisedRedlineContent,
+              newContent: restoredRedlineContent,
               rationaleSummary: revisedRedlineRationale,
               title: `Post-Adversarial Review Draft (${new Date().toLocaleTimeString()})`,
             },
-            `${advConfig.primaryModel} (Reviewed by ${advConfig.citationAuditorModel} & ${advConfig.opposingCounselModel})`
+            `${effectivePrimaryModel} (Reviewed by ${advConfig.citationAuditorModel} & ${advConfig.opposingCounselModel})`
           );
           toolCalls.push(redlineCall);
           emit({
@@ -313,15 +343,23 @@ export class LegalAgentLoop {
       }
     }
 
+    // 7. Inbound Re-Hydration: Restore pseudonym tokens locally before presenting to attorney
+    candidateDraft = this.privacyRouter.rehydrate(candidateDraft, vault);
+    const finalInitialDraft = revisionRoundsCompleted > 0
+      ? this.privacyRouter.rehydrate(initialDraftBeforeReview, vault)
+      : undefined;
+
     const assistantMessage: LegalMessage = {
       id: assistantMessageId,
       matterId,
       role: 'assistant',
       content: candidateDraft,
-      initialDraftBeforeReview:
-        revisionRoundsCompleted > 0 ? initialDraftBeforeReview : undefined,
-      primaryProvider: advConfig.primaryProvider,
-      primaryModel: advConfig.primaryModel,
+      initialDraftBeforeReview: finalInitialDraft,
+      primaryProvider: effectivePrimaryProvider,
+      primaryModel: effectivePrimaryModel,
+      routeTier: selectedTier,
+      routingLogId: decisionLog.id,
+      piiAudit: decisionLog.piiAudit,
       reviewModeUsed: advConfig.mode,
       assembledSystemPromptSnapshot: assembled.primarySystemPrompt,
       toolCalls,

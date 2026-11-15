@@ -235,6 +235,9 @@ export interface LegalMessage {
   toolCalls: ToolCallRecord[];
   adversarialReviews: AdversarialReviewRecord[];
   revisionRoundsCompleted?: number;
+  routeTier?: RouteTier;
+  routingLogId?: string;
+  piiAudit?: PiiMaskingAudit;
   createdAt: string;
 }
 
@@ -337,6 +340,51 @@ export interface AgentSetupTerminalEvent {
   detectedAuthUrl?: string | null;
 }
 
+export type RouteTier = 'LOCAL_PRIVATE' | 'FAST_ECONOMY' | 'FRONTIER_REASONING';
+
+export type RoutingPolicyMode = 'smart_routing' | 'force_frontier' | 'local_only_airgapped';
+
+export interface PiiMaskingAudit {
+  entitiesDetectedCount: number;
+  categories: Record<string, number>;
+  tokensMasked: string[];
+  rehydrationSuccessful: boolean;
+}
+
+export interface RoutingDecisionLog {
+  id: string;
+  timestamp: string;
+  matterId: string;
+  turnNumber: number;
+  metrics: {
+    rawPromptLength: number;
+    corpusExcerptTokens: number;
+    totalInputTokens: number;
+  };
+  classification: {
+    inferredIntent: string;
+    onnxComplexityScore: number;
+    onnxLogits: Record<RouteTier, number>;
+    decisionReason: string;
+  };
+  selectedTier: RouteTier;
+  selectedModel: string;
+  costEstimate: {
+    selectedModelCostUSD: number;
+    frontierBaselineCostUSD: number;
+    estimatedSavingsUSD: number;
+  };
+  piiAudit: PiiMaskingAudit;
+}
+
+export interface PrivacyRoutingSettings {
+  policyMode: RoutingPolicyMode;
+  debugModeEnabled: boolean;
+  preDispatchReviewEnabled: boolean;
+  localSlmEndpoint?: string;
+  preferDirectMLorCoreML?: boolean;
+}
+
 export interface AppBootstrapState {
   matters: Matter[];
   activeMatterId: string;
@@ -350,4 +398,7 @@ export interface AppBootstrapState {
   assembledPromptPreview: AssembledPromptPreview;
   agentOnboarding: AgentOnboardingState;
   customMcpServers: CustomLegalMcpServer[];
+  privacyRoutingSettings: PrivacyRoutingSettings;
+  recentRoutingLogs: RoutingDecisionLog[];
 }
+

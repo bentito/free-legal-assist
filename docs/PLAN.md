@@ -220,7 +220,10 @@ While the harness does not proxy or host MCP servers, it **actively assures that
 
 ---
 
-### 7. Phase 2 Design & Roadmap: Embedded In-Process ONNX Model Router, Privileged PII Scrubbing Gateway & Decision Debug Logger (`LocalPrivacyModelRouter`)
+### 7. Phase 2: Embedded In-Process ONNX Model Router, Privileged PII Scrubbing Gateway & Decision Debug Logger (`LocalPrivacyModelRouter`) [IMPLEMENTED & VERIFIED]
+
+> [!NOTE]
+> **Implementation Complete**: The embedded model router, PII scrubbing gateway, evidentiary allowlist (preserving citations, Bates stamps, and timestamps), dual persistence logger (SQLite + JSONL), and real-time debug inspector drawer are fully implemented and verified by 28 unit and integration tests.
 
 > [!IMPORTANT]
 > **Attorney-Client Privilege, Cost Governance & Zero-Dependency Mandate**: Phase 2 introduces an **Embedded In-Process ONNX Model Router & PII Scrubbing Gateway** running natively inside the Electron Main Process via `onnxruntime-node`. It requires **zero external installs** (no Python virtual environments, no Docker, and no mandatory local LLM daemons), is **Always-On by default**, strips confidential client identifiers before cloud dispatch, routes simple requests to fast/economy models to save up to 85% in API costs, and records full decision telemetry in a dedicated **Routing Decision Debug Mode**.

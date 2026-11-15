@@ -17,6 +17,7 @@ import {
 } from './components/PromptGovernanceModal';
 import { RightWorkspacePane } from './components/RightWorkspacePane';
 import { TutorialOverlay } from './components/TutorialOverlay';
+import { RoutingDebugDrawer } from './components/RoutingDebugDrawer';
 import {
   AlertTriangle,
   ArrowRight,
@@ -71,6 +72,7 @@ export const App: React.FC = () => {
   const [isConnectAgentsOpen, setIsConnectAgentsOpen] = useState(false);
   const [isStudioOpen, setIsStudioOpen] = useState(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [isRoutingDrawerOpen, setIsRoutingDrawerOpen] = useState(false);
   const [rightPaneTab, setRightPaneTab] = useState<'redline' | 'corpus' | 'chronology'>('redline');
   const [lastUserMatterId, setLastUserMatterId] = useState<string | null>(null);
   const [tutorialBannerDismissed, setTutorialBannerDismissed] = useState<boolean>(() => {
@@ -323,6 +325,17 @@ export const App: React.FC = () => {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault();
+        setIsRoutingDrawerOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const docNeedingReview = useMemo(() => {
@@ -994,6 +1007,25 @@ export const App: React.FC = () => {
                           <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-amber-300">
                             Primary: {msg.primaryModel || 'claude-3-7-sonnet'}
                           </span>
+                          {msg.routeTier && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-medium">
+                              {msg.routeTier === 'FRONTIER_REASONING'
+                                ? 'Frontier'
+                                : msg.routeTier === 'FAST_ECONOMY'
+                                ? 'Fast Economy'
+                                : 'Local Private'}
+                            </span>
+                          )}
+                          {msg.piiAudit && (
+                            <button
+                              onClick={() => setIsRoutingDrawerOpen(true)}
+                              className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium hover:bg-emerald-500/25 transition cursor-pointer"
+                              title={`${msg.piiAudit.entitiesDetectedCount} entity tokens protected & restored. Click to inspect telemetry.`}
+                            >
+                              <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                              <span>PII Protected ({msg.piiAudit.entitiesDetectedCount})</span>
+                            </button>
+                          )}
                           {msg.isEditedByAttorney && (
                             <span className="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium">
                               Edited by Attorney
@@ -1591,6 +1623,24 @@ export const App: React.FC = () => {
                         Off
                       </option>
                     </select>
+
+                    {/* Phase 2: Privacy Model Routing & PII Shield Inspector Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setIsRoutingDrawerOpen((prev) => !prev)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 hover:border-emerald-500/50 text-emerald-300 text-xs transition cursor-pointer"
+                      title="Toggle Privacy Model Routing & Decision Debug Inspector (Cmd+Shift+D)"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>PII Shield & Routing</span>
+                      <span className="text-[10px] text-emerald-400/80 font-mono">
+                        {state?.privacyRoutingSettings?.policyMode === 'force_frontier'
+                          ? 'Frontier'
+                          : state?.privacyRoutingSettings?.policyMode === 'local_only_airgapped'
+                          ? 'Air-Gapped'
+                          : 'Smart'}
+                      </span>
+                    </button>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -1618,6 +1668,33 @@ export const App: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Routing Decision Debug Drawer */}
+              {state && (
+                <RoutingDebugDrawer
+                  isOpen={isRoutingDrawerOpen || Boolean(state.privacyRoutingSettings?.debugModeEnabled)}
+                  onClose={() => {
+                    setIsRoutingDrawerOpen(false);
+                    if (state.privacyRoutingSettings?.debugModeEnabled) {
+                      ipcBridge.savePrivacyRoutingSettings({ debugModeEnabled: false }).then(setState);
+                    }
+                  }}
+                  activeMatter={activeMatter}
+                  settings={state.privacyRoutingSettings}
+                  recentLogs={state.recentRoutingLogs}
+                  onClearLogs={async () => {
+                    const next = await ipcBridge.clearRoutingLogs({ matterId: activeMatter?.id });
+                    setState(next);
+                  }}
+                  onExportLogs={async () => {
+                    await ipcBridge.exportRoutingLogs();
+                  }}
+                  onSaveSettings={async (updated) => {
+                    const next = await ipcBridge.savePrivacyRoutingSettings(updated);
+                    setState(next);
+                  }}
+                />
+              )}
             </div>
           </div>
         </main>
@@ -1979,6 +2056,18 @@ export const App: React.FC = () => {
         }}
         onOpenExternalUrl={async (url) => {
           await ipcBridge.openExternalUrl(url);
+        }}
+        privacyRoutingSettings={state.privacyRoutingSettings}
+        onSavePrivacyRoutingSettings={async (updated) => {
+          const next = await ipcBridge.savePrivacyRoutingSettings(updated);
+          setState(next);
+        }}
+        onExportRoutingLogs={async () => {
+          await ipcBridge.exportRoutingLogs();
+        }}
+        onClearRoutingLogs={async () => {
+          const next = await ipcBridge.clearRoutingLogs({ matterId: activeMatter?.id });
+          setState(next);
         }}
         isSampleCaseLoaded={state.activeMatterId === 'matter-1794160132556'}
         onStartTutorial={() => setIsTutorialOpen(true)}

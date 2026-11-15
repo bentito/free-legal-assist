@@ -15,7 +15,9 @@ import {
   PracticeAreaId,
   PractitionerProfile,
   PractitionerProfileId,
+  PrivacyRoutingSettings,
   ProviderConfig,
+  RoutingDecisionLog,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../../shared/types';
@@ -176,13 +178,19 @@ export class LegalDatabase {
   private db!: SqlJsDatabase;
   private dbFilePath: string;
   private encryptor: SecretEncryptor;
+  private storageDir: string;
 
   constructor(storageDir: string, encryptor: SecretEncryptor = defaultEncryptor) {
+    this.storageDir = storageDir;
     if (!fs.existsSync(storageDir)) {
       fs.mkdirSync(storageDir, { recursive: true });
     }
     this.dbFilePath = path.join(storageDir, 'lexharness.sqlite');
     this.encryptor = encryptor;
+  }
+
+  getStorageDir(): string {
+    return this.storageDir;
   }
 
   async initialize(): Promise<void> {
@@ -285,6 +293,13 @@ export class LegalDatabase {
         base_url TEXT,
         default_model TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS routing_debug_logs (
+        id TEXT PRIMARY KEY,
+        matter_id TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        log_json TEXT NOT NULL
       );
     `);
 
@@ -1400,4 +1415,74 @@ export class LegalDatabase {
     );
     this.setKeyValue('agent_onboarding_state', state, true);
   }
+
+  // --- Phase 2: Privacy Model Routing & Decision Debug Logger ---
+  getPrivacyRoutingSettings(): PrivacyRoutingSettings {
+    const defaultSettings: PrivacyRoutingSettings = {
+      policyMode: 'smart_routing',
+      debugModeEnabled: false,
+      preDispatchReviewEnabled: false,
+      preferDirectMLorCoreML: true,
+    };
+    return (
+      this.getKeyValue<PrivacyRoutingSettings>('privacy_routing_settings') ??
+      defaultSettings
+    );
+  }
+
+  savePrivacyRoutingSettings(
+    updated: Partial<PrivacyRoutingSettings>
+  ): PrivacyRoutingSettings {
+    const current = this.getPrivacyRoutingSettings();
+    const merged: PrivacyRoutingSettings = {
+      ...current,
+      ...updated,
+    };
+    this.setKeyValue('privacy_routing_settings', merged, true);
+    return merged;
+  }
+
+  insertRoutingDebugLog(log: RoutingDecisionLog, flush = true): void {
+    this.db.run(
+      `INSERT OR REPLACE INTO routing_debug_logs (id, matter_id, timestamp, log_json)
+       VALUES (?, ?, ?, ?)`,
+      [log.id, log.matterId, log.timestamp, JSON.stringify(log)]
+    );
+    if (flush) this.persist();
+  }
+
+  listRoutingDebugLogs(matterId?: string, limit = 50): RoutingDecisionLog[] {
+    let query = 'SELECT log_json FROM routing_debug_logs';
+    const params: (string | number)[] = [];
+    if (matterId) {
+      query += ' WHERE matter_id = ?';
+      params.push(matterId);
+    }
+    query += ' ORDER BY timestamp DESC LIMIT ?';
+    params.push(limit);
+
+    const stmt = this.db.prepare(query);
+    stmt.bind(params);
+    const results: RoutingDecisionLog[] = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject() as { log_json: string };
+      try {
+        results.push(JSON.parse(row.log_json) as RoutingDecisionLog);
+      } catch {
+        // Skip corrupted row
+      }
+    }
+    stmt.free();
+    return results;
+  }
+
+  clearRoutingDebugLogs(matterId?: string): void {
+    if (matterId) {
+      this.db.run('DELETE FROM routing_debug_logs WHERE matter_id = ?', [matterId]);
+    } else {
+      this.db.run('DELETE FROM routing_debug_logs');
+    }
+    this.persist();
+  }
 }
+

@@ -10,6 +10,8 @@ import {
   LLMProviderId,
   PracticeAreaId,
   PractitionerProfileId,
+  PrivacyRoutingSettings,
+  RoutingDecisionLog,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../../shared/types';
@@ -125,6 +127,20 @@ declare global {
         sourceCitation: string;
         status: ChronologyFact['status'];
       }): Promise<AppBootstrapState>;
+      getPrivacyRoutingSettings(): Promise<PrivacyRoutingSettings>;
+      savePrivacyRoutingSettings(
+        settings: Partial<PrivacyRoutingSettings>
+      ): Promise<AppBootstrapState>;
+      getRoutingLogs(payload?: {
+        matterId?: string;
+        limit?: number;
+      }): Promise<RoutingDecisionLog[]>;
+      clearRoutingLogs(payload?: {
+        matterId?: string;
+      }): Promise<AppBootstrapState>;
+      exportRoutingLogs(payload?: {
+        destinationPath?: string;
+      }): Promise<string>;
       onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
       onAgentSetupTerminal(
         callback: (event: AgentSetupTerminalEvent) => void
@@ -336,6 +352,35 @@ export const ipcBridge = {
     status: ChronologyFact['status'];
   }): Promise<AppBootstrapState> {
     return window.lexharness!.addChronologyFact(payload);
+  },
+
+  async getPrivacyRoutingSettings(): Promise<PrivacyRoutingSettings> {
+    return window.lexharness!.getPrivacyRoutingSettings();
+  },
+
+  async savePrivacyRoutingSettings(
+    settings: Partial<PrivacyRoutingSettings>
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.savePrivacyRoutingSettings(settings);
+  },
+
+  async getRoutingLogs(payload?: {
+    matterId?: string;
+    limit?: number;
+  }): Promise<RoutingDecisionLog[]> {
+    return window.lexharness!.getRoutingLogs(payload);
+  },
+
+  async clearRoutingLogs(payload?: {
+    matterId?: string;
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.clearRoutingLogs(payload);
+  },
+
+  async exportRoutingLogs(payload?: {
+    destinationPath?: string;
+  }): Promise<string> {
+    return window.lexharness!.exportRoutingLogs(payload);
   },
 
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void {

@@ -11,6 +11,8 @@ import {
   LLMProviderId,
   PracticeAreaId,
   PractitionerProfileId,
+  PrivacyRoutingSettings,
+  RoutingDecisionLog,
   SystemPromptSettings,
   UpdateMatterPayload,
 } from '../shared/types';
@@ -124,6 +126,11 @@ export interface LexHarnessBridge {
     sourceCitation: string;
     status: ChronologyFact['status'];
   }): Promise<AppBootstrapState>;
+  getPrivacyRoutingSettings(): Promise<PrivacyRoutingSettings>;
+  savePrivacyRoutingSettings(settings: Partial<PrivacyRoutingSettings>): Promise<AppBootstrapState>;
+  getRoutingLogs(payload?: { matterId?: string; limit?: number }): Promise<RoutingDecisionLog[]>;
+  clearRoutingLogs(payload?: { matterId?: string }): Promise<AppBootstrapState>;
+  exportRoutingLogs(payload?: { destinationPath?: string }): Promise<string>;
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
   onAgentSetupTerminal(callback: (event: AgentSetupTerminalEvent) => void): () => void;
 }
@@ -178,6 +185,16 @@ const bridge: LexHarnessBridge = {
   updateMessage: (payload) => ipcRenderer.invoke('legal:update-message', payload),
   addChronologyFact: (payload) =>
     ipcRenderer.invoke('legal:add-chronology-fact', payload),
+  getPrivacyRoutingSettings: () =>
+    ipcRenderer.invoke('legal:get-privacy-routing-settings'),
+  savePrivacyRoutingSettings: (settings) =>
+    ipcRenderer.invoke('legal:save-privacy-routing-settings', { settings }),
+  getRoutingLogs: (payload) =>
+    ipcRenderer.invoke('legal:get-routing-logs', payload),
+  clearRoutingLogs: (payload) =>
+    ipcRenderer.invoke('legal:clear-routing-logs', payload),
+  exportRoutingLogs: (payload) =>
+    ipcRenderer.invoke('legal:export-routing-logs', payload),
   onAgentProgress: (callback) => {
     const listener = (_event: unknown, data: AgentProgressEvent) => callback(data);
     ipcRenderer.on('legal:agent-progress', listener);
