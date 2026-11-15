@@ -11,11 +11,22 @@ export class OnnxPiiClassifier {
   }
 
   private initModel(): void {
-    const candidatePath =
-      this.modelPath ||
-      path.join(process.cwd(), 'resources', 'models', 'legal-ner-scrubber.onnx');
+    const candidatePaths = [
+      this.modelPath,
+      path.join(process.cwd(), 'resources', 'models', 'legal-ner-scrubber.onnx'),
+      path.join(__dirname, '../../../../resources', 'models', 'legal-ner-scrubber.onnx'),
+      path.join(__dirname, '../../../resources', 'models', 'legal-ner-scrubber.onnx'),
+      process.resourcesPath
+        ? path.join(process.resourcesPath, 'resources', 'models', 'legal-ner-scrubber.onnx')
+        : undefined,
+      process.resourcesPath
+        ? path.join(process.resourcesPath, 'models', 'legal-ner-scrubber.onnx')
+        : undefined,
+    ].filter(Boolean) as string[];
 
-    if (!fs.existsSync(candidatePath)) {
+    const candidatePath = candidatePaths.find((p) => fs.existsSync(p));
+
+    if (!candidatePath) {
       this.isModelLoaded = false;
       return;
     }

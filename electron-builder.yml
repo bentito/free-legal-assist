@@ -9,6 +9,10 @@ files:
   - package.json
 mac:
   category: public.app-category.productivity
+  extendInfo:
+    NSDownloadsFolderUsageDescription: "LexHarness accesses the Downloads folder only when you explicitly choose to import case documents."
+    NSDocumentsFolderUsageDescription: "LexHarness accesses the Documents folder only when you explicitly choose to import case documents."
+    NSDesktopFolderUsageDescription: "LexHarness accesses the Desktop folder only when you explicitly choose to import case documents."
   target:
     - dmg
     - zip

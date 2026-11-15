@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, safeStorage, session, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { LegalDatabase, SecretEncryptor } from './db/database';
@@ -667,6 +667,28 @@ async function createWindow(): Promise<void> {
 
 app.whenReady().then(async () => {
   const userDataDir = path.join(app.getPath('userData'), 'lexharness-data');
+  if (!fs.existsSync(userDataDir)) {
+    fs.mkdirSync(userDataDir, { recursive: true });
+  }
+
+  // Prevent main process or spawned sub-processes from defaulting cwd to user's home directory
+  try {
+    process.chdir(userDataDir);
+  } catch {
+    // Ignore if not allowed
+  }
+
+  // Configure Chromium download path to internal sandboxed directory so Chromium never probes ~/Downloads
+  try {
+    const safeDownloadsDir = path.join(userDataDir, 'downloads');
+    if (!fs.existsSync(safeDownloadsDir)) {
+      fs.mkdirSync(safeDownloadsDir, { recursive: true });
+    }
+    session.defaultSession.setDownloadPath(safeDownloadsDir);
+  } catch {
+    // Ignore in non-GUI or test environments
+  }
+
   db = new LegalDatabase(userDataDir, createSafeStorageEncryptor());
   await db.initialize();
   agentLoop = new LegalAgentLoop(db);

@@ -31,6 +31,24 @@ export class CliAgentDriverManager {
   private static cachedMachineLabel: string | null = null;
   private static activeSetupSessions = new Map<string, ChildProcess>();
 
+  /**
+   * Provides an isolated fallback working directory for CLI agent subprocesses
+   * (e.g. `codex exec`, `claude -p`, `agy`), preventing them from executing in
+   * the user's home directory (`~`) where file scanning triggers macOS TCC
+   * permission prompts across ~/Downloads, ~/Documents, and ~/Desktop.
+   */
+  static getSafeFallbackCwd(): string {
+    const candidate = path.join(os.tmpdir(), 'lexharness-agent-sandbox');
+    try {
+      if (!fs.existsSync(candidate)) {
+        fs.mkdirSync(candidate, { recursive: true });
+      }
+      return candidate;
+    } catch {
+      return os.tmpdir();
+    }
+  }
+
   static getExtendedPathEnv(): NodeJS.ProcessEnv {
     const home = os.homedir();
     const isWin = process.platform === 'win32';
@@ -79,13 +97,28 @@ export class CliAgentDriverManager {
     const env = this.getExtendedPathEnv();
     const pathDirs = (env.PATH || '').split(isWin ? ';' : ':').filter(Boolean);
 
+    // Prevent probing into protected macOS user directories (Downloads, Documents, Desktop)
+    const isProtected = (targetDir: string) => {
+      const resolved = path.resolve(targetDir);
+      if (resolved === home) return true;
+      for (const p of [
+        path.join(home, 'Downloads'),
+        path.join(home, 'Documents'),
+        path.join(home, 'Desktop'),
+      ]) {
+        if (resolved === p || resolved.startsWith(p + path.sep)) return true;
+      }
+      return false;
+    };
+    const safePathDirs = pathDirs.filter((dir) => !isProtected(dir));
+
     const candidateNames: Record<'agy-acp' | 'codex-cli' | 'claude-cli', string[]> = {
       'agy-acp': isWin ? ['agy.exe', 'agy.cmd', 'agy'] : ['agy', 'antigravity'],
       'codex-cli': isWin ? ['codex.exe', 'codex.cmd', 'codex'] : ['codex'],
       'claude-cli': isWin ? ['claude.exe', 'claude.cmd', 'claude'] : ['claude'],
     };
 
-    for (const dir of pathDirs) {
+    for (const dir of safePathDirs) {
       for (const name of candidateNames[providerId]) {
         const full = path.join(dir, name);
         try {
@@ -285,7 +318,7 @@ export class CliAgentDriverManager {
         const { stdout, stderr } = await execFileAsync(
           syncStatus.resolvedBinaryPath,
           ['--version'],
-          { env, timeout: 4000 }
+          { env, cwd: this.getSafeFallbackCwd(), timeout: 4000 }
         );
         const verOut = (stdout || stderr).trim().split('\n')[0];
         if (verOut) {
@@ -429,7 +462,14 @@ export class CliAgentDriverManager {
         ];
 
         try {
-          await this.spawnWithStdin(input.binary, args, input.prompt, input.env, input.cwd, 120_000);
+          await this.spawnWithStdin(
+            input.binary,
+            args,
+            input.prompt,
+            input.env,
+            input.cwd || tmpDir,
+            120_000
+          );
           if (fs.existsSync(outputPath)) {
             const text = fs.readFileSync(outputPath, 'utf8').trim();
             if (text) return text;
@@ -483,7 +523,7 @@ export class CliAgentDriverManager {
         AGY_ACP_FORCE_FILE_STORAGE: '1',
         PYTHONUNBUFFERED: '1',
       },
-      input.cwd,
+      input.cwd || this.getSafeFallbackCwd(),
       120_000
     );
     return out.trim();
@@ -517,7 +557,7 @@ export class CliAgentDriverManager {
       args,
       '',
       input.env,
-      input.cwd,
+      input.cwd || this.getSafeFallbackCwd(),
       120_000
     );
     return out.trim();
@@ -538,7 +578,7 @@ export class CliAgentDriverManager {
 
       const child = spawn(command, args, {
         env,
-        cwd: cwd || os.homedir(),
+        cwd: cwd || this.getSafeFallbackCwd(),
         shell: useShell,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -1463,7 +1503,7 @@ Command: ${server.command} ${server.args.join(' ')}
 
     const child = spawn(shellCmd, shellArgs, {
       env,
-      cwd: os.homedir(),
+      cwd: params.instance.shadowHomePath || this.getSafeFallbackCwd(),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 

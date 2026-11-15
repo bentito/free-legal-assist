@@ -19,11 +19,22 @@ export class OnnxRouterEngine {
   }
 
   private initModel(): void {
-    const candidatePath =
-      this.modelPath ||
-      path.join(process.cwd(), 'resources', 'models', 'legal-complexity-router.onnx');
+    const candidatePaths = [
+      this.modelPath,
+      path.join(process.cwd(), 'resources', 'models', 'legal-complexity-router.onnx'),
+      path.join(__dirname, '../../../../resources', 'models', 'legal-complexity-router.onnx'),
+      path.join(__dirname, '../../../resources', 'models', 'legal-complexity-router.onnx'),
+      process.resourcesPath
+        ? path.join(process.resourcesPath, 'resources', 'models', 'legal-complexity-router.onnx')
+        : undefined,
+      process.resourcesPath
+        ? path.join(process.resourcesPath, 'models', 'legal-complexity-router.onnx')
+        : undefined,
+    ].filter(Boolean) as string[];
 
-    if (!fs.existsSync(candidatePath)) {
+    const candidatePath = candidatePaths.find((p) => fs.existsSync(p));
+
+    if (!candidatePath) {
       this.isModelLoaded = false;
       return;
     }
