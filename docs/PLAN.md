@@ -455,3 +455,22 @@ While LexHarness currently intentionally unifies each Matter into a single direc
 3. **Thread Merging & Master Brief Synthesis**:
    - Synthesizing findings and draft sections from multiple exploratory threads into the matter's primary pleading or appellate brief.
 
+---
+
+## 11. Future Work: Lean Discovery Document Ingestion & Folder Sync
+
+To support day-to-day casework document intake without manual copy-pasting, the following lean document intake features are planned:
+
+1. **Native File Import & Drag-and-Drop (Documents Tab)**:
+   - **Supported Formats**: Plain text (`.txt`, `.md`), transcript files, Word documents (`.docx`), and searchable text PDFs (`.pdf`).
+   - **No OCR Scope Creep**: Exclude OCR / image scanning engines to keep the application lightweight, fast, and dependency-free.
+   - **Intake Flow**: Dragging files into the Documents tab (or clicking an "Import Files..." button) prompts a quick confirmation for title, category (*Discovery, Transcript, Pleading, Authority*), and Bates range, then indexes the text directly into the matter's SQLite record.
+
+2. **Matter Folder Watcher & Auto-Sync**:
+   - Activate the existing `folderPath` setting on Matters with a lightweight filesystem scanner.
+   - When new files (such as supplemental disclosures from opposing counsel) are saved into the linked folder, LexHarness automatically indexes them into the active matter's documents.
+
+3. **In-Composer Document Attachments**:
+   - Allow dragging a document directly into the prompt composer during active drafting (e.g., *"Here is the supplemental affidavit received today; audit it against our motion"*).
+   - Ingests the file into the matter record and immediately includes it in the prompt context.
+
