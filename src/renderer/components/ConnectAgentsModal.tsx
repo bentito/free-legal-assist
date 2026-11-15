@@ -330,8 +330,8 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
                   How are you setting up LexHarness?
                 </h2>
                 <p className="mt-1 text-sm text-neutral-400">
-                  Run legal CLI agents directly on this workstation or connect to a
-                  remote legal sandbox.
+                  Run legal assistants directly on this Mac or connect to a
+                  secure remote environment.
                 </p>
               </div>
 
@@ -424,7 +424,7 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
                       setIsRefreshing(false);
                     }
                   }}
-                  title="Re-probe local CLI binaries and auth sessions"
+                  title="Check connection and sign-in status"
                   className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-800 bg-neutral-900/80 px-2.5 py-1.5 text-xs text-neutral-300 hover:border-neutral-700 hover:text-white transition"
                 >
                   <RefreshCw
@@ -723,7 +723,7 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
               </h3>
               <p className="mt-1 text-xs text-neutral-400">
                 Save a name first, then sign in with ChatGPT to finish connecting
-                an isolated Codex shadow-home profile.
+                an isolated OpenAI account profile.
               </p>
             </div>
 

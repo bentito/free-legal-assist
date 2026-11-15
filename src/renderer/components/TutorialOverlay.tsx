@@ -48,29 +48,29 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome_docket',
     targetSelector: '#tour-matter-overview',
-    title: 'Welcome to Free Legal Assist (LexHarness)',
-    subtitle: 'Confidential AI Control Surface for Legal Practice',
+    title: 'Welcome to LexHarness',
+    subtitle: 'Private & Confidential Legal Drafting Workspace',
     category: 'Casework & Docket Administration',
     icon: <Scale className="w-5 h-5 text-amber-400" />,
     content: [
-      'Free Legal Assist is an attorney-governed workbench designed for discovery review, legal research, and pleading preparation.',
+      'LexHarness is a private legal workspace designed for case analysis, discovery review, legal research, and drafting motions and memoranda.',
       'We have pre-loaded a live criminal defense sample matter: John Doe v. State of Vermont (Docket No. 25-CR-00123).',
       'The left sidebar manages your active matters, forum jurisdictions (Vermont Superior Court), and citation manuals (The Bluebook).',
     ],
     keyHighlight:
-      'Active Sample Case: John Doe v. State of Vermont with live work product, BWC transcripts, and adversarial audits.',
+      'Active Sample Case: John Doe v. State of Vermont with live work product, BWC transcripts, and citation review.',
     cardPlacement: 'center',
   },
   {
     id: 'corpus_discovery',
     targetSelector: '#tour-corpus-tab',
-    title: '1. Matter Corpus & Discovery Pinpoints',
+    title: '1. Case Documents & Evidentiary Pinpoints',
     subtitle: 'Indexed Affidavits, Body-Worn Camera & Rule 15 Depositions',
     category: 'Evidentiary Record Integrity',
     icon: <FileSearch className="w-5 h-5 text-amber-400" />,
     content: [
-      'All case files are cataloged in the Matter Corpus with verified Bates numbering (STATE-0001 to STATE-0005, STATE-BWC-0009, DEF-DEP-0018).',
-      'AI agents use the search_matter_corpus tool to ground every factual assertion directly in the record rather than hallucinating.',
+      'All case files are organized in Case Documents with verified Bates numbering (STATE-0001 to STATE-0005, STATE-BWC-0009, DEF-DEP-0018).',
+      'Drafting assistants search the case record to ground every factual assertion directly in evidentiary pinpoints.',
       'Notice the Body-Worn Camera (BWC) transcript and Rule 15 deposition of Trooper Keller, which establish key timeline contradictions.',
     ],
     keyHighlight:
@@ -81,35 +81,35 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'agents_composer',
     targetSelector: '#tour-composer',
-    title: '2. Directing Agents & Practice Tasks',
-    subtitle: 'Practitioner Profiles & Multi-Model Execution',
-    category: 'Agent Orchestration & Governance',
+    title: '2. Directing Legal Assistants & Practice Tasks',
+    subtitle: 'Practice Focus & Assistant Selection',
+    category: 'Practice Focus & Direction',
     icon: <Send className="w-5 h-5 text-amber-400" />,
     content: [
-      'Use the bottom composer to instruct AI agents. Select your active Practitioner Profile (e.g. Vermont Criminal Defense Lawyer vs. General Practice).',
-      'Choose a specialized Practice Task (e.g. Suppression & Art. 11, Bail Conditions, or Discovery Audit) to automatically inject controlling constitutional standards into the agent context.',
-      'Select your lead drafter from local CLI agents (Codex gpt-6, Claude Agent, Antigravity ACP gemini-4) or API providers.',
+      'Use the composer below to direct your assistant. Select your active Practitioner Profile (e.g. Vermont Criminal Defense Lawyer vs. General Practice).',
+      'Choose a specialized Practice Task (e.g. Suppression & Art. 11, Bail Conditions, or Discovery Audit) to automatically focus drafting on controlling constitutional tests and precedent.',
+      'Select your drafting assistant from connected desktop agents (such as OpenAI Codex, Claude, or Gemini) or local assistants.',
     ],
     keyHighlight:
-      'Governed Prompts: Controlling precedent (State v. Sprague, State v. Bauder) is enforced at the prompt layer.',
+      'Governed Legal Context: Controlling precedent (State v. Sprague, State v. Bauder) is automatically applied to every draft.',
     cardPlacement: 'top-left',
   },
   {
     id: 'adversarial_review_gate',
     targetSelector: '#tour-review-gate',
-    title: '3. Multi-LLM Adversarial Review Gate',
-    subtitle: 'Pre-Presentation Cross-Examination by Specialized Critics',
-    category: 'Ethical Quality Assurance',
+    title: '3. Multi-Perspective Peer Review',
+    subtitle: 'Automated Citation Auditing & Opposing Counsel Review',
+    category: 'Quality & Evidentiary Verification',
     icon: <Gavel className="w-5 h-5 text-amber-400" />,
     content: [
-      'Before a candidate draft reaches counsel, it passes through an automated Adversarial Review Gate.',
-      'Two independent critic models stress-test the work in parallel:',
-      '• Citation & Discovery Auditor (Gemini 2.5 Pro): Catches erroneous citations and enforces state constitutional primacy (Vt. Const. ch. I, art. 11 over federal Mimms).',
-      '• Opposing Counsel Critic (OpenAI o3-mini): Anticipates State\'s Attorney counterarguments and spots procedural gaps.',
-      'The lead drafter automatically cures objections and redlines the document before delivering it to you.',
+      'Before a draft is presented for your review, it undergoes an automated peer review.',
+      'Two independent review perspectives examine the work in parallel:',
+      '• Citation & Record Auditor (Gemini 2.5 Pro): Catches misattributed citations and ensures controlling state constitutional authority takes precedence over federal baselines.',
+      '• Opposing Perspective Reviewer (OpenAI o3-mini): Anticipates opposing counsel\'s counterarguments and spots potential evidentiary or procedural vulnerabilities.',
+      'The drafting assistant addresses objections and prepares a clean revision for your review.',
     ],
     keyHighlight:
-      'Peer-Reviewed Quality: Hallucinations and concessions are caught and resolved before attorney review.',
+      'Verified Work Product: Uncited assertions and potential weaknesses are flagged and addressed before attorney review.',
     cardPlacement: 'center',
   },
   {
@@ -122,7 +122,7 @@ const TOUR_STEPS: TourStep[] = [
     content: [
       'In the right workspace pane, inspect the finalized memorandum and toggle between draft versions to inspect redline diffs.',
       'You can edit the document text directly in place at any time.',
-      'Notice the status badge: editing a reviewed document marks it as "Changed • Needs Review" and surfaces a 1-click "Run Review" button to immediately re-audit your modifications against the corpus.',
+      'Notice the status badge: editing a reviewed document marks it as "Changed • Needs Review" and surfaces a 1-click "Run Review" button to immediately re-audit your modifications against the case record.',
     ],
     keyHighlight:
       'Seamless Re-Audit: Edit directly with full confidence that changes can be audited in seconds.',
@@ -137,8 +137,8 @@ const TOUR_STEPS: TourStep[] = [
     category: 'Practice Governance & Next Steps',
     icon: <Settings2 className="w-5 h-5 text-amber-400" />,
     content: [
-      'You now understand the complete Free Legal Assist workflow: Matter Corpus → Governed Prompting → Adversarial Review → Work Product & In-Place Editing.',
-      'You can customize prompt profiles, add custom legal MCP servers, and configure review models anytime in Settings.',
+      'You now understand the complete LexHarness workflow: Case Documents → Guided Drafting → Independent Peer Review → Work Product & In-Place Editing.',
+      'You can customize prompt profiles, connect legal research tools, and configure review models anytime in Settings.',
       'You can reopen this Guided Tour at any time using the Tour button in the top bar or inside Settings.',
     ],
     keyHighlight:

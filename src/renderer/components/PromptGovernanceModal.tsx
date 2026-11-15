@@ -375,9 +375,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             >
               <Scale className="w-4 h-4 shrink-0" />
               <div>
-                <div className="font-semibold">Layer 1: Core Legal Mandate</div>
+                <div className="font-semibold">Core Legal Principles</div>
                 <div className="text-[10px] opacity-75">
-                  Constitutional & Ethical Guardrails
+                  Constitutional & Ethical Standards
                 </div>
               </div>
             </button>
@@ -392,7 +392,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             >
               <Sparkles className="w-4 h-4 shrink-0" />
               <div>
-                <div className="font-semibold">Layer 2: Task Presets</div>
+                <div className="font-semibold">Practice Task Presets</div>
                 <div className="text-[10px] opacity-75">
                   Suppression, Bail, Discovery, etc.
                 </div>
@@ -409,7 +409,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             >
               <Sliders className="w-4 h-4 shrink-0" />
               <div>
-                <div className="font-semibold">Layer 3: Matter & Forum</div>
+                <div className="font-semibold">Matter & Forum Rules</div>
                 <div className="text-[10px] opacity-75">
                   Court Rules & Citation Manual
                 </div>
@@ -443,9 +443,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
             >
               <KeyRound className="w-4 h-4 shrink-0" />
               <div>
-                <div className="font-semibold">AI Agents & Models</div>
+                <div className="font-semibold">Drafting & Review Models</div>
                 <div className="text-[10px] opacity-75">
-                  Codex, Claude, Models & API Keys
+                  Connected Agents, Models & Keys
                 </div>
               </div>
             </button>
@@ -461,7 +461,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               <Wrench className="w-4 h-4 shrink-0 text-amber-400" />
               <div>
                 <div className="font-semibold flex items-center gap-1.5">
-                  <span>Legal MCP Tools</span>
+                  <span>Legal Research Connections</span>
                   {courtListenerAssurance?.hasInstalledAgent && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   )}
@@ -469,7 +469,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="text-[10px] opacity-75 truncate max-w-[170px]">
                   {courtListenerAssurance?.configuredAgentDisplayName
                     ? `Active on ${courtListenerAssurance.configuredAgentDisplayName}`
-                    : 'CourtListener & Custom MCPs'}
+                    : 'CourtListener & Caselaw Tools'}
                 </div>
               </div>
             </button>
@@ -504,7 +504,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div>
                   <div className="font-semibold">Live Assembled Prompt</div>
                   <div className="text-[10px] opacity-75">
-                    Inspect Full Payload Sent to Models
+                    Inspect Exact Instructions Sent to Models
                   </div>
                 </div>
               </button>
@@ -518,7 +518,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 1 — Core Legal Mandate ({activeProfile?.name})
+                      Core Legal Principles ({activeProfile?.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Governs every turn for this Practitioner Profile. Enforces constitutional primacy, record pinpoint citations, and strict legal standards.
@@ -528,7 +528,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                     onClick={handleSavePrompts}
                     className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
                   >
-                    Save Layer 1 Prompt
+                    Save Core Principles
                   </button>
                 </div>
 
@@ -546,7 +546,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-100">
-                      Layer 2 — Task & Practice Area Presets ({activeProfile?.name})
+                      Practice Area & Task Presets ({activeProfile?.name})
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       Select and customize the task persona instructions for {activeProfile?.name}.
@@ -608,10 +608,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-semibold text-slate-100">
-                        Layer 3 — Active Matter / Docket Jurisdiction & Citation Manual ({activeMatter.name})
+                        Matter Jurisdiction & Citation Rules ({activeMatter.name})
                       </h3>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        Injected into both the Primary Legal Model and Adversarial Critics to enforce controlling forum law and citation style.
+                        Provided to both the Drafting Assistant and Reviewers to enforce controlling forum law and citation style.
                       </p>
                     </div>
                   <div className="flex items-center gap-2">
@@ -865,7 +865,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                               </span>
                               {isCliHarness && (
                                 <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                  T3 CLI Driver: {prov.driverKind}
+                                  Desktop Agent: {prov.driverKind}
                                 </span>
                               )}
                               <span
@@ -880,8 +880,8 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                                   : isCliHarness
                                     ? prov.runtimeStatus?.installed
                                       ? `Installed (${prov.runtimeStatus.authLabel})`
-                                      : 'CLI Binary Not Detected (Fallback Active)'
-                                    : 'Using Local Legal Test Fallback'}
+                                      : 'Agent Not Installed (Using Built-In Assistant)'
+                                    : 'Using Built-In Assistant'}
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-400 mt-0.5">
@@ -1063,7 +1063,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                     Legal Research Tools (CourtListener MCP)
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Legal research tools connect directly to your local AI agents (OpenAI Codex, Claude Code, Antigravity ACP). LexHarness ensures at least one active agent is equipped with live legal research capabilities.
+                    Legal research tools connect directly to your desktop AI agents (OpenAI Codex, Claude Code, Antigravity). LexHarness ensures at least one active assistant is equipped with live legal research capabilities.
                   </p>
                 </div>
 
@@ -1109,7 +1109,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                               key={d}
                               className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-950 border border-emerald-700/60 text-emerald-300"
                             >
-                              {d === 'codex' ? 'Codex CLI' : d === 'claudeAgent' ? 'Claude Code' : 'Antigravity'}
+                              {d === 'codex' ? 'OpenAI Codex' : d === 'claudeAgent' ? 'Claude' : 'Antigravity'}
                             </span>
                           ))
                         ) : (
@@ -1503,7 +1503,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                           Active
                         </span>
                         <div className="text-[10px] text-slate-400">
-                          Host: <span className="text-amber-300 font-mono">{courtListenerAssurance?.configuredAgentDisplayName || 'Codex CLI'}</span>
+                          Agent: <span className="text-amber-300 font-mono">{courtListenerAssurance?.configuredAgentDisplayName || 'OpenAI Codex'}</span>
                         </div>
                       </div>
                     </div>
@@ -1559,16 +1559,16 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               <div className="space-y-5">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-100">
-                    Live Assembled System Prompt Payload ({assembledPromptPreview.profileName} • {assembledPromptPreview.matterName})
+                    Assembled Instructions & Context ({assembledPromptPreview.profileName} • {assembledPromptPreview.matterName})
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Exact runtime prompt hierarchy assembled from Layers 1, 2, 3, and 3B (Configured Legal MCP Toolsets) and sent to the active models.
+                    Complete instruction context assembled from Core Principles, Practice Task, Matter Rules, and Legal Research Tools.
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <div className="text-xs font-semibold text-amber-300">
-                    Assembled Primary Counsel System Prompt (Layers 1 + 2 + 3 + 3B Legal MCPs)
+                    Assembled Drafting Instructions (Core Principles + Practice Task + Matter Rules + Research Tools)
                   </div>
                   <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
                     {assembledPromptPreview.primarySystemPrompt}
@@ -1578,7 +1578,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="text-xs font-semibold text-emerald-300">
-                      Assembled Critic #1 Prompt (Citation & Record Auditor)
+                      Reviewer #1 Instructions (Citation & Record Auditor)
                     </div>
                     <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
                       {assembledPromptPreview.citationAuditorSystemPrompt}
@@ -1586,7 +1586,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   </div>
                   <div className="space-y-2">
                     <div className="text-xs font-semibold text-rose-300">
-                      Assembled Critic #2 Prompt (Prosecutor / Opposing Critic)
+                      Reviewer #2 Instructions (Opposing Perspective / Counterarguments)
                     </div>
                     <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
                       {assembledPromptPreview.opposingCounselSystemPrompt}
@@ -1610,7 +1610,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                           Guided Tour & Intended Workflow
                         </h3>
                         <p className="text-xs text-slate-400">
-                          Learn how Free Legal Assist guards evidentiary integrity with Multi-LLM adversarial review.
+                          Learn how LexHarness safeguards evidentiary integrity through multi-model peer review.
                         </p>
                       </div>
                     </div>
@@ -1678,10 +1678,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
                         1
                       </span>
-                      <span>Matter Corpus & Bates Pinpointing</span>
+                      <span>Case Documents & Bates Pinpointing</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Upload or index police affidavits, BWC transcripts, Rule 15 depositions, and statutory authority. AI agents query the corpus with exact Bates numbers to prevent hallucinations.
+                      Upload or index police affidavits, body-worn camera transcripts, Rule 15 depositions, and statutory authority. Drafting assistants query the case record using exact Bates numbers to anchor every assertion directly in evidence.
                     </p>
                   </div>
 
@@ -1704,10 +1704,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
                         3
                       </span>
-                      <span>Multi-LLM Adversarial Review Gate</span>
+                      <span>Multi-Perspective Peer Review</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Candidate work product is audited in parallel by the Citation Auditor (Gemini Pro) and Opposing Counsel Critic (o3-mini). Objections are cured and redlined before presentation.
+                      Candidate drafts are reviewed in parallel by the Citation Auditor and Opposing Counsel Reviewer. Objections are addressed and redlined before presentation.
                     </p>
                   </div>
 

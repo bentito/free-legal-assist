@@ -371,7 +371,7 @@ export const App: React.FC = () => {
         <div className="flex items-center gap-3">
           <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
           <span className="text-sm font-medium">
-            Initializing LexHarness Local Legal Database & Control Surface...
+            Opening LexHarness Legal Workspace...
           </span>
         </div>
       </div>
@@ -383,7 +383,7 @@ export const App: React.FC = () => {
       <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-rose-300 p-8">
         <div className="max-w-lg p-6 rounded-xl bg-slate-900 border border-rose-500/40 space-y-2">
           <div className="font-semibold text-base">
-            Failed to initialize LexHarness Runtime
+            Failed to open LexHarness workspace
           </div>
           <p className="text-xs text-slate-300 font-mono">{error}</p>
         </div>
@@ -407,14 +407,14 @@ export const App: React.FC = () => {
 
   const formatAgentLabel = (p?: ProviderConfig) => {
     if (!p) return 'Agent';
-    if (p.id === 'agy-acp') return 'Antigravity ACP (T3 Native)';
-    if (p.id === 'claude-cli') return 'Claude Code CLI';
-    if (p.id === 'codex-cli') return 'OpenAI Codex CLI';
-    if (p.id === 'anthropic') return 'Anthropic Claude API';
-    if (p.id === 'openai') return 'OpenAI Direct API';
-    if (p.id === 'gemini') return 'Google Gemini API';
-    if (p.id === 'openrouter') return 'OpenRouter / Local';
-    if (p.id === 'legal-simulator') return 'Offline Simulator';
+    if (p.id === 'agy-acp') return 'Antigravity Desktop Agent';
+    if (p.id === 'claude-cli') return 'Claude Desktop Agent';
+    if (p.id === 'codex-cli') return 'OpenAI Codex Agent';
+    if (p.id === 'anthropic') return 'Anthropic Claude';
+    if (p.id === 'openai') return 'OpenAI Direct';
+    if (p.id === 'gemini') return 'Google Gemini';
+    if (p.id === 'openrouter') return 'OpenRouter / Custom';
+    if (p.id === 'legal-simulator') return 'Built-In Offline Assistant';
     return p.name;
   };
 
@@ -524,7 +524,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 select-none overflow-hidden">
-      {/* Top macOS-friendly Titlebar & Control Surface Header */}
+      {/* Top macOS-friendly Titlebar & Header */}
       <header
         className={`h-[52px] shrink-0 bg-slate-950 border-b border-slate-800/90 flex items-center justify-between ${
           isMac ? 'pl-24' : 'pl-4'
@@ -627,7 +627,7 @@ export const App: React.FC = () => {
               setIsStudioOpen(true);
             }}
             className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
-            title="Configure Practice Area, Adversarial Prompts & Multi-LLM Rules"
+            title="Configure Practice Area, Review Rules & Model Settings"
           >
             <Settings2 className="w-3.5 h-3.5 text-amber-400" />
             <span>Settings</span>
@@ -650,7 +650,7 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main 3-Pane Control Surface */}
+      {/* Main 3-Pane Legal Workspace */}
       <div className="flex-1 flex min-h-0">
         {/* LEFT PANE: Matters, Threads & Multi-LLM Harness Status */}
         <aside className="w-72 shrink-0 bg-slate-900/75 border-r border-slate-800 flex flex-col justify-between">
@@ -902,7 +902,7 @@ export const App: React.FC = () => {
                 <div className="flex items-center gap-2.5">
                   <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>
-                    New to Free Legal Assist? Take our 2-minute transparent guided tour with pre-loaded John Doe sample casework.
+                    New to LexHarness? Take our 2-minute guided tour with pre-loaded sample casework.
                   </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -1489,7 +1489,7 @@ export const App: React.FC = () => {
                           handleProviderChange(e.target.value as LLMProviderId);
                         }}
                         className="bg-transparent text-xs font-medium text-amber-300 focus:outline-none cursor-pointer"
-                        title="Select Executing Agent Harness"
+                        title="Select Drafting Assistant"
                       >
                         {state.providers
                           .filter(
@@ -1527,7 +1527,7 @@ export const App: React.FC = () => {
                         value={turnModel}
                         onChange={(e) => handleModelChange(e.target.value)}
                         className="bg-transparent text-xs font-mono font-medium text-cyan-300 focus:outline-none cursor-pointer max-w-[200px] truncate"
-                        title="Select Model for this Agent"
+                        title="Select Model"
                       >
                         {availableModelsForTurnProvider.map((m) => (
                           <option
@@ -1570,7 +1570,7 @@ export const App: React.FC = () => {
                         )
                       }
                       className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-emerald-300 hover:border-slate-600 transition cursor-pointer"
-                      title="Turn Review Gate"
+                      title="Peer Review Mode"
                     >
                       <option
                         value="multi_llm_default"
