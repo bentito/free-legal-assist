@@ -1,41 +1,110 @@
-# LexHarness — Legal Agent Harness Control Surface (macOS & Windows)
+# LexHarness
 
-**LexHarness** is a local-first desktop control surface for lawyers, built with Electron, React, TypeScript, and SQLite. It provides an autonomous legal agent loop with **4-layer user-governed legal system prompts**, **local matter tooling**, **side-by-side redline tracking**, and a **default Multi-LLM Adversarial Review Gate**.
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue)](https://www.typescriptlang.org/)
+[![Electron](https://img.shields.io/badge/Electron-33-47848F)](https://www.electronjs.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB)](https://react.dev/)
+
+> **Open-source, local-first legal agent control surface designed to empower solo practitioners and small law firms to safely harness AI agents for their practice.**
 
 ---
 
-## Quick Start (macOS Test App)
+## 🎯 The Mission
 
-### Option 1: Launch the Packaged macOS `.app`
-```bash
-open release/mac-arm64/LexHarness.app
-```
+Large law firms have entire innovation departments, dedicated tech budgets, and bespoke data engineering teams. Meanwhile, **solo practitioners and small law firms** handle the vast majority of everyday legal representation without those resources.
 
-### Option 2: Run Directly from Terminal
-```bash
-npm start
-```
+General-purpose chatbots (like basic ChatGPT, Claude web apps, or generic chat interfaces) were not built for legal practice. Using generic consumer chat for client matters creates serious hazards:
+- **Lack of Matter Grounding**: Chatbots answer from generalized training data and frequently invent citations, case law, or record details.
+- **No Evidence Verification**: Standard chatbots cannot navigate Bates-stamped document corpora, verify deposition transcripts, or trace citations directly to local record pages.
+- **Privacy & Privilege Risks**: Pasting privileged client records into cloud web forms risks exposing work product or waiving attorney-client privilege.
+- **Single-Turn Bias**: Chatbots want to give immediate, pleasing answers rather than subjecting arguments to adversarial stress-testing.
 
-### Option 3: Run in Live Development Mode (Hot Reload)
+**LexHarness changes this.** It provides an autonomous, multi-step **agent harness control surface** running directly on your local computer (macOS and Windows), combining local matter evidence with rigorous multi-model review gates.
+
+---
+
+## ⚖️ Features & Benefits: LexHarness vs. Generic Chatbots
+
+| Dimension | Generic Chatbots | LexHarness Agent Control Surface |
+| :--- | :--- | :--- |
+| **Execution Model** | Single-turn conversational text generation | Multi-step autonomous agent loop with local tool execution |
+| **Data Privacy & Privilege** | Matter data pasted into browser tabs / cloud memory | Local-first: matter database, evidence, and state stay on your machine |
+| **Evidence Grounding** | Guesses or paraphrases without pinpoint tracking | Direct Bates-range and transcript pinpoint verification via local tools |
+| **Review & Quality Control** | Single model that agrees with itself | **Default Multi-LLM Adversarial Review Gate**: Opposing Counsel & Citation Auditor critique candidate drafts before presentation |
+| **Work-Product Tracking** | Unformatted text blocks | Side-by-side redline viewer showing exact additions and struck text |
+| **Jurisdiction & Rules** | Generic federal-centric or hallucinated state law | Configurable 4-layer practitioner profiles with jurisdiction-specific rules |
+| **Cost & Flexibility** | Locked into one proprietary vendor subscription | Bring-your-own-keys (Claude, OpenAI, Gemini, Local models via Ollama) |
+
+---
+
+## 🚀 Key Capabilities
+
+1. **Three-Pane Practitioner Control Surface**:
+   - **Left Pane**: Matter management, case metadata, active practitioner profiles, and review gate status.
+   - **Center Pane**: Live agent reasoning loop, tool execution cards (`search_matter_corpus`, `verify_citation_lookup`, `propose_document_redline`), and adversarial scorecards.
+   - **Right Pane**: Interactive side-by-side work-product redline viewer, document corpus reader with Bates ranges, and chronological fact tracker.
+
+2. **4-Layer User-Governed System Prompts**:
+   - **Layer 1: Core Legal Mandate & Ethical Guardrails**: Strict grounding, mandatory pinpoint citations, explicit uncertainty flagging.
+   - **Layer 2: Practice Area Personas**: Litigation, criminal defense, commercial contracts, regulatory, or discovery investigation.
+   - **Layer 3: Matter Jurisdiction & Forum**: Tailored procedural and evidentiary rules (e.g., Vermont Superior Court, Delaware Chancery).
+   - **Layer 4: Adversarial Critics**: Independent reviewer prompts simulating opposing counsel and a meticulous citation auditor.
+
+3. **Multi-LLM Adversarial Review Gate**:
+   - Candidate work product is automatically audited by independent models before reaching you.
+   - Catches ungrounded factual assertions, questionable legal precedents, and procedural gaps.
+
+4. **Zero-Key Test Engine**:
+   - Includes a built-in local harness simulation engine so you can evaluate the full control surface, agent loop, and redline visualizer immediately without entering API keys.
+
+---
+
+## 💻 Quick Start for Users & Developers
+
+### Installation & Run
+
 ```bash
+# Clone the repository
+git clone https://github.com/bentito/free-legal-assist.git
+cd free-legal-assist
+
+# Install dependencies
+npm install
+
+# Option 1: Run in live development mode (hot-reload renderer)
 npm run dev
+
+# Option 2: Run directly
+npm start
+
+# Run tests and type checking
+npm run typecheck
+npm test
+```
+
+### Packaging Desktop Apps
+
+```bash
+# Package for macOS
+npm run dist:mac
+
+# Package for Windows
+npm run dist:win
 ```
 
 ---
 
-## Key Capabilities Included in Phase 1
+## 🤝 Community & Contributing
 
-1. **Three-Pane Legal Control Surface**:
-   - **Left Pane**: Matter Workspaces (`Apex Biometrics v. Meridian Cloud Systems` and `Helios Energy`), Matter Threads, and Active Multi-LLM Gate status.
-   - **Center Pane**: Autonomous Legal Agent Loop stream displaying real-time local tool calls (`search_matter_corpus`, `verify_citation_lookup`, `propose_document_redline`), expandable **Multi-LLM Adversarial Review Scorecards**, and pre-review vs. post-review draft comparison.
-   - **Right Pane**: **Work-Product Redline Viewer** (visualizing struck pre-audit text vs. inserted cured language), **Matter Document Corpus Reader** (with Bates ranges), and **Matter Fact & Pinpoint Chronology**.
+We actively welcome contributions from **both legal professionals and software developers**!
 
-2. **4-Layer User-Governed Legal System Prompts (`Prompt Governance & Models` button)**:
-   - **Layer 1**: Core Legal Mandate & Ethical Guardrails (strict grounding, mandatory Bates/page pinpoints, explicit uncertainty flagging).
-   - **Layer 2**: Practice Area Personas (*Litigation & Appellate Briefs*, *Transactional & Commercial Contracts*, *Regulatory & Compliance*, *Discovery & Fact Investigation*).
-   - **Layer 3**: Matter Jurisdiction, Forum & Citation Manual (e.g., *Delaware Court of Chancery*, *The Bluebook 21st Ed.*).
-   - **Layer 4**: Independent Adversarial Reviewer Prompts (*Citation & Record Auditor* + *Opposing Counsel & Reviewing Partner*).
-   - **Live Assembled Prompt Inspector**: Inspect the exact combined system prompts sent to each model on every turn.
+- **Lawyers, Paralegals & Legal Scholars**: Share practice-area workflows, propose jurisdiction-specific prompt layers, and identify gaps in legal reasoning.
+- **Developers & Engineers**: Help expand local tool executors, improve privacy filtering, and enhance the desktop control surface.
 
-3. **Default Multi-LLM Adversarial Review Gate**:
-   - Supports live API keys (encrypted via macOS Keychain / Windows DPAPI `safeStorage`) for **Anthropic Claude**, **OpenAI (o3-mini / GPT-4o)**, **Google Gemini 2.5 Pro**, and **OpenRouter / Local Endpoints**, plus a **Built-In Local Mac Test Engine** so you can test the entire agent loop, adversarial critique, and redline generation immediately before entering external API keys.
+Please read our [**Contributing Guide (CONTRIBUTING.md)**](CONTRIBUTING.md) for full details on how to get involved.
+
+---
+
+## 📜 License
+
+LexHarness is released under the [Apache License 2.0](LICENSE).

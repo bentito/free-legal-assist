@@ -1,0 +1,40 @@
+name: Feature Request
+description: Suggest an idea, workflow, or practitioner profile for LexHarness
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We welcome ideas from both attorneys/legal practitioners and software developers!
+  - type: dropdown
+    id: contributor-type
+    attributes:
+      label: I am submitting this as a:
+      options:
+        - Practicing Lawyer / Legal Professional
+        - Software Developer / Engineer
+        - Both / Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Workflow Gap
+      description: What legal workflow or friction does this feature address?
+      placeholder: "e.g., When drafting motions for summary judgment in civil court, I need..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution or Feature
+      description: How should this work in LexHarness?
+      placeholder: "Describe the desired behavior, new prompt preset, tool capability, or UI element."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any other tools, manual steps, or workarounds you currently use.
