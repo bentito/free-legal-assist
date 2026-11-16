@@ -112,7 +112,7 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(result.assistantMessage.content).toContain('State v. Sprague');
     expect(result.assistantMessage.content).toContain('V.R.Cr.P. 12(d)');
 
-    // Verify turn with explicit Agent & Model selection as per T3 control surface
+    // Verify turn with explicit Assistant & Model selection
     const customAgentTurn = await loop.runTurn({
       matterId: 'matter-vt-state-v-thorne',
       userPrompt: 'Analyze state constitutional search doctrine under Chapter I, Article 11.',

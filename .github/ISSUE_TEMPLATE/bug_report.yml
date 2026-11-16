@@ -1,61 +1,54 @@
-name: Bug Report
-description: Report an issue or bug encountered in LexHarness
-title: "[Bug]: "
+name: Bug or Issue Report
+description: Let us know if something in LexHarness isn't working the way it should
+title: "[Issue]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for reporting an issue! Please provide as much detail as possible to help us reproduce and fix it.
+        Thank you for letting us know about an issue! Please describe what happened in plain language so we can fix it. (**Note:** Never paste confidential client information here.)
   - type: textarea
     id: description
     attributes:
-      label: Bug Description
-      description: A clear and concise description of what the bug is.
-      placeholder: What went wrong?
+      label: What happened?
+      description: Tell us what went wrong or didn't work as expected.
+      placeholder: "e.g., When I clicked to review my draft motion, the redline view didn't update..."
     validations:
       required: true
   - type: textarea
     id: reproduction
     attributes:
-      label: Steps to Reproduce
-      description: Step-by-step instructions to reproduce the behavior.
+      label: How can we see the problem?
+      description: What steps were you taking when this happened?
       placeholder: |
-        1. Open Matter '...'
-        2. Enter prompt '...'
-        3. Click 'Run Agent Loop'
-        4. See error...
+        1. Opened my matter
+        2. Asked the assistant to draft a motion
+        3. Clicked the Redline tab
+        4. Saw...
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Expected Behavior
-      description: What you expected to happen.
-      placeholder: The agent loop should complete and display the redline review...
+      label: What should have happened instead?
+      placeholder: "e.g., It should have shown the revised draft with changes highlighted."
     validations:
       required: true
   - type: dropdown
     id: os
     attributes:
-      label: Operating System
+      label: What kind of computer are you using?
       options:
-        - macOS (Apple Silicon / arm64)
-        - macOS (Intel / x64)
-        - Windows 11 / 10
-        - Linux
+        - Mac (Apple Silicon / M1, M2, M3, M4)
+        - Mac (Intel)
+        - Windows
+        - Other / Not sure
     validations:
       required: true
-  - type: input
-    id: app-version
-    attributes:
-      label: App Version / Commit
-      placeholder: "e.g., v0.3.0 or commit SHA"
-    validations:
-      required: false
   - type: textarea
     id: logs
     attributes:
-      label: Console or Terminal Logs
-      description: Paste any error messages, terminal logs, or DevTools console errors.
-      render: shell
+      label: Error Message or Details (Optional)
+      description: If an error message popped up on screen, copy or describe it here.
+      validations:
+        required: false

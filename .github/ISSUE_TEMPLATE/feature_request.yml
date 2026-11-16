@@ -1,40 +1,43 @@
-name: Feature Request
-description: Suggest an idea, workflow, or practitioner profile for LexHarness
-title: "[Feature]: "
+name: Feature or Practice Idea
+description: Suggest a legal workflow, practice area profile, court rule, or improvement
+title: "[Idea]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        We welcome ideas from both attorneys/legal practitioners and software developers!
+        We love hearing from practicing lawyers, paralegals, and developers! Tell us what would make LexHarness more useful in your day-to-day work.
   - type: dropdown
     id: contributor-type
     attributes:
-      label: I am submitting this as a:
+      label: Your Background
       options:
         - Practicing Lawyer / Legal Professional
-        - Software Developer / Engineer
+        - Software Developer
         - Both / Other
     validations:
       required: true
+  - type: input
+    id: practice-area
+    attributes:
+      label: Practice Area & Jurisdiction (Optional)
+      description: If this relates to a specific area of law or court, let us know.
+      placeholder: "e.g., Criminal Defense (State Court), Family Law, Immigration, Commercial Contracts"
+    validations:
+      required: false
   - type: textarea
     id: problem
     attributes:
-      label: Problem or Workflow Gap
-      description: What legal workflow or friction does this feature address?
-      placeholder: "e.g., When drafting motions for summary judgment in civil court, I need..."
+      label: What legal task or problem are you trying to solve?
+      description: Describe the real-world workflow or frustration this would help with.
+      placeholder: "e.g., When reviewing discovery packets or police reports, I spend hours cross-referencing timestamps against deposition testimony..."
     validations:
       required: true
   - type: textarea
     id: solution
     attributes:
-      label: Proposed Solution or Feature
-      description: How should this work in LexHarness?
-      placeholder: "Describe the desired behavior, new prompt preset, tool capability, or UI element."
+      label: How would you like LexHarness to help?
+      description: Explain how it would ideally work for you.
+      placeholder: "Describe what you'd like the assistant to draft, check, or organize."
     validations:
       required: true
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives Considered
-      description: Any other tools, manual steps, or workarounds you currently use.

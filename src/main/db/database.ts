@@ -158,7 +158,7 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
     driverKind: 'local-simulator',
     name: 'Built-In Legal Harness Simulator (Offline / Mac & Win Test Mode)',
     description:
-      'Deterministic local legal agent & multi-critic engine for testing the full control surface without external API charges.',
+      'Built-in local legal drafting and review assistant for testing the workspace offline without API charges.',
     defaultModel: 'lexharness-local-v1',
     availableModels: [
       { id: 'lexharness-local-v1', label: 'LexHarness Local Legal Engine (Zero-Key Test Mode)' },
