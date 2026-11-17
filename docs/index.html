@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LexHarness — Free, Open-Source Legal Drafting Workspace for Solo & Small-Firm Lawyers</title>
+  <meta name="description" content="LexHarness is a free, local-first legal drafting and review workspace built to help solo practitioners and small law firms safely put AI to work for their clients." />
+  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" />
+  
+  <!-- OpenGraph / Social Cards -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="LexHarness — Free, Open-Source Legal AI Workspace" />
+  <meta property="og:description" content="Grounded in discovery, checked by second-chair review, and kept private on your machine. Built for solo practitioners and small law firms." />
+  <meta property="og:image" content="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" />
+  <meta property="og:url" content="https://bentito.github.io/free-legal-assist/" />
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fbf8f3',
+              100: '#f5efe4',
+              500: '#d97706',
+              600: '#b45309',
+              900: '#78350f',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
+
+  <!-- Navigation -->
+  <nav class="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <img src="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" alt="LexHarness" class="w-9 h-9 rounded-lg" />
+        <span class="text-xl font-bold tracking-tight text-white">LexHarness</span>
+        <span class="hidden sm:inline-block px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">v0.3.0 Free & Open Source</span>
+      </div>
+      <div class="flex items-center space-x-4 text-sm font-medium">
+        <a href="#features" class="text-slate-400 hover:text-slate-200 transition">Features</a>
+        <a href="#comparison" class="text-slate-400 hover:text-slate-200 transition">vs. Chatbots</a>
+        <a href="#downloads" class="text-slate-400 hover:text-slate-200 transition">Downloads</a>
+        <a href="https://github.com/bentito/free-legal-assist" target="_blank" rel="noopener" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="relative overflow-hidden pt-16 pb-20 md:pt-24 md:pb-32 border-b border-slate-850">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+      <div class="inline-flex items-center space-x-2 px-3 py-1 mb-8 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold uppercase tracking-wider">
+        <span>⚖️ Legal AI for Solo & Small-Firm Practitioners</span>
+      </div>
+      <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight">
+        Safely put AI to work for your clients. <br class="hidden sm:inline" />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500">Without big-firm budgets.</span>
+      </h1>
+      <p class="mt-6 text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
+        LexHarness is a free desktop workspace that grounds AI drafting in your actual case exhibits, stress-tests arguments with automatic peer review, and keeps privileged client files on your computer.
+      </p>
+
+      <!-- 1-Click Download Buttons -->
+      <div id="downloads" class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.3.0/LexHarness-0.3.0-arm64.dmg" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 text-base font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-lg shadow-amber-500/20 transition transform hover:-translate-y-0.5">
+          <svg class="w-5 h-5 mr-2.5 fill-current" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.85.94-2.93-.91.04-2.02.61-2.67 1.37-.58.67-.99 1.77-.96 2.84 1.02.08 2.06-.51 2.69-1.28z"/></svg>
+          Download for Mac (.dmg)
+        </a>
+        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.3.0/LexHarness.Setup.0.3.0.exe" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 text-base font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+          <svg class="w-5 h-5 mr-2.5 fill-current text-sky-400" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/></svg>
+          Download for Windows (.exe)
+        </a>
+      </div>
+      <p class="mt-4 text-xs text-slate-400">
+        Free & open-source under Apache 2.0 • Pre-loaded with mock casework • No credit card or API keys required to test
+      </p>
+    </div>
+  </header>
+
+  <!-- Key Problems Solved -->
+  <section id="features" class="py-20 border-b border-slate-900 bg-slate-900/30">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-3xl font-bold text-white tracking-tight">The Reality of Practicing Law with AI</h2>
+        <p class="mt-4 text-slate-400 text-base sm:text-lg">
+          Consumer chatbots sound confident, but they aren’t lawyers. LexHarness builds in the practical checks and safeguards that real legal representation demands.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Feature 1 -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+          <div>
+            <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">📄</div>
+            <h3 class="text-lg font-semibold text-white mb-2">Record Grounding</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Every factual assertion anchors directly to your case exhibits with exact Bates numbers, transcript page-and-lines, and timestamps.
+            </p>
+          </div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+          <div>
+            <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">🔍</div>
+            <h3 class="text-lg font-semibold text-white mb-2">Second-Chair Review</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              An automated Citation Auditor checks authorities and state precedent before drafts are presented, flagging unsupported claims.
+            </p>
+          </div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+          <div>
+            <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">⚔️</div>
+            <h3 class="text-lg font-semibold text-white mb-2">Opposing Perspective</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Anticipates procedural traps, waiver risks, and counterarguments from opposing counsel and the bench so you can cure them early.
+            </p>
+          </div>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+          <div>
+            <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">🔒</div>
+            <h3 class="text-lg font-semibold text-white mb-2">Local-First Privilege</h3>
+            <p class="text-sm text-slate-400 leading-relaxed">
+              Your case files and drafts stay on your machine. Includes automatic client-name scrubbing before external API calls.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section id="comparison" class="py-20 border-b border-slate-900">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <h2 class="text-3xl font-bold text-white tracking-tight">How LexHarness Compares to Standard Chatbots</h2>
+        <p class="mt-4 text-slate-400 text-base sm:text-lg">
+          Why pasting confidential case facts into consumer chat windows creates serious professional risks.
+        </p>
+      </div>
+
+      <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="bg-slate-900 text-slate-100 text-xs uppercase tracking-wider border-b border-slate-800">
+            <tr>
+              <th scope="col" class="px-6 py-4 font-semibold">What Matters in Practice</th>
+              <th scope="col" class="px-6 py-4 font-semibold text-rose-300">Consumer Chatbots</th>
+              <th scope="col" class="px-6 py-4 font-semibold text-amber-300">LexHarness</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800">
+            <tr>
+              <td class="px-6 py-4 font-medium text-white">Factual Grounding</td>
+              <td class="px-6 py-4 text-slate-400">Paraphrases or guesses without checking the record</td>
+              <td class="px-6 py-4 text-slate-200">Reads your case exhibits and cites exact Bates numbers, transcript lines, and timestamps</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-medium text-white">Citation Accuracy</td>
+              <td class="px-6 py-4 text-slate-400">Single pass that can hallucinate authorities</td>
+              <td class="px-6 py-4 text-slate-200">Automatic Citation Auditor verifies claims against your files and state law</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-medium text-white">Stress-Testing Arguments</td>
+              <td class="px-6 py-4 text-slate-400">Agreeable "yes-man" answers</td>
+              <td class="px-6 py-4 text-slate-200">Independent Opposing Counsel review challenges weak spots before you file</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-medium text-white">Reviewing Revisions</td>
+              <td class="px-6 py-4 text-slate-400">Manual copy-pasting blocks of text</td>
+              <td class="px-6 py-4 text-slate-200">Built-in side-by-side Redline & Document Editor</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-medium text-white">Client Confidentiality</td>
+              <td class="px-6 py-4 text-slate-400">Stored in browser tabs and cloud provider accounts</td>
+              <td class="px-6 py-4 text-slate-200">Local-first: database stays on your machine with automated name scrubbing</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-medium text-white">Cost & Lock-In</td>
+              <td class="px-6 py-4 text-slate-400">Expensive per-seat enterprise contracts</td>
+              <td class="px-6 py-4 text-slate-200">100% Free & Open Source under Apache 2.0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Community & CTA -->
+  <section class="py-20 text-center">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Built by and for Legal Practitioners</h2>
+      <p class="mt-4 text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
+        Join solo attorneys, public defenders, legal scholars, and open-source developers helping level the playing field for small law offices.
+      </p>
+      <div class="mt-8 flex flex-wrap justify-center gap-4">
+        <a href="https://github.com/bentito/free-legal-assist/discussions" class="px-6 py-3 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 font-semibold text-sm transition">
+          Join GitHub Discussions
+        </a>
+        <a href="https://github.com/bentito/free-legal-assist/blob/main/CONTRIBUTING.md" class="px-6 py-3 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 font-semibold text-sm transition">
+          Lawyer & Developer Contribution Guide
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-850 py-10 bg-slate-950 text-xs text-slate-500 text-center">
+    <p>LexHarness is free, open-source software released under the <a href="https://github.com/bentito/free-legal-assist/blob/main/LICENSE" class="underline hover:text-slate-400">Apache License 2.0</a>.</p>
+    <p class="mt-2">Not legal advice. Intended as a drafting and review aid for licensed legal professionals.</p>
+  </footer>
+
+</body>
+</html>

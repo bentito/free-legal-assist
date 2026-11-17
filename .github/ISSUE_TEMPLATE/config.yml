@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Ask a Question or Discuss Legal Workflows
+    url: https://github.com/bentito/free-legal-assist/discussions
+    about: Share practice ideas, ask how to use LexHarness, or discuss prompt ideas with other lawyers and contributors.
+  - name: 📥 Download Latest App Releases
+    url: https://github.com/bentito/free-legal-assist/releases/latest
+    about: Download ready-to-run desktop installers for Mac (Apple Silicon) and Windows.

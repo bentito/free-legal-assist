@@ -1,8 +1,33 @@
-# LexHarness
+<p align="center">
+  <img src="public/favicon.png" width="112" height="112" alt="LexHarness Logo" />
+</p>
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+<h1 align="center">LexHarness</h1>
 
-> **Free, open-source legal drafting and case review software built to help solo practitioners and small law firms safely put AI to work for their clients.**
+<p align="center">
+  <b>Free, open-source legal drafting and review workspace built to help solo practitioners, public defenders, and small law firms safely put AI to work for their clients.</b>
+</p>
+
+<p align="center">
+  <a href="https://github.com/bentito/free-legal-assist/releases/latest"><img src="https://img.shields.io/github/v/release/bentito/free-legal-assist?label=Latest%20Release&color=blue" alt="Latest Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License" /></a>
+  <a href="https://github.com/bentito/free-legal-assist/releases/latest"><img src="https://img.shields.io/badge/macOS-Apple%20Silicon-black?logo=apple" alt="macOS Apple Silicon" /></a>
+  <a href="https://github.com/bentito/free-legal-assist/releases/latest"><img src="https://img.shields.io/badge/Windows-64--bit-0078D6?logo=windows" alt="Windows 64-bit" /></a>
+  <a href="https://github.com/bentito/free-legal-assist/discussions"><img src="https://img.shields.io/badge/Community-Discussions-orange?logo=github" alt="Discussions" /></a>
+</p>
+
+---
+
+## 📥 Download LexHarness
+
+LexHarness is a desktop application for Mac and Windows. It comes pre-loaded with a complete sample matter (*John Doe v. State of Vermont* with police affidavits, body-camera transcripts, and sample suppression motions) so you can test the full workflow offline immediately.
+
+| Platform | Recommended Installer | Alternative |
+| :--- | :--- | :--- |
+| **macOS** (Apple Silicon / M1, M2, M3, M4) | [**📥 Download `.dmg` Installer**](https://github.com/bentito/free-legal-assist/releases/download/v0.3.0/LexHarness-0.3.0-arm64.dmg) | [Portable `.zip`](https://github.com/bentito/free-legal-assist/releases/download/v0.3.0/LexHarness-0.3.0-arm64-mac.zip) |
+| **Windows 10 / 11** (64-bit) | [**📥 Download `.exe` Installer**](https://github.com/bentito/free-legal-assist/releases/download/v0.3.0/LexHarness.Setup.0.3.0.exe) | [Portable `.zip`](https://github.com/bentito/free-legal-assist/releases/download/v0.3.0/LexHarness-0.3.0-win.zip) |
+
+👉 *Looking for older versions or release notes? View all releases on the [Releases page](https://github.com/bentito/free-legal-assist/releases).*
 
 ---
 
@@ -16,7 +41,7 @@ Many lawyers try to close that gap with consumer chatbots like standard ChatGPT 
 - **Yes-Man Answers**: Consumer chatbots are designed to agree with you. They rarely warn you when an argument is procedurally flawed or vulnerable to an obvious counterargument from opposing counsel.
 - **Client Confidentiality**: Pasting sensitive client facts and privileged strategy into browser chat windows creates real ethical and confidentiality concerns.
 
-**LexHarness was built to solve these problems.** It is a free desktop workspace for Mac and Windows that lets you use AI assistants the way good lawyers actually practice: grounded in the record, checked by a second pair of eyes, and kept under your control.
+**LexHarness was built to solve these problems.** It is a free desktop workspace that lets you use AI assistants the way good lawyers actually practice: grounded in the record, checked by a second pair of eyes, and kept under your control on your own machine.
 
 ---
 
@@ -51,45 +76,57 @@ Review your work product in a dedicated document pane. Toggle between the initia
 Every court has its own rules, constitutional doctrines, and citation habits. LexHarness lets you select or customize **Practitioner Profiles**—defining your governing forum, citation manual, and practice focus (such as criminal defense motions to suppress, civil litigation, contract review, or discovery analysis) so you never have to re-explain your local rules in every prompt.
 
 ### 5. Protect Client Privilege
-Your case database and documents stay on your computer. Before a question is sent to an external AI model, LexHarness can automatically replace client and party names with neutral placeholders and restore them locally when the draft returns.
+Your case database and documents stay on your computer. Before a question is sent to an external AI model, LexHarness can automatically replace client and party names with neutral placeholders and restore them locally when the draft returns. See our [Security & Confidentiality Policy](SECURITY.md) for details.
 
 ---
 
-## Getting Started
+## 💬 Community & Discussion
 
-You can explore LexHarness right away—it comes pre-loaded with a complete sample case (including discovery exhibits, transcripts, and sample motions) so you can see the full workflow before connecting any external AI accounts.
+Have an idea for a practice-area profile, want to ask a question, or discuss how you use LexHarness in your practice?
 
-### Running From Source (Mac & Windows)
+- **Join the conversation**: Visit [**GitHub Discussions**](https://github.com/bentito/free-legal-assist/discussions) to connect with other practitioners and contributors.
+- **Report an issue**: Use our [Issue Tracker](https://github.com/bentito/free-legal-assist/issues) to report bugs or request new features.
+- **Contribute**: Read our [Contributor Guide (CONTRIBUTING.md)](CONTRIBUTING.md) to see how lawyers and developers can participate.
 
-1. **Install [Node.js](https://nodejs.org/) (v20 or newer)** if you don't already have it.
-2. **Download and launch LexHarness**:
-   ```bash
-   git clone https://github.com/bentito/free-legal-assist.git
-   cd free-legal-assist
-   npm install
-   npm start
-   ```
+---
 
-### Building a Standalone Desktop App
+## 🛠️ For Developers: Building From Source
 
+If you want to contribute code or build the latest development version:
+
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v20 or newer)
+- npm (v10+)
+- Git
+
+### Quick Setup
 ```bash
-# Build a macOS application (.dmg / .app)
-npm run dist:mac
+# Clone the repository
+git clone https://github.com/bentito/free-legal-assist.git
+cd free-legal-assist
 
-# Build a Windows installer (.exe)
-npm run dist:win
+# Install dependencies
+npm install
+
+# Run in live development mode (hot reload)
+npm run dev
+
+# Or run directly
+npm start
+
+# Run automated checks
+npm run typecheck
+npm test
 ```
 
----
+### Packaging Installers Locally
+```bash
+# Package for macOS (Apple Silicon .dmg)
+npm run dist:mac
 
-## Get Involved: Lawyers & Developers Welcome
-
-LexHarness is a community project, and **the most valuable contributions come from practicing lawyers**.
-
-- **For Attorneys, Paralegals & Legal Scholars**: Tell us what motions, contract workflows, or local court profiles would save you the most time. Share where AI assistants fall short in real practice, or contribute jurisdiction-specific guidance and review checklists—no coding required.
-- **For Software Developers**: Help us make the workspace faster, simpler, and more helpful for solo and small-firm practitioners.
-
-See our [**Contributor Guide (CONTRIBUTING.md)**](CONTRIBUTING.md) for how to share ideas, report issues, or contribute improvements.
+# Package for Windows (.exe installer)
+npm run dist:win
+```
 
 ---
 
