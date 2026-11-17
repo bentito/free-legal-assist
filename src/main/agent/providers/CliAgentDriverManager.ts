@@ -431,11 +431,13 @@ export class CliAgentDriverManager {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lexharness-codex-'));
     const outputPath = path.join(tmpDir, 'last-message.txt');
 
-    // If model is 'gpt-6-luna', standard external codex CLI doesn't recognize it.
-    // Try input.model first; if that fails with model not found, try standard codex models (o3, o4-mini, gpt-4o).
-    const modelsToTry = [input.model];
-    if (input.model === 'gpt-6-luna') {
-      modelsToTry.push('o3', 'o4-mini', 'gpt-4o');
+    // If the requested model (e.g. o4-mini) is not supported under the user's Codex account auth,
+    // gracefully fall back to the account's configured default (gpt-6-luna or omitting --model).
+    const modelsToTry: (string | undefined)[] = [input.model];
+    if (input.model !== 'gpt-6-luna') {
+      modelsToTry.push('gpt-6-luna', undefined);
+    } else {
+      modelsToTry.push(undefined, 'o3', 'o4-mini', 'gpt-4o');
     }
 
     let lastError: Error | null = null;
@@ -452,8 +454,7 @@ export class CliAgentDriverManager {
           '--skip-git-repo-check',
           '-s',
           'read-only',
-          '--model',
-          modelToUse,
+          ...(modelToUse ? ['--model', modelToUse] : []),
           '--config',
           `model_reasoning_effort="${input.effort}"`,
           '--output-last-message',

@@ -100,62 +100,70 @@ export const RoutingDebugDrawer: React.FC<RoutingDebugDrawerProps> = ({
       {/* Drawer Content */}
       <div className="flex flex-1 min-h-0 divide-x divide-slate-800">
         {/* Left: Log History List */}
-        <div className="w-72 overflow-y-auto p-2 space-y-1.5 bg-slate-950/60">
-          {recentLogs.length === 0 ? (
-            <div className="p-4 text-center text-xs text-slate-500">
-              No routing decisions recorded yet. Submit a prompt to view live telemetry.
-            </div>
-          ) : (
-            recentLogs.map((log) => {
-              const isSelected = (activeLog?.id ?? '') === log.id;
-              const tierBadgeColor =
-                log.selectedTier === 'FRONTIER_REASONING'
-                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                  : log.selectedTier === 'FAST_ECONOMY'
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                  : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+        <div className="w-80 flex flex-col bg-slate-950/70 shrink-0">
+          <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-900/70 flex items-center justify-between shrink-0">
+            <span>Prompt Evaluation History</span>
+            <span className="text-[9px] text-slate-500 font-normal">
+              {recentLogs.length} turn{recentLogs.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="overflow-y-auto flex-1 p-1.5 space-y-1">
+            {recentLogs.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-500">
+                No routing decisions recorded yet. Submit a prompt to view live telemetry.
+              </div>
+            ) : (
+              recentLogs.map((log) => {
+                const isSelected = (activeLog?.id ?? '') === log.id;
+                const tierBadgeColor =
+                  log.selectedTier === 'FRONTIER_REASONING'
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : log.selectedTier === 'FAST_ECONOMY'
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                    : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
 
-              return (
-                <button
-                  key={log.id}
-                  onClick={() => setSelectedLogId(log.id)}
-                  className={`w-full text-left p-2.5 rounded-lg border transition text-xs ${
-                    isSelected
-                      ? 'bg-slate-800/90 border-indigo-500/50 shadow'
-                      : 'bg-slate-900/60 border-slate-800/80 hover:bg-slate-850'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border ${tierBadgeColor}`}>
-                      {log.selectedTier === 'FRONTIER_REASONING'
-                        ? 'Frontier'
-                        : log.selectedTier === 'FAST_ECONOMY'
-                        ? 'Fast Economy'
-                        : 'Local Private'}
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      {new Date(log.timestamp).toLocaleTimeString([], {
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                  <div className="font-medium text-slate-200 truncate">
-                    {log.classification.inferredIntent}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5 flex items-center justify-between">
-                    <span>{log.selectedModel}</span>
-                    {log.costEstimate.estimatedSavingsUSD > 0 && (
-                      <span className="text-emerald-400 font-medium">
-                        -${log.costEstimate.estimatedSavingsUSD.toFixed(3)}
+                return (
+                  <button
+                    key={log.id}
+                    onClick={() => setSelectedLogId(log.id)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded border transition flex items-center justify-between gap-2 text-xs ${
+                      isSelected
+                        ? 'bg-slate-800/95 border-indigo-500/60 shadow-sm text-slate-100 ring-1 ring-indigo-500/30'
+                        : 'bg-slate-900/40 border-slate-800/60 hover:bg-slate-800/60 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded border shrink-0 ${tierBadgeColor}`}>
+                        {log.selectedTier === 'FRONTIER_REASONING'
+                          ? 'Frontier'
+                          : log.selectedTier === 'FAST_ECONOMY'
+                          ? 'Economy'
+                          : 'Local'}
                       </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })
-          )}
+                      <span className="font-medium text-[11px] truncate text-slate-200">
+                        {log.classification.inferredIntent}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 text-[10px]">
+                      {log.costEstimate.estimatedSavingsUSD > 0 && (
+                        <span className="text-emerald-400 font-medium">
+                          +${log.costEstimate.estimatedSavingsUSD.toFixed(3)}
+                        </span>
+                      )}
+                      <span className="text-slate-500 text-[10px]">
+                        {new Date(log.timestamp).toLocaleTimeString([], {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Right: Detailed Inspection Card */}

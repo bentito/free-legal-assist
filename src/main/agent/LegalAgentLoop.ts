@@ -285,28 +285,41 @@ export class LegalAgentLoop {
         });
 
         if (hasLivePrimary) {
-          const objectionsFormatted = gateResult.combinedObjections
-            .map(
-              (o, i) =>
-                `${i + 1}. [${o.category}] (${o.location}): ${o.critique}\n   Required Fix: ${o.requiredFix}`
-            )
-            .join('\n');
+          try {
+            const objectionsFormatted = gateResult.combinedObjections
+              .map(
+                (o, i) =>
+                  `${i + 1}. [${o.category}] (${o.location}): ${o.critique}\n   Required Fix: ${o.requiredFix}`
+              )
+              .join('\n');
 
-          const revRes = await this.llmClient.generateText({
-            provider: effectivePrimaryProvider,
-            model: effectivePrimaryModel,
-            systemPrompt: assembled.primarySystemPrompt,
-            userPrompt: [
-              `ORIGINAL ATTORNEY PROMPT:\n${scrubbedPrompt}`,
-              `RETRIEVED RECORD:\n${scrubbedCorpus}`,
-              `YOUR INITIAL CANDIDATE DRAFT:\n${candidateDraft}`,
-              `MANDATORY ADVERSARIAL REVIEW OBJECTIONS TO CURE:\n${objectionsFormatted}`,
-              `Produce the final, verified legal work product curing every objection above with exact record pinpoints.`,
-            ].join('\n\n'),
-          });
-          candidateDraft = revRes.text;
-          revisedRedlineContent = revRes.text;
-          revisedRedlineRationale = `Cured ${gateResult.combinedObjections.length} adversarial review objections.`;
+            const revRes = await this.llmClient.generateText({
+              provider: effectivePrimaryProvider,
+              model: effectivePrimaryModel,
+              systemPrompt: assembled.primarySystemPrompt,
+              userPrompt: [
+                `ORIGINAL ATTORNEY PROMPT:\n${scrubbedPrompt}`,
+                `RETRIEVED RECORD:\n${scrubbedCorpus}`,
+                `YOUR INITIAL CANDIDATE DRAFT:\n${candidateDraft}`,
+                `MANDATORY ADVERSARIAL REVIEW OBJECTIONS TO CURE:\n${objectionsFormatted}`,
+                `Produce the final, verified legal work product curing every objection above with exact record pinpoints.`,
+              ].join('\n\n'),
+            });
+            candidateDraft = revRes.text;
+            revisedRedlineContent = revRes.text;
+            revisedRedlineRationale = `Cured ${gateResult.combinedObjections.length} adversarial review objections.`;
+          } catch {
+            const revisedSim = this.llmClient.generateGroundedLegalDraft({
+              userPrompt,
+              matter,
+              docs,
+              isRevisionPass: true,
+              objectionsToCure: gateResult.combinedObjections,
+            });
+            candidateDraft = revisedSim.draftText;
+            revisedRedlineContent = revisedSim.proposedRedlineContent;
+            revisedRedlineRationale = revisedSim.proposedRedlineRationale;
+          }
         } else {
           const revisedSim = this.llmClient.generateGroundedLegalDraft({
             userPrompt,
