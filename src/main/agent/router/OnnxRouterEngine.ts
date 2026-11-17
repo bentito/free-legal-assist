@@ -96,29 +96,86 @@ export class OnnxRouterEngine {
     corpusExcerpt: string
   ): ComplexityClassificationResult {
     const combined = `${userPrompt} ${corpusExcerpt}`.toLowerCase();
+    const promptLower = userPrompt.toLowerCase();
     const promptLen = userPrompt.length;
     const totalLen = combined.length;
 
-    // 1. High Complexity Archetypes: Constitutional suppression, Article 11, Fourth Amendment,
+    // 1. Economy / Procedural Archetypes: Single statute lookup, citation verification,
+    // formatting, simple fact lookup, deadline rule computation.
+    // Explicit user prompt intent takes precedence over background corpus keywords.
+    const isCitationFormat =
+      promptLower.includes('format citation') ||
+      promptLower.includes('bluebook') ||
+      promptLower.includes('check citation') ||
+      promptLower.includes('public domain format') ||
+      promptLower.includes('verify citation');
+
+    const isSimpleStatuteOrRule =
+      promptLower.includes('13 v.s.a. § 7554') ||
+      promptLower.includes('bail factors') ||
+      promptLower.includes('rule 12 deadline') ||
+      promptLower.includes('filing deadline') ||
+      promptLower.includes('standard of review') ||
+      (promptLen < 120 &&
+        !promptLower.includes('suppress') &&
+        !promptLower.includes('motion') &&
+        !promptLower.includes('exit order') &&
+        !promptLower.includes('art. 11') &&
+        !promptLower.includes('article 11') &&
+        !promptLower.includes('unconstitutional'));
+
+    if (isCitationFormat || isSimpleStatuteOrRule) {
+      const intent = isCitationFormat ? 'format_citation' : 'vt_procedural_lookup';
+      const score = isCitationFormat ? 0.18 : 0.32;
+      const economyLogit = isCitationFormat ? 0.82 : 0.74;
+      const frontierLogit = isCitationFormat ? 0.08 : 0.18;
+      const localLogit = Number((1 - economyLogit - frontierLogit).toFixed(3));
+
+      const reason = isCitationFormat
+        ? 'Bluebook and court citation verification rule check'
+        : 'Procedural rule and single-statutory requirement analysis suited for fast economy model';
+
+      return {
+        inferredIntent: intent,
+        onnxComplexityScore: score,
+        onnxLogits: {
+          LOCAL_PRIVATE: localLogit,
+          FAST_ECONOMY: economyLogit,
+          FRONTIER_REASONING: frontierLogit,
+        },
+        decisionReason: reason,
+        recommendedTier: 'FAST_ECONOMY',
+      };
+    }
+
+    // 2. High Complexity Archetypes: Constitutional suppression, Article 11, Fourth Amendment,
     // cross-document factual contradictions, multi-transcript impeachment matrices.
     const isArt11Suppression =
-      combined.includes('art. 11') ||
-      combined.includes('article 11') ||
-      combined.includes('exit order') ||
-      combined.includes('motion to suppress') ||
-      combined.includes('bauder') ||
-      combined.includes('sprague') ||
-      combined.includes('warrantless search') ||
-      combined.includes('unlawful seizure') ||
-      combined.includes('curtilage') ||
-      combined.includes('terry');
+      promptLower.includes('art. 11') ||
+      promptLower.includes('article 11') ||
+      promptLower.includes('exit order') ||
+      promptLower.includes('motion to suppress') ||
+      promptLower.includes('warrantless search') ||
+      promptLower.includes('unlawful seizure') ||
+      promptLower.includes('curtilage') ||
+      promptLower.includes('terry') ||
+      ((promptLower.includes('draft') ||
+        promptLower.includes('motion') ||
+        promptLower.includes('suppress') ||
+        promptLower.includes('brief') ||
+        promptLower.includes('argue') ||
+        promptLower.includes('challenge')) &&
+        (combined.includes('exit order') ||
+          combined.includes('art. 11') ||
+          combined.includes('sprague') ||
+          combined.includes('bauder')));
 
     const isCrossDocumentImpeachment =
       (combined.includes('affidavit') && combined.includes('body-worn camera')) ||
       (combined.includes('affidavit') && combined.includes('bwc')) ||
-      combined.includes('contradiction') ||
       combined.includes('impeachment matrix') ||
-      combined.includes('sworn statement discrepancy');
+      combined.includes('sworn statement discrepancy') ||
+      (promptLower.includes('contradiction') && totalLen > 500);
 
     const isSubstantiveBriefOrAppellate =
       combined.includes('interlocutory appeal') ||
@@ -155,47 +212,6 @@ export class OnnxRouterEngine {
         },
         decisionReason: reason,
         recommendedTier: 'FRONTIER_REASONING',
-      };
-    }
-
-    // 2. Economy / Procedural Archetypes: Single statute lookup, citation verification,
-    // formatting, simple fact lookup, deadline rule computation.
-    const isCitationFormat =
-      combined.includes('format citation') ||
-      combined.includes('bluebook') ||
-      combined.includes('check citation') ||
-      combined.includes('public domain format') ||
-      combined.includes('verify citation');
-
-    const isSimpleStatuteOrRule =
-      combined.includes('13 v.s.a. § 7554') ||
-      combined.includes('bail factors') ||
-      combined.includes('rule 12 deadline') ||
-      combined.includes('filing deadline') ||
-      combined.includes('standard of review') ||
-      promptLen < 120;
-
-    if (isCitationFormat || isSimpleStatuteOrRule) {
-      const intent = isCitationFormat ? 'format_citation' : 'vt_procedural_lookup';
-      const score = isCitationFormat ? 0.18 : 0.32;
-      const economyLogit = isCitationFormat ? 0.82 : 0.74;
-      const frontierLogit = isCitationFormat ? 0.08 : 0.18;
-      const localLogit = Number((1 - economyLogit - frontierLogit).toFixed(3));
-
-      const reason = isCitationFormat
-        ? 'Bluebook and court citation verification rule check'
-        : 'Procedural rule and single-statutory requirement analysis suited for fast economy model';
-
-      return {
-        inferredIntent: intent,
-        onnxComplexityScore: score,
-        onnxLogits: {
-          LOCAL_PRIVATE: localLogit,
-          FAST_ECONOMY: economyLogit,
-          FRONTIER_REASONING: frontierLogit,
-        },
-        decisionReason: reason,
-        recommendedTier: 'FAST_ECONOMY',
       };
     }
 

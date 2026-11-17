@@ -186,6 +186,19 @@ describe('Phase 2 Item 7: LocalPrivacyModelRouter, PiiScrubberVault & RoutingDeb
       expect(result.onnxLogits.FAST_ECONOMY).toBeGreaterThan(0.70);
     });
 
+    it('routes citation verification to FAST_ECONOMY even when corpus excerpts contain landmark suppression citations like Sprague or exit order', async () => {
+      const engine = new OnnxRouterEngine();
+      const result = await engine.classify({
+        userPrompt: 'Format citation according to Bluebook and verify public domain format for 2003 VT 20 regarding John Doe',
+        corpusExcerpt: 'State v. Sprague, 2003 VT 20, 175 Vt. 123; State v. Bauder, 2007 VT 16. Trooper exit order unjustified.',
+      });
+
+      expect(result.recommendedTier).toBe('FAST_ECONOMY');
+      expect(result.onnxComplexityScore).toBeLessThan(0.40);
+      expect(result.inferredIntent).toBe('format_citation');
+      expect(result.onnxLogits.FAST_ECONOMY).toBeGreaterThan(0.70);
+    });
+
     it('routes air-gapped matters to LOCAL_PRIVATE regardless of prompt complexity', async () => {
       const engine = new OnnxRouterEngine();
       const result = await engine.classify({
