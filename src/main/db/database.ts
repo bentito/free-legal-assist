@@ -4,6 +4,7 @@ import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 import {
   AdversarialConfig,
   AdversarialReviewMode,
+  AncillaryModelRegistryState,
   ChronologyFact,
   CustomLegalMcpServer,
   DocumentCategory,
@@ -1440,6 +1441,14 @@ export class LegalDatabase {
     };
     this.setKeyValue('privacy_routing_settings', merged, true);
     return merged;
+  }
+
+  getAncillaryModelRegistry(): AncillaryModelRegistryState | null {
+    return this.getKeyValue<AncillaryModelRegistryState>('ancillary_model_registry');
+  }
+
+  saveAncillaryModelRegistry(state: AncillaryModelRegistryState): void {
+    this.setKeyValue('ancillary_model_registry', state, true);
   }
 
   insertRoutingDebugLog(log: RoutingDecisionLog, flush = true): void {

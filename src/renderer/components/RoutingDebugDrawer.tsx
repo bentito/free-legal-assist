@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  AlertTriangle,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -14,7 +16,14 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { Matter, PrivacyRoutingSettings, RoutingDecisionLog } from '../../shared/types';
+import {
+  AncillaryCheckerRole,
+  AncillaryModelRegistryState,
+  LLMProviderId,
+  Matter,
+  PrivacyRoutingSettings,
+  RoutingDecisionLog,
+} from '../../shared/types';
 
 interface RoutingDebugDrawerProps {
   isOpen: boolean;
@@ -22,9 +31,16 @@ interface RoutingDebugDrawerProps {
   activeMatter?: Matter | null;
   settings: PrivacyRoutingSettings;
   recentLogs: RoutingDecisionLog[];
+  ancillaryRegistry?: AncillaryModelRegistryState;
   onClearLogs: () => Promise<void>;
   onExportLogs: () => Promise<void>;
   onSaveSettings: (updated: Partial<PrivacyRoutingSettings>) => Promise<void>;
+  onRepickAncillaryModel?: (
+    role: AncillaryCheckerRole,
+    providerId: LLMProviderId,
+    modelId: string
+  ) => Promise<void>;
+  onRefreshAncillaryModels?: () => Promise<void>;
 }
 
 export const RoutingDebugDrawer: React.FC<RoutingDebugDrawerProps> = ({
@@ -33,19 +49,25 @@ export const RoutingDebugDrawer: React.FC<RoutingDebugDrawerProps> = ({
   activeMatter,
   settings,
   recentLogs,
+  ancillaryRegistry,
   onClearLogs,
   onExportLogs,
   onSaveSettings,
+  onRepickAncillaryModel,
+  onRefreshAncillaryModels,
 }) => {
   const [selectedLogId, setSelectedLogId] = useState<string | null>(
     recentLogs[0]?.id ?? null
   );
   const [isExporting, setIsExporting] = useState(false);
+  const [isRefreshingModels, setIsRefreshingModels] = useState(false);
+  const [repickingRole, setRepickingRole] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const activeLog =
     recentLogs.find((l) => l.id === selectedLogId) || recentLogs[0] || null;
+  const activeAdvisories = ancillaryRegistry?.advisories || [];
 
   return (
     <div className="border-t border-slate-700/80 bg-slate-950/95 backdrop-blur-md shadow-2xl flex flex-col max-h-[380px] min-h-[220px] transition-all z-20">
@@ -59,6 +81,30 @@ export const RoutingDebugDrawer: React.FC<RoutingDebugDrawerProps> = ({
           <span className="text-xs text-slate-400">
             {recentLogs.length} evaluation{recentLogs.length === 1 ? '' : 's'} recorded
           </span>
+
+          {ancillaryRegistry && (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Ancillary Models Confirmed</span>
+              <button
+                onClick={async () => {
+                  if (onRefreshAncillaryModels) {
+                    setIsRefreshingModels(true);
+                    try {
+                      await onRefreshAncillaryModels();
+                    } finally {
+                      setIsRefreshingModels(false);
+                    }
+                  }
+                }}
+                disabled={isRefreshingModels}
+                title="Confirm background models & check availability now"
+                className="hover:text-indigo-300 ml-0.5 text-slate-400 transition"
+              >
+                <RefreshCw className={`w-3 h-3 ${isRefreshingModels ? 'animate-spin text-indigo-400' : ''}`} />
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -96,6 +142,54 @@ export const RoutingDebugDrawer: React.FC<RoutingDebugDrawerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Ancillary Model Advisory Banner: Flags unavailable background models & prompts user to repick with usage explanation */}
+      {activeAdvisories.length > 0 && (
+        <div className="bg-amber-950/60 border-b border-amber-500/40 px-4 py-2 flex flex-col gap-1.5 shrink-0">
+          {activeAdvisories.map((advisory) => (
+            <div key={advisory.id} className="flex items-start justify-between gap-4 text-xs">
+              <div className="flex items-start gap-2 min-w-0">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-amber-200 flex items-center gap-2">
+                    <span>{advisory.roleTitle} Notice:</span>
+                    <span className="font-normal text-amber-300/90">{advisory.message}</span>
+                  </div>
+                  <div className="text-[11px] text-amber-400/80 mt-0.5">
+                    <span className="font-medium text-amber-300">Intended Usage: </span>
+                    {advisory.usageExplanation}
+                  </div>
+                </div>
+              </div>
+
+              {advisory.suggestedAlternatives.length > 0 && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[10px] text-amber-400/90 uppercase font-semibold">Repick:</span>
+                  {advisory.suggestedAlternatives.slice(0, 2).map((alt) => (
+                    <button
+                      key={`${alt.providerId}-${alt.modelId}`}
+                      onClick={async () => {
+                        if (onRepickAncillaryModel) {
+                          setRepickingRole(advisory.role);
+                          try {
+                            await onRepickAncillaryModel(advisory.role, alt.providerId, alt.modelId);
+                          } finally {
+                            setRepickingRole(null);
+                          }
+                        }
+                      }}
+                      disabled={repickingRole === advisory.role}
+                      className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 transition font-medium flex items-center gap-1"
+                    >
+                      <span>Switch to {alt.modelId} ({alt.providerId})</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Drawer Content */}
       <div className="flex flex-1 min-h-0 divide-x divide-slate-800">

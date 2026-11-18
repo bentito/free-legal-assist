@@ -3,6 +3,8 @@ import {
   AdversarialReviewMode,
   AgentProgressEvent,
   AgentSetupTerminalEvent,
+  AncillaryCheckerRole,
+  AncillaryModelRegistryState,
   AppBootstrapState,
   ChronologyFact,
   CustomLegalMcpServer,
@@ -141,6 +143,13 @@ declare global {
       exportRoutingLogs(payload?: {
         destinationPath?: string;
       }): Promise<string>;
+      getAncillaryModelRegistry(): Promise<AncillaryModelRegistryState>;
+      refreshAncillaryModelRegistry(): Promise<AppBootstrapState>;
+      repickAncillaryModel(payload: {
+        role: AncillaryCheckerRole;
+        providerId: LLMProviderId;
+        modelId: string;
+      }): Promise<AppBootstrapState>;
       onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
       onAgentSetupTerminal(
         callback: (event: AgentSetupTerminalEvent) => void
@@ -381,6 +390,22 @@ export const ipcBridge = {
     destinationPath?: string;
   }): Promise<string> {
     return window.lexharness!.exportRoutingLogs(payload);
+  },
+
+  async getAncillaryModelRegistry(): Promise<AncillaryModelRegistryState> {
+    return window.lexharness!.getAncillaryModelRegistry();
+  },
+
+  async refreshAncillaryModelRegistry(): Promise<AppBootstrapState> {
+    return window.lexharness!.refreshAncillaryModelRegistry();
+  },
+
+  async repickAncillaryModel(payload: {
+    role: AncillaryCheckerRole;
+    providerId: LLMProviderId;
+    modelId: string;
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.repickAncillaryModel(payload);
   },
 
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void {

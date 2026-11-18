@@ -6,6 +6,7 @@ import {
   RoutingDecisionLog,
 } from '../../../shared/types';
 import { LegalDatabase } from '../../db/database';
+import { AncillaryModelManager } from '../providers/AncillaryModelManager';
 import { OnnxPiiClassifier } from './OnnxPiiClassifier';
 import { OnnxRouterEngine } from './OnnxRouterEngine';
 import { PiiScrubberVault } from './PiiScrubberVault';
@@ -97,25 +98,17 @@ export class LocalPrivacyModelRouter {
     }
 
     // 7. Resolve target model & provider
+    // Note: The main model choice is 100% up to the user for frontier tasks.
+    // Ancillary checker models (e.g. low-cost economy for citation formatting) are resolved dynamically.
     const advConfig = this.db.getAdversarialConfig();
     let selectedModel = overrideModel || advConfig.primaryModel;
     let selectedProvider: LLMProviderId | undefined = overrideProvider || advConfig.primaryProvider;
 
     if (selectedTier === 'FAST_ECONOMY') {
-      // Pick fast economy model based on provider or default
-      if (selectedProvider === 'agy-acp') {
-        selectedModel = 'gemini-3.8-flash';
-      } else if (selectedProvider === 'codex-cli') {
-        selectedModel = 'o4-mini';
-      } else if (selectedProvider === 'claude-cli' || selectedProvider === 'anthropic') {
-        selectedModel = 'claude-3-5-haiku';
-      } else if (selectedProvider === 'openai') {
-        selectedModel = 'gpt-4o-mini';
-      } else if (selectedProvider === 'gemini') {
-        selectedModel = 'gemini-3.8-flash';
-      } else {
-        selectedModel = 'gemini-3.8-flash';
-      }
+      const ancillaryManager = AncillaryModelManager.getInstance(this.db);
+      const economyResolution = ancillaryManager.resolveWorkingEconomyModel(selectedProvider);
+      selectedModel = economyResolution.modelId;
+      selectedProvider = economyResolution.providerId;
     } else if (selectedTier === 'LOCAL_PRIVATE') {
       selectedModel = 'local-legal-engine';
       selectedProvider = 'legal-simulator';

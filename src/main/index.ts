@@ -5,9 +5,11 @@ import { LegalDatabase, SecretEncryptor } from './db/database';
 import { LegalAgentLoop } from './agent/LegalAgentLoop';
 import { PromptAssembler } from './agent/PromptAssembler';
 import { CliAgentDriverManager } from './agent/providers/CliAgentDriverManager';
+import { AncillaryModelManager } from './agent/providers/AncillaryModelManager';
 import {
   AdversarialConfig,
   AdversarialReviewMode,
+  AncillaryCheckerRole,
   AppBootstrapState,
   ChronologyFact,
   CustomLegalMcpServer,
@@ -113,6 +115,7 @@ function buildBootstrapState(): AppBootstrapState {
     customMcpServers: db.listCustomMcpServers(),
     privacyRoutingSettings: db.getPrivacyRoutingSettings(),
     recentRoutingLogs: db.listRoutingDebugLogs(activeMatterId || undefined, 20),
+    ancillaryModelRegistry: AncillaryModelManager.getInstance(db).getState(),
   };
 }
 
@@ -423,6 +426,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('legal:refresh-agent-connections', async () => {
     CliAgentDriverManager.invalidateStatusCache();
+    await AncillaryModelManager.getInstance(db).refreshModelRegistry();
     return buildBootstrapState();
   });
 
@@ -607,6 +611,35 @@ function registerIpcHandlers(): void {
       return agentLoop.getPrivacyRouter().getDebugLogger().exportLogs(payload?.destinationPath);
     }
   );
+
+  // --- Ancillary Checker Model Health, Periodic Background Probing & User Repick IPC ---
+  ipcMain.handle('legal:get-ancillary-model-registry', async () => {
+    return AncillaryModelManager.getInstance(db).getState();
+  });
+
+  ipcMain.handle('legal:refresh-ancillary-model-registry', async () => {
+    await AncillaryModelManager.getInstance(db).refreshModelRegistry();
+    return buildBootstrapState();
+  });
+
+  ipcMain.handle(
+    'legal:repick-ancillary-model',
+    async (
+      _event,
+      payload: {
+        role: AncillaryCheckerRole;
+        providerId: LLMProviderId;
+        modelId: string;
+      }
+    ) => {
+      await AncillaryModelManager.getInstance(db).repickAncillaryModel(
+        payload.role,
+        payload.providerId,
+        payload.modelId
+      );
+      return buildBootstrapState();
+    }
+  );
 }
 
 function resolveAppIconPath(): string | undefined {
@@ -691,6 +724,7 @@ app.whenReady().then(async () => {
 
   db = new LegalDatabase(userDataDir, createSafeStorageEncryptor());
   await db.initialize();
+  await AncillaryModelManager.getInstance(db).initialize();
   agentLoop = new LegalAgentLoop(db);
 
   registerIpcHandlers();

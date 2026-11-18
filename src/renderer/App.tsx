@@ -1682,6 +1682,7 @@ export const App: React.FC = () => {
                   activeMatter={activeMatter}
                   settings={state.privacyRoutingSettings}
                   recentLogs={state.recentRoutingLogs}
+                  ancillaryRegistry={state.ancillaryModelRegistry}
                   onClearLogs={async () => {
                     const next = await ipcBridge.clearRoutingLogs({ matterId: activeMatter?.id });
                     setState(next);
@@ -1691,6 +1692,14 @@ export const App: React.FC = () => {
                   }}
                   onSaveSettings={async (updated) => {
                     const next = await ipcBridge.savePrivacyRoutingSettings(updated);
+                    setState(next);
+                  }}
+                  onRepickAncillaryModel={async (role, providerId, modelId) => {
+                    const next = await ipcBridge.repickAncillaryModel({ role, providerId, modelId });
+                    setState(next);
+                  }}
+                  onRefreshAncillaryModels={async () => {
+                    const next = await ipcBridge.refreshAncillaryModelRegistry();
                     setState(next);
                   }}
                 />
@@ -2070,6 +2079,15 @@ export const App: React.FC = () => {
           setState(next);
         }}
         isSampleCaseLoaded={state.activeMatterId === 'matter-1794160132556'}
+        ancillaryRegistry={state.ancillaryModelRegistry}
+        onRepickAncillaryModel={async (role, providerId, modelId) => {
+          const next = await ipcBridge.repickAncillaryModel({ role, providerId, modelId });
+          setState(next);
+        }}
+        onRefreshAncillaryModels={async () => {
+          const next = await ipcBridge.refreshAncillaryModelRegistry();
+          setState(next);
+        }}
         onStartTutorial={() => setIsTutorialOpen(true)}
         onLoadSampleCase={handleLoadSampleCase}
         onCloseSampleCase={handleCloseSampleCase}

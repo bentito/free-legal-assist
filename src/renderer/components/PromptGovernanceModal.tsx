@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   AdversarialConfig,
+  AncillaryCheckerRole,
+  AncillaryModelRegistryState,
   AssembledPromptPreview,
   CourtListenerMcpAssuranceState,
   CustomLegalMcpServer,
@@ -14,6 +16,7 @@ import {
   SystemPromptSettings,
 } from '../../shared/types';
 import {
+  AlertTriangle,
   Bot,
   CheckCircle2,
   Cpu,
@@ -95,6 +98,13 @@ interface PromptGovernanceModalProps {
   onSavePrivacyRoutingSettings?: (updated: Partial<PrivacyRoutingSettings>) => Promise<void>;
   onExportRoutingLogs?: () => Promise<void>;
   onClearRoutingLogs?: () => Promise<void>;
+  ancillaryRegistry?: AncillaryModelRegistryState;
+  onRepickAncillaryModel?: (
+    role: AncillaryCheckerRole,
+    providerId: LLMProviderId,
+    modelId: string
+  ) => Promise<void>;
+  onRefreshAncillaryModels?: () => Promise<void>;
 }
 
 export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
@@ -109,6 +119,9 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
   courtListenerAssurance,
   customMcpServers = [],
   isSampleCaseLoaded = false,
+  ancillaryRegistry,
+  onRepickAncillaryModel,
+  onRefreshAncillaryModels,
   onStartTutorial,
   onLoadSampleCase,
   onCloseSampleCase,
@@ -762,20 +775,87 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
 
             {activeTab === 'providers_models' && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-100">
-                    Review Team Roles & API Credentials
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Assign models to Lead Drafting, Citation Auditing, and Opposing Review. API keys are encrypted securely on your device.
-                  </p>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-100">
+                      Review Team Roles, Ancillary Checker Models & API Credentials
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      The primary drafting model is chosen directly by the attorney in the composer. Configure working ancillary checker models for low-cost citation formatting, citation auditing, and opposing review.
+                    </p>
+                  </div>
+
+                  {ancillaryRegistry && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-300">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Ancillary Check: Confirmed Today</span>
+                      <button
+                        onClick={async () => {
+                          if (onRefreshAncillaryModels) {
+                            await onRefreshAncillaryModels();
+                            flashSaved('Background models verified & updated');
+                          }
+                        }}
+                        className="hover:text-amber-300 text-slate-400 p-0.5 transition"
+                        title="Re-probe background agent model availability now"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
+                {/* Ancillary Model Advisories Banner */}
+                {ancillaryRegistry?.advisories && ancillaryRegistry.advisories.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-amber-950/60 border border-amber-500/40 space-y-2">
+                    {ancillaryRegistry.advisories.map((advisory) => (
+                      <div key={advisory.id} className="flex flex-wrap items-start justify-between gap-3 text-xs">
+                        <div className="flex items-start gap-2 min-w-0 flex-1">
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="font-semibold text-amber-200">
+                              {advisory.roleTitle} Notice: <span className="font-normal text-amber-300/90">{advisory.message}</span>
+                            </div>
+                            <div className="text-[11px] text-amber-400/80 mt-0.5">
+                              <span className="font-medium text-amber-300">Usage: </span>
+                              {advisory.usageExplanation}
+                            </div>
+                          </div>
+                        </div>
+
+                        {advisory.suggestedAlternatives.length > 0 && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-amber-400/90 uppercase font-semibold">Repick:</span>
+                            {advisory.suggestedAlternatives.slice(0, 2).map((alt) => (
+                              <button
+                                key={`${alt.providerId}-${alt.modelId}`}
+                                onClick={async () => {
+                                  if (onRepickAncillaryModel) {
+                                    await onRepickAncillaryModel(advisory.role, alt.providerId, alt.modelId);
+                                    flashSaved(`Slotted ${alt.modelId} for ${advisory.roleTitle}`);
+                                  }
+                                }}
+                                className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] text-amber-200 transition font-medium"
+                              >
+                                Switch to {alt.modelId} ({alt.providerId})
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Role Assignment Matrix */}
-                <div className="grid grid-cols-3 gap-4 p-4 rounded-xl bg-slate-950 border border-slate-800">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4 rounded-xl bg-slate-950 border border-slate-800">
                   <div>
-                    <div className="text-xs font-semibold text-amber-300 mb-2">
-                      1. Lead Counsel / Primary Drafter
+                    <div className="text-xs font-semibold text-amber-300 mb-1 flex items-center justify-between">
+                      <span>1. Lead Counsel / Primary</span>
+                      <span className="text-[10px] text-slate-400 font-normal">User Choice</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mb-2 leading-tight">
+                      Selected in composer for substantive tasks
                     </div>
                     <select
                       value={adversarialConfig.primaryProvider}
@@ -807,8 +887,74 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   </div>
 
                   <div>
-                    <div className="text-xs font-semibold text-emerald-300 mb-2">
-                      2. Citation & Record Auditor
+                    <div className="text-xs font-semibold text-cyan-300 mb-1 flex items-center justify-between">
+                      <span>2. Low-Cost Economy Checker</span>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
+                        ancillaryRegistry?.roles?.low_cost_economy?.status === 'healthy'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {ancillaryRegistry?.roles?.low_cost_economy?.status === 'healthy' ? 'Ready' : 'Restricted'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mb-2 leading-tight">
+                      Smart Routing for Bluebook & citation formatting
+                    </div>
+                    <select
+                      value={privacyRoutingSettings?.economyModelProvider || ancillaryRegistry?.roles?.low_cost_economy?.providerId || 'agy-acp'}
+                      onChange={async (e) => {
+                        const prov = e.target.value as LLMProviderId;
+                        const cat = providers.find((p) => p.id === prov);
+                        const defaultM = cat?.defaultModel || '';
+                        if (onRepickAncillaryModel) {
+                          await onRepickAncillaryModel('low_cost_economy', prov, defaultM);
+                        } else if (onSavePrivacyRoutingSettings) {
+                          await onSavePrivacyRoutingSettings({
+                            economyModelProvider: prov,
+                            economyModel: defaultM,
+                          });
+                        }
+                        flashSaved('Updated Economy Checker Provider');
+                      }}
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100 mb-2"
+                    >
+                      {providers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={privacyRoutingSettings?.economyModel || ancillaryRegistry?.roles?.low_cost_economy?.modelId || 'gemini-3.8-flash'}
+                      onChange={async (e) => {
+                        const newModel = e.target.value;
+                        const prov = privacyRoutingSettings?.economyModelProvider || ancillaryRegistry?.roles?.low_cost_economy?.providerId || 'agy-acp';
+                        if (onRepickAncillaryModel) {
+                          await onRepickAncillaryModel('low_cost_economy', prov, newModel);
+                        } else if (onSavePrivacyRoutingSettings) {
+                          await onSavePrivacyRoutingSettings({
+                            economyModel: newModel,
+                          });
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs font-mono text-slate-300"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-xs font-semibold text-emerald-300 mb-1 flex items-center justify-between">
+                      <span>3. Citation & Record Auditor</span>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
+                        ancillaryRegistry?.roles?.citation_auditor?.status === 'healthy'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {ancillaryRegistry?.roles?.citation_auditor?.status === 'healthy' ? 'Ready' : 'Restricted'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mb-2 leading-tight">
+                      Cross-references caselaw & transcripts
                     </div>
                     <select
                       value={adversarialConfig.citationAuditorProvider}
@@ -842,8 +988,18 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   </div>
 
                   <div>
-                    <div className="text-xs font-semibold text-rose-300 mb-2">
-                      3. Opposing Counsel / Judicial Perspective
+                    <div className="text-xs font-semibold text-rose-300 mb-1 flex items-center justify-between">
+                      <span>4. Opposing Critic</span>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
+                        ancillaryRegistry?.roles?.opposing_counsel?.status === 'healthy'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {ancillaryRegistry?.roles?.opposing_counsel?.status === 'healthy' ? 'Ready' : 'Restricted'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mb-2 leading-tight">
+                      Stress-tests theories & finds weaknesses
                     </div>
                     <select
                       value={adversarialConfig.opposingCounselProvider}

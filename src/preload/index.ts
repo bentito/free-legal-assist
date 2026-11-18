@@ -4,6 +4,8 @@ import {
   AdversarialReviewMode,
   AgentProgressEvent,
   AgentSetupTerminalEvent,
+  AncillaryCheckerRole,
+  AncillaryModelRegistryState,
   AppBootstrapState,
   ChronologyFact,
   CustomLegalMcpServer,
@@ -131,6 +133,13 @@ export interface LexHarnessBridge {
   getRoutingLogs(payload?: { matterId?: string; limit?: number }): Promise<RoutingDecisionLog[]>;
   clearRoutingLogs(payload?: { matterId?: string }): Promise<AppBootstrapState>;
   exportRoutingLogs(payload?: { destinationPath?: string }): Promise<string>;
+  getAncillaryModelRegistry(): Promise<AncillaryModelRegistryState>;
+  refreshAncillaryModelRegistry(): Promise<AppBootstrapState>;
+  repickAncillaryModel(payload: {
+    role: AncillaryCheckerRole;
+    providerId: LLMProviderId;
+    modelId: string;
+  }): Promise<AppBootstrapState>;
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
   onAgentSetupTerminal(callback: (event: AgentSetupTerminalEvent) => void): () => void;
 }
@@ -195,6 +204,12 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.invoke('legal:clear-routing-logs', payload),
   exportRoutingLogs: (payload) =>
     ipcRenderer.invoke('legal:export-routing-logs', payload),
+  getAncillaryModelRegistry: () =>
+    ipcRenderer.invoke('legal:get-ancillary-model-registry'),
+  refreshAncillaryModelRegistry: () =>
+    ipcRenderer.invoke('legal:refresh-ancillary-model-registry'),
+  repickAncillaryModel: (payload) =>
+    ipcRenderer.invoke('legal:repick-ancillary-model', payload),
   onAgentProgress: (callback) => {
     const listener = (_event: unknown, data: AgentProgressEvent) => callback(data);
     ipcRenderer.on('legal:agent-progress', listener);

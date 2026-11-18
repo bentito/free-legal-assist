@@ -377,12 +377,70 @@ export interface RoutingDecisionLog {
   piiAudit: PiiMaskingAudit;
 }
 
+export type AncillaryCheckerRole = 'low_cost_economy' | 'citation_auditor' | 'opposing_counsel';
+
+export interface AncillaryModelOption {
+  providerId: LLMProviderId;
+  providerName: string;
+  modelId: string;
+  modelLabel: string;
+  tier: RouteTier;
+  isAvailable: boolean;
+  statusDetail?: string;
+  costPer1kTokensUSD: number;
+}
+
+export interface AncillaryModelAdvisory {
+  id: string;
+  role: AncillaryCheckerRole;
+  roleTitle: string;
+  usageExplanation: string;
+  configuredProvider: LLMProviderId;
+  configuredModel: string;
+  status: 'healthy' | 'restricted' | 'unavailable';
+  message: string;
+  suggestedAlternatives: AncillaryModelOption[];
+  detectedAt: string;
+}
+
+export interface AncillaryModelRegistryState {
+  lastConfirmedAt: string;
+  nextScheduledCheckAt: string;
+  roles: {
+    low_cost_economy: {
+      providerId: LLMProviderId;
+      modelId: string;
+      roleTitle: string;
+      usageExplanation: string;
+      status: 'healthy' | 'restricted' | 'unavailable';
+    };
+    citation_auditor: {
+      providerId: LLMProviderId;
+      modelId: string;
+      roleTitle: string;
+      usageExplanation: string;
+      status: 'healthy' | 'restricted' | 'unavailable';
+    };
+    opposing_counsel: {
+      providerId: LLMProviderId;
+      modelId: string;
+      roleTitle: string;
+      usageExplanation: string;
+      status: 'healthy' | 'restricted' | 'unavailable';
+    };
+  };
+  advisories: AncillaryModelAdvisory[];
+  availableWorkingModels: AncillaryModelOption[];
+}
+
 export interface PrivacyRoutingSettings {
   policyMode: RoutingPolicyMode;
   debugModeEnabled: boolean;
   preDispatchReviewEnabled: boolean;
   localSlmEndpoint?: string;
   preferDirectMLorCoreML?: boolean;
+  economyModelProvider?: LLMProviderId;
+  economyModel?: string;
 }
 
 export interface AppBootstrapState {
@@ -400,5 +458,6 @@ export interface AppBootstrapState {
   customMcpServers: CustomLegalMcpServer[];
   privacyRoutingSettings: PrivacyRoutingSettings;
   recentRoutingLogs: RoutingDecisionLog[];
+  ancillaryModelRegistry: AncillaryModelRegistryState;
 }
 
