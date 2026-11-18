@@ -362,6 +362,14 @@ describe('Phase 2 Item 7: LocalPrivacyModelRouter, PiiScrubberVault & RoutingDeb
       expect(logs.length).toBeGreaterThan(0);
       expect(logs[0].id).toBe(result.assistantMessage.routingLogId);
       expect(logs[0].piiAudit.rehydrationSuccessful).toBe(true);
+
+      // Verify messages reloaded from database retain routeTier and piiAudit
+      const persistedMessages = db.listMessages(sampleMatter.id);
+      const persistedAssistant = persistedMessages.find((m) => m.id === result.assistantMessage.id);
+      expect(persistedAssistant).toBeDefined();
+      expect(persistedAssistant?.routeTier).toBe('FRONTIER_REASONING');
+      expect(persistedAssistant?.routingLogId).toBe(result.assistantMessage.routingLogId);
+      expect(persistedAssistant?.piiAudit?.entitiesDetectedCount).toBeGreaterThanOrEqual(1);
     });
   });
 });

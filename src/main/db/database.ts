@@ -18,6 +18,7 @@ import {
   PractitionerProfileId,
   PrivacyRoutingSettings,
   ProviderConfig,
+  RouteTier,
   RoutingDecisionLog,
   SystemPromptSettings,
   UpdateMatterPayload,
@@ -271,6 +272,8 @@ export class LegalDatabase {
         matter_id TEXT NOT NULL,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
+        category TEXT,
+        is_edited INTEGER DEFAULT 0,
         initial_draft_before_review TEXT,
         primary_provider TEXT,
         primary_model TEXT,
@@ -279,6 +282,9 @@ export class LegalDatabase {
         tool_calls_json TEXT NOT NULL,
         adversarial_reviews_json TEXT NOT NULL,
         revision_rounds_completed INTEGER DEFAULT 0,
+        route_tier TEXT,
+        routing_log_id TEXT,
+        pii_audit_json TEXT,
         created_at TEXT NOT NULL
       );
 
@@ -394,6 +400,15 @@ export class LegalDatabase {
       }
       if (!refreshedCols.includes('is_edited')) {
         this.db.run('ALTER TABLE messages ADD COLUMN is_edited INTEGER DEFAULT 0;');
+      }
+      if (!refreshedCols.includes('route_tier')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN route_tier TEXT;');
+      }
+      if (!refreshedCols.includes('routing_log_id')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN routing_log_id TEXT;');
+      }
+      if (!refreshedCols.includes('pii_audit_json')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN pii_audit_json TEXT;');
       }
     } catch (err) {
       console.error('Failed migrating messages table schema:', err);
@@ -833,6 +848,9 @@ export class LegalDatabase {
         toolCalls: JSON.parse(String(r.tool_calls_json || '[]')),
         adversarialReviews: JSON.parse(String(r.adversarial_reviews_json || '[]')),
         revisionRoundsCompleted: Number(r.revision_rounds_completed ?? 0),
+        routeTier: r.route_tier ? (String(r.route_tier) as RouteTier) : undefined,
+        routingLogId: r.routing_log_id ? String(r.routing_log_id) : undefined,
+        piiAudit: r.pii_audit_json ? JSON.parse(String(r.pii_audit_json)) : undefined,
         createdAt: String(r.created_at),
       });
     }
@@ -846,8 +864,8 @@ export class LegalDatabase {
         id, matter_id, role, content, category, is_edited, initial_draft_before_review,
         primary_provider, primary_model, review_mode_used,
         assembled_system_prompt_snapshot, tool_calls_json, adversarial_reviews_json,
-        revision_rounds_completed, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        revision_rounds_completed, route_tier, routing_log_id, pii_audit_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         msg.id,
         msg.matterId,
@@ -863,6 +881,9 @@ export class LegalDatabase {
         JSON.stringify(msg.toolCalls ?? []),
         JSON.stringify(msg.adversarialReviews ?? []),
         msg.revisionRoundsCompleted ?? 0,
+        msg.routeTier ?? null,
+        msg.routingLogId ?? null,
+        msg.piiAudit ? JSON.stringify(msg.piiAudit) : null,
         msg.createdAt,
       ]
     );
@@ -911,6 +932,9 @@ export class LegalDatabase {
         ? JSON.parse(String(r.adversarial_reviews_json))
         : [],
       revisionRoundsCompleted: Number(r.revision_rounds_completed || 0),
+      routeTier: r.route_tier ? (String(r.route_tier) as RouteTier) : undefined,
+      routingLogId: r.routing_log_id ? String(r.routing_log_id) : undefined,
+      piiAudit: r.pii_audit_json ? JSON.parse(String(r.pii_audit_json)) : undefined,
       createdAt: String(r.created_at),
     };
   }
