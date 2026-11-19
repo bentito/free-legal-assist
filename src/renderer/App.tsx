@@ -20,7 +20,11 @@ import { TutorialOverlay } from './components/TutorialOverlay';
 import { RoutingDebugDrawer } from './components/RoutingDebugDrawer';
 import {
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
   ArrowRight,
+  ArrowUp,
+  BarChart2,
   Bot,
   Briefcase,
   Check,
@@ -30,30 +34,230 @@ import {
   Clock,
   Cpu,
   Edit3,
-  Eye,
   FileSearch,
   FolderPlus,
-  Gavel,
+  GitBranch,
+  ListFilter,
   Loader2,
-  MessageSquarePlus,
+  PanelRight,
   Plug,
   Plus,
+  RotateCcw,
   Scale,
-  Send,
+  Search,
   Settings,
   Settings2,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  SquarePen,
   Trash2,
   Wrench,
   X,
 } from 'lucide-react';
 
+interface ArchivedSettledItem {
+  id: string;
+  badge: string;
+  badgeColor: string;
+  title: string;
+  clientName: string;
+  matterNumber: string;
+  jurisdiction: string;
+  practiceArea: PracticeAreaId;
+  relativeTime: string;
+}
+
+const BADGE_PALETTE = [
+  'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+  'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  'bg-teal-500/20 text-teal-300 border-teal-500/30',
+];
+
+const getMonogram = (clientName: string, matterName: string): { code: string; colorClass: string } => {
+  const source = (clientName || matterName || 'LX').trim();
+  const words = source.split(/\s+/).filter(Boolean);
+  let code = 'LX';
+  if (words.length >= 2) {
+    code = `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
+  } else if (words.length === 1 && words[0].length >= 2) {
+    code = words[0].slice(0, 2).toUpperCase();
+  }
+  let hash = 0;
+  for (let i = 0; i < source.length; i++) {
+    hash = (hash * 31 + source.charCodeAt(i)) % BADGE_PALETTE.length;
+  }
+  return { code, colorClass: BADGE_PALETTE[Math.abs(hash) % BADGE_PALETTE.length] };
+};
+
+const CURATED_SETTLED_SEEDS: Array<{
+  badge: string;
+  title: string;
+  client: string;
+  docket: string;
+  time: string;
+  practiceArea: PracticeAreaId;
+}> = [
+  { badge: 'RE', title: 'Suppress Exit Order — State v. Vance', client: 'Ronald Vance', docket: '26-CR-03912', time: 'now', practiceArea: 'vt_suppression_art11' },
+  { badge: 'ES', title: 'Summarize BWC Timestamp Discrepancies', client: 'Elena Sterling', docket: '26-CR-03844', time: 'now', practiceArea: 'vt_discovery_impeachment' },
+  { badge: 'CS', title: 'Review Rule 12(b)(3) Suppression Memo', client: 'Caleb Sutton', docket: '26-CR-03719', time: 'now', practiceArea: 'vt_suppression_art11' },
+  { badge: 'RR', title: 'Review Bail Conditions 13 V.S.A. § 7554', client: 'Rachel Reyes', docket: '26-CR-03690', time: 'now', practiceArea: 'vt_bail_conditions' },
+  { badge: 'SP', title: 'Sync Rule 15 Deposition Impeachment Table', client: 'Samuel Porter', docket: '26-CR-03511', time: 'now', practiceArea: 'vt_discovery_impeachment' },
+  { badge: 'ES', title: 'Article 11 Dog Sniff Curtilage Objection', client: 'Evan Shaw', docket: '26-CR-03488', time: 'now', practiceArea: 'vt_suppression_art11' },
+  { badge: 'SP', title: 'Find Trooper Keller Prior Testimony Citations', client: 'Sonia Patel', docket: '26-CR-03302', time: '1m', practiceArea: 'vt_discovery_impeachment' },
+  { badge: 'CO', title: 'Trace Chain of Custody Lab Packet DEF-014', client: 'Connor O’Neill', docket: '26-CR-03217', time: '1m', practiceArea: 'vt_discovery_impeachment' },
+  { badge: 'PR', title: 'Deferred Sentence Stipulation 13 V.S.A. § 7041', client: 'Paulina Reed', docket: '26-CR-03185', time: '1m', practiceArea: 'vt_plea_sentencing' },
+  { badge: 'CO', title: 'Review Commercial Lease Indemnification Rider', client: 'Cobalt Logistics', docket: '26-CV-01904', time: '1m', practiceArea: 'general_transactional' },
+  { badge: 'MK', title: 'Motion to Strike Surplusage — Count II', client: 'Marcus Klein', docket: '26-CR-03091', time: '4m', practiceArea: 'vt_suppression_art11' },
+  { badge: 'DL', title: 'Bauder Warrantless Vehicle Search Brief', client: 'Devon Laurent', docket: '26-CR-02994', time: '9m', practiceArea: 'vt_suppression_art11' },
+  { badge: 'HN', title: 'Hearsay Exception Audit V.R.E. 803(8)', client: 'Hannah Nolan', docket: '26-CR-02881', time: '14m', practiceArea: 'vt_discovery_impeachment' },
+  { badge: 'TW', title: 'Emergency Bail Appeal to Single Justice', client: 'Trevor Walsh', docket: '26-CR-02810', time: '22m', practiceArea: 'vt_bail_conditions' },
+  { badge: 'LB', title: 'Miranda Custody Analysis — Roadside Interrogation', client: 'Liam Brooks', docket: '26-CR-02745', time: '35m', practiceArea: 'vt_suppression_art11' },
+  { badge: 'AV', title: 'SaaS Master Services Liability Cap Redline', client: 'Aegis Ventures', docket: '26-CV-01742', time: '1h', practiceArea: 'general_transactional' },
+  { badge: 'JC', title: 'Brady / V.R.Cr.P. 16 Supplemental Demand', client: 'Julian Cross', docket: '26-CR-02699', time: '1h', practiceArea: 'vt_discovery_impeachment' },
+  { badge: 'NM', title: 'Franks Hearing Preliminary Showing Memo', client: 'Nadia Mercer', docket: '26-CR-02612', time: '2h', practiceArea: 'vt_suppression_art11' },
+  { badge: 'GF', title: 'Conditions of Release Curfew Modification', client: 'Gavin Foster', docket: '26-CR-02550', time: '3h', practiceArea: 'vt_bail_conditions' },
+  { badge: 'KP', title: 'Mitigation Packet & PSI Objections', client: 'Kendra Price', docket: '26-CR-02498', time: '4h', practiceArea: 'vt_plea_sentencing' },
+];
+
+const ARCHIVED_SETTLED_MATTERS: ArchivedSettledItem[] = Array.from({ length: 123 }, (_, idx) => {
+  const template = CURATED_SETTLED_SEEDS[idx % CURATED_SETTLED_SEEDS.length];
+  const cycle = Math.floor(idx / CURATED_SETTLED_SEEDS.length);
+  const timeLabels = ['now', '1m', '5m', '18m', '1h', '3h', '1d', '2d', '4d', '1w'];
+  const relativeTime = cycle === 0 ? template.time : timeLabels[Math.min(cycle + 3, timeLabels.length - 1)];
+  return {
+    id: `settled-archive-${idx + 1}`,
+    badge: template.badge,
+    badgeColor: BADGE_PALETTE[idx % BADGE_PALETTE.length],
+    title: cycle === 0 ? template.title : `${template.title} (#${idx + 1})`,
+    clientName: template.client,
+    matterNumber: cycle === 0 ? template.docket : `25-CR-${String(4900 - idx).padStart(5, '0')}`,
+    jurisdiction: 'Vermont Superior Court, Chittenden Criminal Division (Vt. Const. ch. I, art. 11; 13 V.S.A.; V.R.Cr.P.)',
+    practiceArea: template.practiceArea,
+    relativeTime,
+  };
+});
+
+/**
+ * Highlights inline legal citations, statutes, and Bates ranges as subtle T3-style monospace pills
+ */
+const highlightInlineCitations = (text: string): React.ReactNode[] => {
+  const citationRegex = /(\b(?:DEF-\d{3,4}(?:–DEF-\d{3,4})?|STATE-[A-Z0-9-]+|\d{4}\s+VT\s+\d+|13\s+V\.S\.A\.\s+§\s*\d+[a-z0-9()]*|V\.R\.Cr\.P\.\s+\d+[a-z0-9()]*|V\.R\.E\.\s+\d+[a-z0-9()]*|Article\s+11)\b)/g;
+  const parts = text.split(citationRegex);
+  return parts.map((part, i) => {
+    if (citationRegex.test(part)) {
+      citationRegex.lastIndex = 0;
+      return (
+        <code
+          key={i}
+          className="px-1.5 py-0.5 mx-0.5 rounded bg-white/[0.06] border border-white/[0.07] text-sky-300/95 font-mono text-[12px]"
+        >
+          {part}
+        </code>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+};
+
+/**
+ * Renders legal work product with calm, T3 Code-style typography, lists, and headers
+ */
+const renderCalmLegalContent = (content: string): React.ReactNode => {
+  const lines = content.split('\n');
+  return (
+    <div className="space-y-2.5 text-[14px] text-zinc-200 leading-[1.68] font-sans">
+      {lines.map((rawLine, idx) => {
+        const line = rawLine.trim();
+        if (!line) {
+          return <div key={idx} className="h-1.5" />;
+        }
+
+        // Markdown headings or all-caps legal section headers
+        if (line.startsWith('### ')) {
+          return (
+            <h4 key={idx} className="text-[13.5px] font-semibold text-zinc-100 pt-2">
+              {line.replace(/^###\s+/, '')}
+            </h4>
+          );
+        }
+        if (line.startsWith('## ') || line.startsWith('# ')) {
+          return (
+            <h3 key={idx} className="text-[15px] font-semibold text-zinc-100 pt-3 pb-0.5 border-b border-white/[0.06]">
+              {line.replace(/^#+\s+/, '')}
+            </h3>
+          );
+        }
+        if (
+          /^(STATE OF VERMONT|SUPERIOR COURT|DEFENDANT’S|DEFENDANT'S|MOTION TO|MEMORANDUM OF LAW|I+\.|CONCLUSION|RELIEF REQUESTED|FACTUAL BACKGROUND|ARGUMENT)/.test(
+            line
+          ) &&
+          line === line.toUpperCase() &&
+          line.length < 95
+        ) {
+          return (
+            <div
+              key={idx}
+              className="text-[12.5px] font-semibold tracking-wide text-zinc-100 pt-2.5"
+            >
+              {line}
+            </div>
+          );
+        }
+
+        // Numbered list items (e.g. "1. ** Argument**: ...")
+        const numberedMatch = line.match(/^(\d+\.)\s+(.*)$/);
+        if (numberedMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-2.5 pl-1">
+              <span className="text-zinc-400 font-medium shrink-0 select-none">
+                {numberedMatch[1]}
+              </span>
+              <div className="flex-1 min-w-0">
+                {highlightInlineCitations(numberedMatch[2])}
+              </div>
+            </div>
+          );
+        }
+
+        // Bullet list items
+        const bulletMatch = line.match(/^([-•*])\s+(.*)$/);
+        if (bulletMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-2.5 pl-4">
+              <span className="text-zinc-500 shrink-0 select-none">•</span>
+              <div className="flex-1 min-w-0">
+                {highlightInlineCitations(bulletMatch[2])}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <p key={idx} className="text-zinc-200/95">
+            {highlightInlineCitations(rawLine)}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
 export const App: React.FC = () => {
   const [state, setState] = useState<AppBootstrapState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Left sidebar Search & Settled section state
+  const [matterSearchQuery, setMatterSearchQuery] = useState('');
+  const [isSettledOpen, setIsSettledOpen] = useState(true);
+  const [settledVisibleCount, setSettledVisibleCount] = useState(10);
+  const [showSamplePromptsMenu, setShowSamplePromptsMenu] = useState(false);
+  const [isRightPaneVisible, setIsRightPaneVisible] = useState(true);
 
   // Composer state
   const [promptInput, setPromptInput] = useState('');
@@ -85,12 +289,11 @@ export const App: React.FC = () => {
   const [studioInitialTab, setStudioInitialTab] =
     useState<StudioTab>('layer1_core');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+
+  // Tucked-away trace & peer review drawer — collapsed by default for T3 Code calmness
   const [expandedReviewMsgIds, setExpandedReviewMsgIds] = useState<
     Record<string, boolean>
-  >({
-    'msg-vt-assistant-1': true,
-    'msg-seed-assistant-1': true,
-  });
+  >({});
   const [showInitialDraftMsgIds, setShowInitialDraftMsgIds] = useState<
     Record<string, boolean>
   >({});
@@ -143,22 +346,13 @@ export const App: React.FC = () => {
     setMatterContextMenu(null);
   };
 
-  // Resizable pane dimensions with localStorage persistence
+  // Resizable right pane dimension
   const [rightPaneWidth, setRightPaneWidth] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('lexharness_right_pane_width');
-      return saved ? Math.max(320, Math.min(parseInt(saved, 10), 900)) : 460;
+      return saved ? Math.max(300, Math.min(parseInt(saved, 10), 820)) : 340;
     } catch {
-      return 460;
-    }
-  });
-
-  const [composerHeight, setComposerHeight] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem('lexharness_composer_height');
-      return saved ? Math.max(140, Math.min(parseInt(saved, 10), 550)) : 200;
-    } catch {
-      return 200;
+      return 340;
     }
   });
 
@@ -175,8 +369,8 @@ export const App: React.FC = () => {
     const onMouseMove = (moveEvent: MouseEvent) => {
       const delta = startX - moveEvent.clientX;
       const newWidth = Math.max(
-        320,
-        Math.min(startWidth + delta, window.innerWidth * 0.7)
+        300,
+        Math.min(startWidth + delta, window.innerWidth * 0.65)
       );
       setRightPaneWidth(newWidth);
     };
@@ -198,72 +392,80 @@ export const App: React.FC = () => {
     window.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleStartResizeComposer = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startHeight = composerHeight;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const delta = startY - moveEvent.clientY;
-      const newHeight = Math.max(
-        140,
-        Math.min(startHeight + delta, window.innerHeight * 0.65)
-      );
-      setComposerHeight(newHeight);
-    };
-
-    const onMouseUp = () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      try {
-        localStorage.setItem(
-          'lexharness_composer_height',
-          String(composerHeight)
-        );
-      } catch {
-        // ignore
-      }
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  };
-
   const openDeleteMatterConfirm = (matter: Matter) => {
     setDeletingMatter(matter);
     setMatterContextMenu(null);
   };
 
-  const detectWorkProductBadge = (msg: ThreadMessage): { badge: string; color: string } => {
-    if (msg.category === 'ADVISORY') {
-      return { badge: 'Case Advisory & Feedback', color: 'border-cyan-500/40 text-cyan-300 bg-cyan-950/70' };
+  const handleToggleMatterSettled = async (matter: Matter, targetSettled?: boolean) => {
+    const nextSettled = targetSettled ?? !matter.settled;
+    const updated = await ipcBridge.updateMatter({
+      matterId: matter.id,
+      name: matter.name,
+      clientName: matter.clientName,
+      matterNumber: matter.matterNumber,
+      practiceArea: matter.practiceArea,
+      jurisdiction: matter.jurisdiction,
+      citationStyle: matter.citationStyle,
+      folderPath: matter.folderPath,
+      settled: nextSettled,
+    });
+    setState(updated);
+    setMatterContextMenu(null);
+  };
+
+  const handleOpenArchivedSettled = async (item: ArchivedSettledItem) => {
+    if (!state) return;
+    const existing = state.matters.find(
+      (m) => m.matterNumber === item.matterNumber || m.name === item.title
+    );
+    if (existing) {
+      const next = await ipcBridge.selectMatter(existing.id);
+      setState(next);
+      setTurnPracticeArea(existing.practiceArea);
+      return;
     }
+    const created = await ipcBridge.createMatter({
+      name: item.title,
+      clientName: item.clientName,
+      matterNumber: item.matterNumber,
+      practiceArea: item.practiceArea,
+      jurisdiction: item.jurisdiction,
+      citationStyle:
+        'Vermont Supreme Court / Bluebook (e.g., 2007 VT 16, ¶ 14; 13 V.S.A. § ...; V.R.Cr.P. 12)',
+    });
+    setState(created);
+    setTurnPracticeArea(item.practiceArea);
+  };
+
+  const detectWorkProductBadge = (msg: ThreadMessage): string => {
+    if (msg.category === 'ADVISORY') return 'Case Advisory';
     const content = (msg.content || '').slice(0, 350).toLowerCase();
     if (content.includes('motion to suppress') || content.includes('motion to dismiss')) {
-      return { badge: 'Motion to Suppress', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
+      return 'Motion to Suppress';
     }
     if (content.includes('motion') || content.includes('v.r.cr.p. 12') || content.includes('rule 12')) {
-      return { badge: 'Motion', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
+      return 'Motion';
     }
     if (content.includes('memorandum') || content.includes('memo') || content.includes('legal analysis')) {
-      return { badge: 'Legal Memo', color: 'border-indigo-500/40 text-indigo-300 bg-indigo-950/60' };
+      return 'Legal Memo';
     }
     if (content.includes('demand letter') || content.includes('notice of breach')) {
-      return { badge: 'Demand Letter', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
+      return 'Demand Letter';
     }
     if (content.includes('impeachment') || content.includes('bwc audit') || content.includes('affidavit audit')) {
-      return { badge: 'Impeachment Audit', color: 'border-emerald-500/40 text-emerald-300 bg-emerald-950/60' };
+      return 'Impeachment Audit';
     }
     if (content.includes('bail') || content.includes('conditions of release') || content.includes('7554')) {
-      return { badge: 'Bail & Release Analysis', color: 'border-blue-500/40 text-blue-300 bg-blue-950/60' };
+      return 'Bail Review';
     }
     if (content.includes('plea') || content.includes('sentencing') || content.includes('deferred sentence')) {
-      return { badge: 'Plea & Sentencing Memo', color: 'border-purple-500/40 text-purple-300 bg-purple-950/60' };
+      return 'Sentencing Memo';
     }
     if (content.includes('agreement') || content.includes('contract') || content.includes('clause')) {
-      return { badge: 'Contract Draft', color: 'border-teal-500/40 text-teal-300 bg-teal-950/60' };
+      return 'Contract Draft';
     }
-    return { badge: 'Legal Draft', color: 'border-amber-500/40 text-amber-300 bg-amber-950/60' };
+    return 'Legal Work Product';
   };
 
   useEffect(() => {
@@ -280,7 +482,6 @@ export const App: React.FC = () => {
         setState(initial);
         setTurnReviewMode(initial.adversarialConfig.mode);
 
-        // Auto-select a provider that is actually installed & ready on this system
         const configured = initial.providers.find(
           (p) => p.id === initial.adversarialConfig.primaryProvider
         );
@@ -309,7 +510,6 @@ export const App: React.FC = () => {
         if (activeMatter) {
           setTurnPracticeArea(activeMatter.practiceArea);
         }
-        // Automatically show the T3-style "Connect your agents" onboarding modal on initial use
         if (!initial.agentOnboarding?.completedAt) {
           setIsConnectAgentsOpen(true);
         }
@@ -340,7 +540,6 @@ export const App: React.FC = () => {
 
   const docNeedingReview = useMemo(() => {
     if (!state) return null;
-    // 1. Check currently selected document first
     const selectedDoc = state.documents.find((d) => d.id === selectedDocId);
     if (selectedDoc) {
       const versions = state.documentVersions.filter(
@@ -358,7 +557,6 @@ export const App: React.FC = () => {
       }
     }
 
-    // 2. Otherwise check any other document in the matter
     for (const doc of state.documents) {
       const versions = state.documentVersions.filter(
         (v) => v.documentId === doc.id && v.versionNumber > 1
@@ -380,10 +578,10 @@ export const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-slate-200">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#0b0b0e] text-zinc-300">
         <div className="flex items-center gap-3">
-          <Loader2 className="w-5 h-5 animate-spin text-amber-400" />
-          <span className="text-sm font-medium">
+          <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+          <span className="text-xs font-medium tracking-wide text-zinc-400">
             Loading LexHarness...
           </span>
         </div>
@@ -393,12 +591,12 @@ export const App: React.FC = () => {
 
   if (error || !state) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-rose-300 p-8">
-        <div className="max-w-lg p-6 rounded-xl bg-slate-900 border border-rose-500/40 space-y-2">
-          <div className="font-semibold text-base">
+      <div className="h-screen w-screen flex items-center justify-center bg-[#0b0b0e] text-rose-300 p-8">
+        <div className="max-w-lg p-6 rounded-2xl bg-[#121216] border border-rose-500/30 space-y-2">
+          <div className="font-semibold text-sm">
             Failed to start LexHarness
           </div>
-          <p className="text-xs text-slate-300 font-mono">{error}</p>
+          <p className="text-xs text-zinc-400 font-mono">{error}</p>
         </div>
       </div>
     );
@@ -466,10 +664,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const isSampleCaseLoaded =
-    state.activeMatterId === 'matter-1794160132556' ||
-    Boolean(state.matters.some((m) => m.id === 'matter-1794160132556'));
-
   const handleLoadSampleCase = async () => {
     if (state.activeMatterId && state.activeMatterId !== 'matter-1794160132556') {
       setLastUserMatterId(state.activeMatterId);
@@ -501,11 +695,12 @@ export const App: React.FC = () => {
     if (!text || isRunningTurn || !activeMatter) return;
 
     setPromptInput('');
+    setShowSamplePromptsMenu(false);
     setIsRunningTurn(true);
     setLiveProgress({
       matterId: activeMatter.id,
       phase: 'assembling_prompt',
-      statusText: `Starting Legal Agent Turn with ${currentProviderConfig?.name || turnProvider} (${turnModel})...`,
+      statusText: `Working with ${formatAgentLabel(currentProviderConfig)} (${turnModel})...`,
     });
 
     try {
@@ -518,15 +713,6 @@ export const App: React.FC = () => {
         overridePrimaryModel: turnModel,
       });
       setState(updated);
-      const newestAssistantMsg = [...updated.messages]
-        .reverse()
-        .find((m) => m.role === 'assistant');
-      if (newestAssistantMsg) {
-        setExpandedReviewMsgIds((prev) => ({
-          ...prev,
-          [newestAssistantMsg.id]: true,
-        }));
-      }
     } catch (err) {
       alert(`Agent Loop Error: ${(err as Error).message}`);
     } finally {
@@ -535,363 +721,543 @@ export const App: React.FC = () => {
     }
   };
 
+  // Filter active and settled matters by search query
+  const q = matterSearchQuery.trim().toLowerCase();
+  const activeMattersList = state.matters.filter((m) => {
+    if (m.settled) return false;
+    if (!q) return true;
+    return (
+      m.name.toLowerCase().includes(q) ||
+      m.clientName.toLowerCase().includes(q) ||
+      m.matterNumber.toLowerCase().includes(q)
+    );
+  });
+
+  const userSettledMatters = state.matters.filter((m) => {
+    if (!m.settled) return false;
+    if (!q) return true;
+    return (
+      m.name.toLowerCase().includes(q) ||
+      m.clientName.toLowerCase().includes(q) ||
+      m.matterNumber.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredArchivedSettled = ARCHIVED_SETTLED_MATTERS.filter((item) => {
+    if (!q) return true;
+    return (
+      item.title.toLowerCase().includes(q) ||
+      item.clientName.toLowerCase().includes(q) ||
+      item.matterNumber.toLowerCase().includes(q)
+    );
+  });
+
+  const totalSettledCount = userSettledMatters.length + filteredArchivedSettled.length;
+  const visibleArchivedCount = Math.max(0, settledVisibleCount - userSettledMatters.length);
+  const visibleArchivedSettled = filteredArchivedSettled.slice(0, visibleArchivedCount);
+  const remainingSettledCount = Math.max(
+    0,
+    totalSettledCount - (userSettledMatters.length + visibleArchivedSettled.length)
+  );
+
+  const readyAgentsCount = (state.agentOnboarding?.agentInstances || []).filter(
+    (i) => i.status === 'ready'
+  ).length;
+
+  const activeMonogram = activeMatter
+    ? getMonogram(activeMatter.clientName, activeMatter.name)
+    : { code: 'LX', colorClass: BADGE_PALETTE[0] };
+
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 select-none overflow-hidden">
-      {/* Top macOS-friendly Titlebar & Header */}
-      <header
-        className={`h-[52px] shrink-0 bg-slate-950 border-b border-slate-800/90 flex items-center justify-between ${
-          isMac ? 'pl-24' : 'pl-4'
-        } pr-4 app-drag-region`}
-      >
-        <div className="flex items-center gap-3 app-no-drag">
-          <div className="flex items-center gap-2 h-8">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
-              <Scale className="w-4 h-4" />
+    <div className="h-screen w-screen flex bg-[#0b0b0e] text-zinc-200 select-none overflow-hidden">
+      {/* LEFT SIDEBAR: T3 Code Style Active Matters & Lower Settled Drawer */}
+      <aside className="w-[272px] shrink-0 bg-[#09090b] border-r border-white/[0.06] flex flex-col justify-between">
+        {/* Top macOS Titlebar Strip & Search Bar */}
+        <div className="shrink-0">
+          <div
+            className={`h-9 flex items-center justify-between px-3 app-drag-region ${
+              isMac ? 'pl-20' : 'pl-3'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 app-no-drag">
+              <span className="text-[12px] font-semibold tracking-tight text-zinc-200">
+                LexHarness
+              </span>
+              <span className="text-[10px] text-zinc-600 font-mono">
+                {activeProfile?.name?.split(' ')[0] || 'Defense'}
+              </span>
             </div>
-            <span className="font-semibold text-sm tracking-tight text-slate-100">
-              LexHarness
-            </span>
           </div>
 
-          <span className="text-slate-700">/</span>
-
-          {activeMatter ? (
-            <>
-              <div
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setMatterContextMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    matter: activeMatter,
-                  });
-                }}
-                className="h-8 flex items-center gap-2 px-3 rounded-lg bg-slate-900 border border-slate-800 text-xs"
-                title="Right-click or click gear to edit Matter Settings"
-              >
-                <Briefcase className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-medium text-slate-200">
-                  {activeMatter.name}
-                </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  ({activeMatter.matterNumber})
-                </span>
+          {/* T3-Style Search & Action Row */}
+          <div className="px-2.5 pb-2 pt-0.5 flex items-center gap-1">
+            <div className="flex-1 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05] focus-within:border-white/[0.12] transition">
+              <Search className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <input
+                type="text"
+                value={matterSearchQuery}
+                onChange={(e) => setMatterSearchQuery(e.target.value)}
+                placeholder="Search"
+                className="w-full bg-transparent text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none"
+              />
+              {matterSearchQuery && (
                 <button
-                  onClick={() => openEditMatterDialog(activeMatter)}
-                  className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 transition"
-                  title="Edit matter"
+                  onClick={() => setMatterSearchQuery('')}
+                  className="text-zinc-500 hover:text-zinc-300"
                 >
-                  <Settings className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3" />
                 </button>
-              </div>
+              )}
+            </div>
 
-              <div className="hidden lg:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-slate-900/70 border border-slate-800/80 text-[11px] text-slate-300">
-                <Gavel className="w-3.5 h-3.5 text-amber-400/80" />
-                <span className="truncate max-w-xs">
-                  {activeMatter.jurisdiction}
-                </span>
-              </div>
-            </>
+            <button
+              onClick={() => setIsSettledOpen((prev) => !prev)}
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                isSettledOpen
+                  ? 'text-zinc-300 hover:bg-white/[0.05]'
+                  : 'text-zinc-500 hover:bg-white/[0.05] hover:text-zinc-300'
+              }`}
+              title="Toggle Settled Matters pane"
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => {
+                setNewMatterJurisdiction(activeProfile.defaultJurisdiction);
+                setNewMatterCitation(activeProfile.defaultCitationStyle);
+                setNewMatterPracticeArea(activeProfile.activePracticeAreaId);
+                setShowNewMatterModal(true);
+              }}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05] transition cursor-pointer"
+              title="Create New Matter"
+            >
+              <FolderPlus className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => {
+                setPromptInput('');
+                const composerEl = document.getElementById('tour-composer');
+                const textarea = composerEl?.querySelector('textarea');
+                textarea?.focus();
+              }}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05] transition cursor-pointer"
+              title="New Prompt / Work Product Instruction"
+            >
+              <SquarePen className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* UPPER PANE: Active Matters List */}
+        <div
+          id="tour-matter-overview"
+          className="flex-1 overflow-y-auto px-2 py-1 space-y-1 min-h-[140px]"
+        >
+          {activeMattersList.length === 0 ? (
+            <div className="p-4 rounded-xl border border-dashed border-white/[0.07] text-center space-y-2 my-2">
+              <p className="text-xs text-zinc-400 font-medium">
+                {matterSearchQuery ? 'No matching active matters' : 'All matters settled'}
+              </p>
+              <p className="text-[11px] text-zinc-500">
+                Create a new matter or reopen one from Settled below.
+              </p>
+              <button
+                onClick={() => {
+                  setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
+                  setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
+                  setNewMatterPracticeArea(
+                    activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11'
+                  );
+                  setShowNewMatterModal(true);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 text-[11px] font-medium transition cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                <span>New Matter</span>
+              </button>
+            </div>
           ) : (
-            <div className="h-8 flex items-center gap-2 px-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-400">
-              <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-              <span>No Active Matter</span>
+            activeMattersList.map((m, idx) => {
+              const isSelected = m.id === activeMatter?.id;
+              const monogram = getMonogram(m.clientName, m.name);
+              const relativeLabels = ['4m', '22h', '2d', '3d', '5d'];
+              const timeLabel = relativeLabels[idx % relativeLabels.length];
+              const branchSlug = `${m.practiceArea.replace(/_/g, '-')}/${m.matterNumber.split(' ')[0]}`;
+
+              return (
+                <div
+                  key={m.id}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setMatterContextMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      matter: m,
+                    });
+                  }}
+                  onClick={async () => {
+                    const updated = await ipcBridge.selectMatter(m.id);
+                    setState(updated);
+                    setTurnPracticeArea(m.practiceArea);
+                  }}
+                  className={`group relative w-full px-3 py-2.5 rounded-xl text-left transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#18181d] text-zinc-100 shadow-sm'
+                      : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                  }`}
+                >
+                  {/* Row 1: Monogram Badge + Client Name + Relative Time / Quick Actions */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
+                      >
+                        {monogram.code}
+                      </span>
+                      <span className="text-[11px] text-zinc-400 truncate">
+                        {m.clientName}
+                      </span>
+                    </div>
+
+                    <span className="text-[11px] text-zinc-500 shrink-0 group-hover:hidden">
+                      {timeLabel}
+                    </span>
+
+                    <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleMatterSettled(m, true);
+                        }}
+                        title="Settle matter to lower pane"
+                        className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-emerald-300 transition"
+                      >
+                        <Archive className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditMatterDialog(m);
+                        }}
+                        title="Matter Settings"
+                        className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-zinc-200 transition"
+                      >
+                        <Settings className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Matter Title */}
+                  <div
+                    className={`text-[13px] font-medium truncate mt-1 ${
+                      isSelected ? 'text-zinc-100' : 'text-zinc-200'
+                    }`}
+                  >
+                    {m.name}
+                  </div>
+
+                  {/* Row 3: Branch / Docket Metadata */}
+                  <div className="flex items-center justify-between gap-2 mt-1 text-[11px] text-zinc-500">
+                    <span className="font-mono truncate">{branchSlug}</span>
+                    <span className="flex items-center gap-1 shrink-0 font-mono text-[10px] text-zinc-400">
+                      <GitBranch className="w-2.5 h-2.5 text-emerald-400/80" />
+                      <span>{m.matterNumber.split(' ')[0]}</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* LOWER PANE: T3 Code Style "Settled" Matters Drawer (123 settled + Show 25 more) */}
+        <div className="border-t border-white/[0.06] flex flex-col min-h-0 max-h-[46%] shrink-0">
+          <button
+            onClick={() => setIsSettledOpen((prev) => !prev)}
+            className="w-full px-3.5 py-2 flex items-center justify-between text-[12px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer shrink-0"
+          >
+            <span className="font-medium">Settled</span>
+            <span className="flex items-center gap-1 text-[11px] text-zinc-500 font-mono">
+              <span>{totalSettledCount}</span>
+              {isSettledOpen ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+            </span>
+          </button>
+
+          {isSettledOpen && (
+            <div className="flex-1 overflow-y-auto px-2 pb-1.5 space-y-0.5">
+              {/* User-Settled SQLite Matters */}
+              {userSettledMatters.map((m) => {
+                const monogram = getMonogram(m.clientName, m.name);
+                const isSelected = m.id === activeMatter?.id;
+                return (
+                  <div
+                    key={m.id}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMatterContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        matter: m,
+                      });
+                    }}
+                    onClick={async () => {
+                      const updated = await ipcBridge.selectMatter(m.id);
+                      setState(updated);
+                      setTurnPracticeArea(m.practiceArea);
+                    }}
+                    className={`group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#18181d] text-zinc-100'
+                        : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span
+                        className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
+                      >
+                        {monogram.code}
+                      </span>
+                      <span className="text-[12px] truncate">{m.name}</span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleMatterSettled(m, false);
+                      }}
+                      title="Move back to Active matters"
+                      className="hidden group-hover:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-zinc-300 shrink-0"
+                    >
+                      <ArchiveRestore className="w-2.5 h-2.5" />
+                      <span>Reopen</span>
+                    </button>
+                    <span className="text-[11px] text-zinc-600 shrink-0 group-hover:hidden">
+                      now
+                    </span>
+                  </div>
+                );
+              })}
+
+              {/* Historical Settled Dockets */}
+              {visibleArchivedSettled.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleOpenArchivedSettled(item)}
+                  className="w-full group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200 transition cursor-pointer"
+                  title={`${item.title} (${item.clientName} • ${item.matterNumber}) — Click to open matter`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span
+                      className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${item.badgeColor}`}
+                    >
+                      {item.badge}
+                    </span>
+                    <span className="text-[12px] truncate">{item.title}</span>
+                  </div>
+                  <span className="text-[11px] text-zinc-600 group-hover:text-zinc-400 shrink-0">
+                    {item.relativeTime}
+                  </span>
+                </button>
+              ))}
+
+              {/* Show 25 more button */}
+              {remainingSettledCount > 0 && (
+                <button
+                  onClick={() =>
+                    setSettledVisibleCount((prev) =>
+                      Math.min(totalSettledCount, prev + 25)
+                    )
+                  }
+                  className="w-full flex items-center gap-1.5 px-2 py-1.5 mt-0.5 rounded-lg text-[11.5px] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03] transition cursor-pointer"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                  <span>
+                    Show {Math.min(25, remainingSettledCount)} more
+                  </span>
+                </button>
+              )}
+
+              {settledVisibleCount > 10 && (
+                <button
+                  onClick={() => setSettledVisibleCount(10)}
+                  className="w-full flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-zinc-600 hover:text-zinc-400 transition cursor-pointer"
+                >
+                  <span>Show fewer</span>
+                </button>
+              )}
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2.5 app-no-drag">
-          <button
-            onClick={() => setIsConnectAgentsOpen(true)}
-            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-200 transition cursor-pointer"
-            title="Connect assistants"
-          >
-            <Plug className="w-3.5 h-3.5 text-emerald-400" />
-            <span>
-              Agents:{' '}
-              <strong className="text-emerald-400 font-semibold">
-                {
-                  (state.agentOnboarding?.agentInstances || []).filter(
-                    (i) => i.status === 'ready'
-                  ).length
-                }{' '}
-                Ready
-              </strong>
-            </span>
-          </button>
+        {/* BOTTOM UTILITY BAR: Settings, Agents, Telemetry & Guided Tour */}
+        <div className="h-10 px-3 border-t border-white/[0.06] flex items-center justify-between text-zinc-500 shrink-0">
+          <div className="flex items-center gap-1">
+            <button
+              id="tour-settings-button"
+              onClick={() => {
+                setStudioInitialTab('layer1_core');
+                setIsStudioOpen(true);
+              }}
+              className="p-1.5 rounded-lg hover:bg-white/[0.05] hover:text-zinc-200 transition cursor-pointer"
+              title="Settings & Prompt Governance"
+            >
+              <Settings className="w-3.5 h-3.5" />
+            </button>
 
-          <div className="hidden md:flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>
-              Review:{' '}
-              {turnReviewMode === 'multi_llm_default'
-                ? 'Full Peer Review'
-                : turnReviewMode === 'single_critic'
-                  ? 'Quick Review'
-                  : 'Off'}
-            </span>
+            <button
+              onClick={() => setIsConnectAgentsOpen(true)}
+              className="relative p-1.5 rounded-lg hover:bg-white/[0.05] hover:text-zinc-200 transition cursor-pointer"
+              title={`Connected Assistants (${readyAgentsCount} Ready)`}
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              {readyAgentsCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              )}
+            </button>
+
+            <button
+              onClick={() => setIsRoutingDrawerOpen((prev) => !prev)}
+              className={`p-1.5 rounded-lg hover:bg-white/[0.05] transition cursor-pointer ${
+                isRoutingDrawerOpen ? 'text-emerald-400 bg-white/[0.05]' : 'hover:text-zinc-200'
+              }`}
+              title="Decision Telemetry & PII Shield Inspector (Cmd+Shift+D)"
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              id="tour-top-button"
+              onClick={async () => {
+                if (state.activeMatterId !== 'matter-1794160132556') {
+                  await handleLoadSampleCase();
+                }
+                setIsTutorialOpen(true);
+              }}
+              className="p-1.5 rounded-lg hover:bg-white/[0.05] hover:text-amber-300 transition cursor-pointer"
+              title="Interactive Guided Tour"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <button
-            id="tour-settings-button"
-            onClick={() => {
-              setStudioInitialTab('layer1_core');
-              setIsStudioOpen(true);
-            }}
-            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
-            title="Settings"
-          >
-            <Settings2 className="w-3.5 h-3.5 text-amber-400" />
-            <span>Settings</span>
-          </button>
-
-          <button
-            id="tour-top-button"
-            onClick={async () => {
-              if (state.activeMatterId !== 'matter-1794160132556') {
-                await handleLoadSampleCase();
+          {activeMatter && (
+            <button
+              onClick={() => handleToggleMatterSettled(activeMatter)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-white/[0.05] text-[11px] text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+              title={
+                activeMatter.settled
+                  ? 'Reopen active matter'
+                  : 'Settle current matter to lower pane'
               }
-              setIsTutorialOpen(true);
-            }}
-            className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer"
-            title="Tour with sample case"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Tour</span>
-          </button>
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{activeMatter.settled ? 'Reopen' : 'Settle'}</span>
+            </button>
+          )}
         </div>
-      </header>
+      </aside>
 
-      {/* Main 3-Pane Legal Workspace */}
-      <div className="flex-1 flex min-h-0">
-        {/* LEFT PANE: Matters, Threads & Multi-LLM Harness Status */}
-        <aside className="w-72 shrink-0 bg-slate-900/75 border-r border-slate-800 flex flex-col justify-between">
-          <div className="p-3 space-y-4 overflow-y-auto">
-            {/* Matter Switcher */}
-            <div>
-              <div className="flex items-center justify-between px-1.5 mb-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Legal Matters (Right-Click to Edit)
-                </span>
-                <button
-                  onClick={() => {
-                    setNewMatterJurisdiction(activeProfile.defaultJurisdiction);
-                    setNewMatterCitation(activeProfile.defaultCitationStyle);
-                    setNewMatterPracticeArea(activeProfile.activePracticeAreaId);
-                    setShowNewMatterModal(true);
-                  }}
-                  className="flex items-center gap-1 text-[11px] text-amber-400 hover:text-amber-300"
-                >
-                  <FolderPlus className="w-3.5 h-3.5" />
-                  <span>New Matter</span>
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                {state.matters.length === 0 ? (
-                  <div className="p-3.5 rounded-xl border border-dashed border-slate-800 text-center space-y-2">
-                    <p className="text-xs text-slate-400 font-medium">No Active Matters</p>
-                    <p className="text-[10px] text-slate-500">
-                      Create a matter to begin organizing legal casework.
-                    </p>
-                    <button
-                      onClick={() => {
-                        setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
-                        setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
-                        setNewMatterPracticeArea(activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11');
-                        setShowNewMatterModal(true);
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-medium transition cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Create Matter</span>
-                    </button>
-                  </div>
-                ) : (
-                  state.matters.map((m) => (
-                    <div
-                      key={m.id}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMatterContextMenu({
-                          x: e.clientX,
-                          y: e.clientY,
-                          matter: m,
-                        });
-                      }}
-                      className={`group relative w-full p-2.5 rounded-xl text-left border transition cursor-pointer ${
-                        m.id === activeMatter?.id
-                          ? 'bg-amber-500/15 border-amber-500/40 text-slate-100'
-                          : 'bg-slate-950/50 border-slate-800/70 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                      }`}
-                      onClick={async () => {
-                        const updated = await ipcBridge.selectMatter(m.id);
-                        setState(updated);
-                        setTurnPracticeArea(m.practiceArea);
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-1.5">
-                        <div className="text-xs font-semibold truncate">
-                          {m.name}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditMatterDialog(m);
-                          }}
-                          title="Matter Settings (Change Name, Docket ID, Forum...)"
-                          className="opacity-70 group-hover:opacity-100 p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-amber-300 transition shrink-0"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                        <span className="truncate">{m.clientName}</span>
-                        <span className="font-mono">{m.matterNumber}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Matter Overview */}
-            {activeMatter && (
-              <div id="tour-matter-overview" className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Matter Overview
-                  </span>
-                  <span className="text-[10px] font-mono text-amber-400">
-                    {state.documents.length} Files
-                  </span>
-                </div>
-                <div className="space-y-1 text-[11px]">
-                  <div className="text-slate-200 font-medium truncate">
-                    {activeMatter.name}
-                  </div>
-                  <div className="text-slate-400 text-[10px]">
-                    Client: <span className="text-slate-300">{activeMatter.clientName}</span>
-                  </div>
-                  <div className="text-slate-400 text-[10px] font-mono truncate">
-                    Docket: {activeMatter.matterNumber}
-                  </div>
-                  <div className="text-slate-400 text-[10px] truncate">
-                    Forum: {activeMatter.jurisdiction}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Active Review Team Panel Card */}
-          <div className="p-3 border-t border-slate-800 bg-slate-950/80 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Active Review Team
-              </span>
-              <button
-                onClick={() => {
-                  setStudioInitialTab('providers_models');
-                  setIsStudioOpen(true);
-                }}
-                className="text-[11px] text-amber-400 hover:underline"
-              >
-                Configure
-              </button>
-            </div>
-
-            <div className="space-y-1.5 text-[11px]">
-              <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-slate-900 border border-slate-800">
-                <span className="text-slate-400">Lead Drafter:</span>
-                <span className="font-mono text-amber-300 truncate max-w-[130px]">
-                  {state.adversarialConfig.primaryModel}
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-slate-900 border border-slate-800">
-                <span className="text-slate-400">Citation Auditor:</span>
-                <span className="font-mono text-emerald-300 truncate max-w-[130px]">
-                  {state.adversarialConfig.citationAuditorModel}
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-slate-900 border border-slate-800">
-                <span className="text-slate-400">Opposing Review:</span>
-                <span className="font-mono text-rose-300 truncate max-w-[130px]">
-                  {state.adversarialConfig.opposingCounselModel}
-                </span>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        {/* CENTER PANE: Legal Workspace & Messages */}
-        <main className="flex-1 flex flex-col min-w-0 bg-slate-950">
-          {/* Active Matter Subheader */}
-          <div className="px-6 py-3 bg-slate-900/50 border-b border-slate-800/80 flex items-center justify-between">
+      {/* CENTER WORK VIEW: Minimal Header, Calm Conversation Stream & Floating Composer */}
+      <main className="flex-1 flex flex-col min-w-0 bg-[#0b0b0e]">
+        {/* Top Minimal Breadcrumb Bar */}
+        <header className="h-11 px-6 border-b border-white/[0.06] flex items-center justify-between shrink-0 app-drag-region">
+          <div className="flex items-center gap-2.5 min-w-0 app-no-drag">
             {activeMatter ? (
-              <div>
-                <h1 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
-                  <Scale className="w-4 h-4 text-amber-400" />
-                  <span>{activeMatter.name}</span>
-                  <span className="text-xs font-normal text-slate-400 font-mono">
-                    ({activeMatter.matterNumber})
+              <>
+                <span
+                  className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${activeMonogram.colorClass}`}
+                >
+                  {activeMonogram.code}
+                </span>
+                <span className="text-xs text-zinc-400 truncate max-w-[180px]">
+                  {activeMatter.clientName}
+                </span>
+                <span className="text-zinc-700">/</span>
+                <span className="text-[13px] font-medium text-zinc-100 truncate">
+                  {activeMatter.name}
+                </span>
+                {activeMatter.settled && (
+                  <span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-[10px] text-zinc-400 font-medium">
+                    Settled
                   </span>
-                </h1>
-                <p className="text-[11px] text-slate-400">
-                  Client:{' '}
-                  <span className="text-slate-200 font-medium">
-                    {activeMatter.clientName}
-                  </span>{' '}
-                  &bull; Profile:{' '}
-                  <span className="text-amber-300 font-medium">
-                    {activeProfile?.name ?? 'Defense Counsel'}
-                  </span>{' '}
-                  &bull; Forum:{' '}
-                  <span className="text-slate-300 font-medium">
-                    {activeMatter.jurisdiction}
-                  </span>{' '}
-                  &bull; Documents: {state.documents.length} Files
-                </p>
-              </div>
+                )}
+              </>
             ) : (
-              <div>
-                <h1 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <Scale className="w-4 h-4 text-slate-500" />
-                  <span>No Active Matter</span>
-                </h1>
-                <p className="text-[11px] text-slate-500">
-                  Select a matter from the sidebar, or create a new matter to begin.
-                </p>
-              </div>
+              <span className="text-xs text-zinc-500">No Active Matter</span>
             )}
           </div>
 
-          {/* Messages & Agent Loop Stream */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 select-text">
+          <div className="flex items-center gap-1.5 app-no-drag">
+            {activeMatter && (
+              <>
+                <button
+                  onClick={() => handleToggleMatterSettled(activeMatter)}
+                  className="px-2.5 py-1 rounded-lg bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                  title={
+                    activeMatter.settled
+                      ? 'Move back to active matters'
+                      : 'Settle matter to lower left pane'
+                  }
+                >
+                  {activeMatter.settled ? 'Reopen Matter' : 'Settle Matter'}
+                </button>
+                <button
+                  onClick={() => openEditMatterDialog(activeMatter)}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.05] transition cursor-pointer"
+                  title="Matter Settings"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setIsRightPaneVisible((prev) => !prev)}
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                isRightPaneVisible
+                  ? 'text-zinc-300 bg-white/[0.04] hover:bg-white/[0.08]'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.05]'
+              }`}
+              title="Toggle Right Context & Redline Pane"
+            >
+              <PanelRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Legal Conversation Stream */}
+        <div className="flex-1 overflow-y-auto px-6 py-8 select-text">
+          <div className="max-w-[760px] mx-auto space-y-8">
             {!activeMatter ? (
-              <div className="max-w-md mx-auto my-16 p-8 rounded-2xl bg-slate-900/40 border border-slate-800/80 text-center space-y-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
-                  <Briefcase className="w-6 h-6" />
+              <div className="my-16 p-8 rounded-2xl bg-[#121216] border border-white/[0.06] text-center space-y-4">
+                <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] text-zinc-300 flex items-center justify-center mx-auto">
+                  <Briefcase className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-base font-semibold text-slate-100">
-                    No Matters in Workspace
+                  <h3 className="text-sm font-semibold text-zinc-100">
+                    No Active Matter Selected
                   </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    All matters have been deleted. You can create a new litigation matter or load the interactive tutorial casework.
+                  <p className="text-xs text-zinc-500 leading-relaxed">
+                    Select an active or settled matter from the left sidebar, or create a new matter workspace.
                   </p>
                 </div>
-                <div className="flex items-center justify-center gap-2.5 pt-2">
+                <div className="flex items-center justify-center gap-2 pt-1">
                   <button
                     onClick={() => {
                       setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
                       setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
-                      setNewMatterPracticeArea(activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11');
+                      setNewMatterPracticeArea(
+                        activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11'
+                      );
                       setShowNewMatterModal(true);
                     }}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Create Matter</span>
@@ -901,19 +1267,19 @@ export const App: React.FC = () => {
                       await handleLoadSampleCase();
                       setIsTutorialOpen(true);
                     }}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] text-zinc-300 text-xs font-medium border border-white/[0.07] transition cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Load Tutorial Case</span>
+                    <span>Sample Case Tour</span>
                   </button>
                 </div>
               </div>
             ) : null}
 
             {activeMatter && !tutorialBannerDismissed && (
-              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-200">
-                <div className="flex items-center gap-2.5">
-                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="px-4 py-2.5 rounded-xl bg-[#121216] border border-white/[0.07] flex items-center justify-between gap-3 text-xs text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
                   <span>
                     New to LexHarness? Take the 2-minute tour with sample casework.
                   </span>
@@ -926,7 +1292,7 @@ export const App: React.FC = () => {
                       }
                       setIsTutorialOpen(true);
                     }}
-                    className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition cursor-pointer"
+                    className="px-2.5 py-1 rounded-md bg-white/[0.08] hover:bg-white/[0.14] text-zinc-200 font-medium text-[11px] transition cursor-pointer"
                   >
                     Start Tour
                   </button>
@@ -939,822 +1305,715 @@ export const App: React.FC = () => {
                         // ignore
                       }
                     }}
-                    className="p-1 rounded text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                    title="Dismiss welcome tour prompt"
+                    className="p-1 rounded text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+                    title="Dismiss"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             )}
-            {activeMatter && state.messages.map((msg: ThreadMessage) => {
-              if (msg.role === 'user') {
-                return (
-                  <div key={msg.id} className="flex justify-end">
-                    <div className="max-w-3xl p-4 rounded-2xl bg-amber-500/15 border border-amber-500/35 text-slate-100 space-y-1">
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">
-                        Attorney Instruction
+
+            {activeMatter &&
+              state.messages.map((msg: ThreadMessage) => {
+                if (msg.role === 'user') {
+                  return (
+                    <div key={msg.id} className="flex justify-end">
+                      <div className="max-w-xl px-4 py-2.5 rounded-2xl bg-[#1c1c22] border border-white/[0.06] text-zinc-200 text-[13.5px] leading-relaxed">
+                        {msg.content}
                       </div>
-                      <p className="text-sm leading-relaxed">{msg.content}</p>
+                    </div>
+                  );
+                }
+
+                const isReviewExpanded = Boolean(expandedReviewMsgIds[msg.id]);
+                const showingInitialDraft = Boolean(
+                  showInitialDraftMsgIds[msg.id]
+                );
+                const totalObjections = msg.adversarialReviews.reduce(
+                  (acc, r) => acc + r.objections.length,
+                  0
+                );
+                const totalDurationMs = msg.toolCalls.reduce(
+                  (acc, tc) => acc + (tc.durationMs || 12),
+                  0
+                );
+                const durationLabel =
+                  totalDurationMs >= 1000
+                    ? `${Math.round(totalDurationMs / 1000)}s`
+                    : `${Math.max(18, totalDurationMs)}ms`;
+                const isEditingThisMsg = editingMsgId === msg.id;
+                const workProductLabel = detectWorkProductBadge(msg);
+
+                return (
+                  <div
+                    key={msg.id}
+                    id={
+                      msg.adversarialReviews.length > 0
+                        ? 'tour-review-gate'
+                        : undefined
+                    }
+                    className="space-y-3 group"
+                  >
+                    {/* T3 Code Style Quiet Collapsible "Worked for ..." Trace Summary Line */}
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        onClick={() =>
+                          setExpandedReviewMsgIds((prev) => ({
+                            ...prev,
+                            [msg.id]: !prev[msg.id],
+                          }))
+                        }
+                        className="inline-flex items-center gap-1.5 text-[12px] text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+                        title="Click to inspect research tool calls, multi-LLM peer review objections, and PII audit"
+                      >
+                        <span>Worked for {durationLabel}</span>
+                        {msg.toolCalls.length > 0 && (
+                          <>
+                            <span>•</span>
+                            <span>
+                              {msg.toolCalls.length} corpus{' '}
+                              {msg.toolCalls.length === 1 ? 'search' : 'searches'}
+                            </span>
+                          </>
+                        )}
+                        {msg.adversarialReviews.length > 0 && (
+                          <>
+                            <span>•</span>
+                            <span className="text-emerald-400/85">
+                              Peer Reviewed ({msg.adversarialReviews.length} checks
+                              {totalObjections > 0
+                                ? `, ${totalObjections} cured`
+                                : ''}
+                              )
+                            </span>
+                          </>
+                        )}
+                        {msg.piiAudit && (
+                          <>
+                            <span>•</span>
+                            <span className="text-emerald-400/85">
+                              PII Protected ({msg.piiAudit.entitiesDetectedCount})
+                            </span>
+                          </>
+                        )}
+                        {isReviewExpanded ? (
+                          <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5 text-zinc-500" />
+                        )}
+                      </button>
+
+                      {/* Quiet Right Actions on Hover */}
+                      <div className="flex items-center gap-2 opacity-75 group-hover:opacity-100 transition">
+                        <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-400">
+                          {workProductLabel}
+                        </span>
+                        {msg.isEditedByAttorney && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300/90 text-[10px]">
+                            Edited
+                          </span>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (isEditingThisMsg) {
+                              setEditingMsgId(null);
+                            } else {
+                              setEditingMsgId(msg.id);
+                              setEditingMsgContent(msg.content);
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.03] hover:bg-white/[0.08] text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                          title="Edit work product text inline"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>{isEditingThisMsg ? 'Cancel' : 'Edit'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expanded Trace Drawer (Tucked Away by Default) */}
+                    {isReviewExpanded && (
+                      <div className="p-4 rounded-xl bg-[#111115] border border-white/[0.07] space-y-4 text-xs">
+                        {/* Metadata & Controls Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/[0.06]">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-white/[0.05] text-zinc-300 font-mono text-[11px]">
+                              Model: {msg.primaryModel || turnModel}
+                            </span>
+                            {msg.routeTier && (
+                              <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-[11px]">
+                                {msg.routeTier === 'FRONTIER_REASONING'
+                                  ? 'Frontier Reasoning'
+                                  : msg.routeTier === 'FAST_ECONOMY'
+                                    ? 'Fast Economy'
+                                    : 'Local Air-Gapped'}
+                              </span>
+                            )}
+                            {msg.piiAudit && (
+                              <button
+                                onClick={() => setIsRoutingDrawerOpen(true)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/25 text-[11px] transition cursor-pointer"
+                              >
+                                <ShieldCheck className="w-3 h-3" />
+                                <span>
+                                  Inspect PII Vault ({msg.piiAudit.entitiesDetectedCount} tokens)
+                                </span>
+                              </button>
+                            )}
+                          </div>
+
+                          {msg.initialDraftBeforeReview && (
+                            <button
+                              onClick={() =>
+                                setShowInitialDraftMsgIds((prev) => ({
+                                  ...prev,
+                                  [msg.id]: !prev[msg.id],
+                                }))
+                              }
+                              className="px-2.5 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-[11px] text-zinc-200 transition cursor-pointer"
+                            >
+                              {showingInitialDraft
+                                ? 'Show Final Revised Draft'
+                                : 'Compare Pre-Review Draft'}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Corpus Searches / Tool Calls */}
+                        {msg.toolCalls.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                              Corpus & Precedent Searches ({msg.toolCalls.length})
+                            </div>
+                            <div className="space-y-1">
+                              {msg.toolCalls.map((tc) => {
+                                const isTcOpen = Boolean(expandedToolCallIds[tc.id]);
+                                return (
+                                  <div key={tc.id}>
+                                    <button
+                                      onClick={() =>
+                                        setExpandedToolCallIds((prev) => ({
+                                          ...prev,
+                                          [tc.id]: !prev[tc.id],
+                                        }))
+                                      }
+                                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] text-[11px] text-left transition cursor-pointer"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <FileSearch className="w-3 h-3 text-zinc-400 shrink-0" />
+                                        <span className="font-mono text-zinc-300 shrink-0">
+                                          {tc.toolName}
+                                        </span>
+                                        <span className="text-zinc-500 truncate">
+                                          — {tc.resultSummary}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] font-mono text-zinc-600 shrink-0 ml-2">
+                                        {tc.durationMs}ms
+                                      </span>
+                                    </button>
+                                    {isTcOpen && (
+                                      <pre className="mt-1 p-2.5 rounded-lg bg-[#09090b] border border-white/[0.06] text-[11px] font-mono text-zinc-400 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                        {tc.rawOutput}
+                                      </pre>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Multi-LLM Peer Review Cards */}
+                        {msg.adversarialReviews.length > 0 && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {msg.adversarialReviews.map((rev) => (
+                              <div
+                                key={rev.id}
+                                className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.06] space-y-2"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div>
+                                    <div className="text-[11.5px] font-medium text-zinc-200">
+                                      {rev.criticTitle}
+                                    </div>
+                                    <div className="text-[10px] font-mono text-zinc-500">
+                                      {rev.provider} ({rev.model})
+                                    </div>
+                                  </div>
+                                  <span
+                                    className={`px-2 py-0.5 text-[10px] rounded-full ${
+                                      rev.objections.length > 0
+                                        ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/25'
+                                        : 'bg-white/[0.05] text-zinc-300'
+                                    }`}
+                                  >
+                                    {rev.objections.length > 0
+                                      ? `${rev.objections.length} Cured`
+                                      : 'Verified'}
+                                  </span>
+                                </div>
+
+                                {rev.objections.map((obj, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-2 rounded bg-[#0b0b0e] border border-white/[0.05] space-y-1 text-[11px]"
+                                  >
+                                    <div className="flex items-center justify-between text-[10px]">
+                                      <span className="font-mono text-amber-300/90">
+                                        {obj.category}
+                                      </span>
+                                      <span className="text-zinc-500 truncate max-w-[160px]">
+                                        {obj.location}
+                                      </span>
+                                    </div>
+                                    <p className="text-zinc-400 leading-relaxed">
+                                      <strong className="text-zinc-300">Issue: </strong>
+                                      {obj.critique}
+                                    </p>
+                                    <p className="text-emerald-300/85 leading-relaxed">
+                                      <strong>Cure: </strong>
+                                      {obj.requiredFix}
+                                    </p>
+                                  </div>
+                                ))}
+
+                                {rev.dissentingConsiderations && (
+                                  <div className="p-2 rounded bg-white/[0.02] text-[11px] text-zinc-400">
+                                    <strong className="text-zinc-300">Bench Note: </strong>
+                                    {rev.dissentingConsiderations}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Main Work Product Body or Inline Editor */}
+                    <div>
+                      {isEditingThisMsg ? (
+                        <div className="space-y-3 p-4 rounded-xl bg-[#121216] border border-white/[0.12]">
+                          <div className="flex items-center justify-between text-xs text-zinc-300">
+                            <span className="font-medium flex items-center gap-1.5">
+                              <Edit3 className="w-3.5 h-3.5" />
+                              Direct Work Product Editor
+                            </span>
+                            <span className="text-[10px] font-mono text-zinc-500">
+                              {editingMsgContent.length} chars
+                            </span>
+                          </div>
+                          <textarea
+                            value={editingMsgContent}
+                            onChange={(e) => setEditingMsgContent(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                e.preventDefault();
+                                if (!isSavingMsg) {
+                                  setIsSavingMsg(true);
+                                  try {
+                                    const updated = await ipcBridge.updateMessage({
+                                      messageId: msg.id,
+                                      content: editingMsgContent,
+                                    });
+                                    setState(updated);
+                                    setEditingMsgId(null);
+                                  } finally {
+                                    setIsSavingMsg(false);
+                                  }
+                                }
+                              }
+                            }}
+                            rows={14}
+                            className="w-full p-3.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-100 whitespace-pre-wrap leading-relaxed focus:outline-none focus:border-white/[0.2] resize-y"
+                          />
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[10px] text-zinc-500 font-mono">
+                              ⌘+Enter to save
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                disabled={isSavingMsg}
+                                onClick={() => setEditingMsgId(null)}
+                                className="px-2.5 py-1 rounded text-xs text-zinc-400 hover:text-zinc-200"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                disabled={isSavingMsg}
+                                onClick={async () => {
+                                  setIsSavingMsg(true);
+                                  try {
+                                    const updated = await ipcBridge.updateMessage({
+                                      messageId: msg.id,
+                                      content: editingMsgContent,
+                                    });
+                                    setState(updated);
+                                    setEditingMsgId(null);
+                                  } finally {
+                                    setIsSavingMsg(false);
+                                  }
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs transition"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>{isSavingMsg ? 'Saving...' : 'Save'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : showingInitialDraft && msg.initialDraftBeforeReview ? (
+                        <div className="space-y-3 p-4 rounded-xl bg-[#121216] border border-amber-500/20">
+                          <div className="text-xs text-amber-300/90 flex items-center gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                            <span>
+                              Showing initial pre-review draft before automated citation & opposing counsel cures.
+                            </span>
+                          </div>
+                          {renderCalmLegalContent(msg.initialDraftBeforeReview)}
+                        </div>
+                      ) : (
+                        renderCalmLegalContent(msg.content)
+                      )}
                     </div>
                   </div>
                 );
-              }
+              })}
 
-              const isReviewExpanded = Boolean(expandedReviewMsgIds[msg.id]);
-              const showingInitialDraft = Boolean(
-                showInitialDraftMsgIds[msg.id]
-              );
-              const totalObjections = msg.adversarialReviews.reduce(
-                (acc, r) => acc + r.objections.length,
-                0
-              );
-              const isAdvisory = msg.category === 'ADVISORY';
-              const isEditingThisMsg = editingMsgId === msg.id;
-              const workProductType = detectWorkProductBadge(msg);
-
-              return (
-                <div
-                  key={msg.id}
-                  id={msg.adversarialReviews.length > 0 ? 'tour-review-gate' : undefined}
-                  className={`max-w-4xl rounded-2xl overflow-hidden shadow-xl border ${
-                    isAdvisory
-                      ? 'bg-slate-900/95 border-cyan-800/60'
-                      : 'bg-slate-900/90 border-slate-800'
-                  }`}
-                >
-                  {/* Assistant Header Bar */}
-                  <div className="px-5 py-3 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`p-1.5 rounded-lg ${
-                          isAdvisory
-                            ? 'bg-cyan-500/15 text-cyan-400'
-                            : 'bg-amber-500/15 text-amber-400'
-                        }`}
-                      >
-                        {isAdvisory ? (
-                          <Bot className="w-4 h-4" />
-                        ) : (
-                          <Scale className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-md border ${workProductType.color}`}>
-                            {workProductType.badge}
-                          </span>
-                          <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-amber-300">
-                            Primary: {msg.primaryModel || 'claude-3-7-sonnet'}
-                          </span>
-                          {msg.routeTier && (
-                            <span className="px-1.5 py-0.5 text-[10px] rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-medium">
-                              {msg.routeTier === 'FRONTIER_REASONING'
-                                ? 'Frontier'
-                                : msg.routeTier === 'FAST_ECONOMY'
-                                ? 'Fast Economy'
-                                : 'Local Private'}
-                            </span>
-                          )}
-                          {msg.piiAudit && (
-                            <button
-                              onClick={() => setIsRoutingDrawerOpen(true)}
-                              className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium hover:bg-emerald-500/25 transition cursor-pointer"
-                              title={`${msg.piiAudit.entitiesDetectedCount} entity tokens protected & restored. Click to inspect telemetry.`}
-                            >
-                              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                              <span>PII Protected ({msg.piiAudit.entitiesDetectedCount})</span>
-                            </button>
-                          )}
-                          {msg.isEditedByAttorney && (
-                            <span className="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-medium">
-                              Edited by Attorney
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {/* Status / Peer Review Badge */}
-                      {isAdvisory ? (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-950/70 border border-cyan-700/60 text-cyan-300 text-xs font-medium">
-                          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Direct Advisory (No Filing Redline)</span>
-                        </div>
-                      ) : msg.adversarialReviews.length > 0 ? (
-                        <button
-                          onClick={() =>
-                            setExpandedReviewMsgIds((prev) => ({
-                              ...prev,
-                              [msg.id]: !prev[msg.id],
-                            }))
-                          }
-                          className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-medium transition"
-                          title={`Reviewed on ${new Date(
-                            msg.adversarialReviews[0].createdAt
-                          ).toLocaleString()}`}
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          <span>
-                            Peer Review: {msg.adversarialReviews.length} Checks &bull; {totalObjections} Revision(s)
-                          </span>
-                          <span className="text-[10px] text-emerald-400/80 font-normal pl-1 border-l border-emerald-500/30 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {new Date(msg.adversarialReviews[0].createdAt).toLocaleTimeString([], {
-                              hour: 'numeric',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                          {isReviewExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          ) : (
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 text-xs font-normal">
-                          <Clock className="w-3 h-3" />
-                          <span>Not yet reviewed</span>
-                        </div>
-                      )}
-
-                      {/* Inline Text Edit Action */}
-                      <button
-                        onClick={() => {
-                          if (isEditingThisMsg) {
-                            setEditingMsgId(null);
-                          } else {
-                            setEditingMsgId(msg.id);
-                            setEditingMsgContent(msg.content);
-                          }
-                        }}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition border ${
-                          isEditingThisMsg
-                            ? 'bg-amber-500 text-slate-950 font-semibold border-amber-400'
-                            : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-slate-100'
-                        }`}
-                        title="Edit text directly"
-                      >
-                        <Edit3 className="w-3 h-3 text-amber-400" />
-                        <span>{isEditingThisMsg ? 'Cancel' : 'Edit Text'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Tool Calls Executed in Loop */}
-                  {msg.toolCalls.length > 0 && (
-                    <div className="px-5 py-2.5 bg-slate-950/40 border-b border-slate-800/80 space-y-1.5">
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                        <Wrench className="w-3 h-3 text-amber-400" />
-                        <span>
-                          Research & Tool Searches ({msg.toolCalls.length})
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {msg.toolCalls.map((tc) => {
-                          const isExpanded = Boolean(
-                            expandedToolCallIds[tc.id]
-                          );
-                          return (
-                            <div key={tc.id} className="w-full">
-                              <button
-                                onClick={() =>
-                                  setExpandedToolCallIds((prev) => ({
-                                    ...prev,
-                                    [tc.id]: !prev[tc.id],
-                                  }))
-                                }
-                                className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 text-xs text-left transition"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <FileSearch className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                                  <span className="font-mono text-[11px] text-amber-300 shrink-0">
-                                    {tc.toolName}
-                                  </span>
-                                  <span className="text-slate-300 truncate">
-                                    — {tc.resultSummary}
-                                  </span>
-                                </div>
-                                <span className="text-[10px] font-mono text-slate-500 shrink-0 ml-2">
-                                  {tc.durationMs}ms
-                                </span>
-                              </button>
-                              {isExpanded && (
-                                <pre className="mt-1 p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                                  {tc.rawOutput}
-                                </pre>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Collapsible Peer Review Drawer */}
-                  {isReviewExpanded && msg.adversarialReviews.length > 0 && (
-                    <div className="p-5 bg-slate-950/90 border-b border-slate-800 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <ShieldAlert className="w-4 h-4 text-amber-400" />
-                          <div>
-                            <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-300">
-                              Peer Review Notes & Audit Trail
-                            </h4>
-                            <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                              <Clock className="w-3 h-3 text-slate-500" />
-                              <span>
-                                Reviewed {new Date(msg.adversarialReviews[0].createdAt).toLocaleDateString()}{' '}
-                                at {new Date(msg.adversarialReviews[0].createdAt).toLocaleTimeString()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {msg.initialDraftBeforeReview && (
-                          <button
-                            onClick={() =>
-                              setShowInitialDraftMsgIds((prev) => ({
-                                ...prev,
-                                [msg.id]: !prev[msg.id],
-                              }))
-                            }
-                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-amber-300 border border-slate-700 transition"
-                          >
-                            {showingInitialDraft
-                              ? 'Show Final Revised Draft'
-                              : 'View Draft Before Review'}
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {msg.adversarialReviews.map((rev) => (
-                          <div
-                            key={rev.id}
-                            className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2.5"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="text-xs font-semibold text-slate-100">
-                                  {rev.criticTitle}
-                                </div>
-                                <div className="text-[10px] font-mono text-slate-400">
-                                  Provider: {rev.provider.toUpperCase()} (
-                                  {rev.model})
-                                </div>
-                              </div>
-                              <span
-                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-full ${
-                                  rev.objections.length > 0
-                                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                                    : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                                }`}
-                              >
-                                {rev.objections.length > 0
-                                  ? `${rev.objections.length} Objection(s) Raised & Cured`
-                                  : 'Approved'}
-                              </span>
-                            </div>
-
-                            {rev.objections.map((obj, idx) => (
-                              <div
-                                key={idx}
-                                className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/90 space-y-1 text-xs"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30">
-                                    {obj.category}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 truncate max-w-[180px]">
-                                    {obj.location}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] text-slate-300 leading-relaxed">
-                                  <strong className="text-rose-300">
-                                    Critique:{' '}
-                                  </strong>
-                                  {obj.critique}
-                                </p>
-                                <p className="text-[11px] text-emerald-300/90 leading-relaxed">
-                                  <strong>Required Cure Applied: </strong>
-                                  {obj.requiredFix}
-                                </p>
-                              </div>
-                            ))}
-
-                            {rev.dissentingConsiderations && (
-                              <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-200/90">
-                                <strong>Reviewer / Bench Note: </strong>
-                                {rev.dissentingConsiderations}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Main Legal Work Product Content or Direct Editor */}
-                  <div className="p-6">
-                    {isEditingThisMsg ? (
-                      <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-amber-500/40">
-                        <div className="flex items-center justify-between text-xs text-amber-300">
-                          <span className="font-semibold flex items-center gap-1.5">
-                            <Edit3 className="w-3.5 h-3.5" />
-                            Direct Attorney Editor
-                          </span>
-                          <span className="text-[10px] font-mono text-slate-400">
-                            {editingMsgContent.length} chars
-                          </span>
-                        </div>
-                        <textarea
-                          value={editingMsgContent}
-                          onChange={(e) => setEditingMsgContent(e.target.value)}
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                              e.preventDefault();
-                              if (!isSavingMsg) {
-                                setIsSavingMsg(true);
-                                try {
-                                  const updated = await ipcBridge.updateMessage({
-                                    messageId: msg.id,
-                                    content: editingMsgContent,
-                                  });
-                                  setState(updated);
-                                  setEditingMsgId(null);
-                                } finally {
-                                  setIsSavingMsg(false);
-                                }
-                              }
-                            }
-                          }}
-                          rows={14}
-                          className="w-full p-3.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-serif text-slate-100 whitespace-pre-wrap leading-relaxed focus:outline-none focus:border-amber-500/80 resize-y"
-                        />
-                        <div className="flex items-center justify-between pt-1">
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            ⌘+Enter to save
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              disabled={isSavingMsg}
-                              onClick={() => setEditingMsgId(null)}
-                              className="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              disabled={isSavingMsg}
-                              onClick={async () => {
-                                setIsSavingMsg(true);
-                                try {
-                                  const updated = await ipcBridge.updateMessage({
-                                    messageId: msg.id,
-                                    content: editingMsgContent,
-                                  });
-                                  setState(updated);
-                                  setEditingMsgId(null);
-                                } finally {
-                                  setIsSavingMsg(false);
-                                }
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
-                            >
-                              <Check className="w-3 h-3" />
-                              <span>
-                                {isSavingMsg ? 'Saving...' : 'Save Changes'}
-                              </span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : showingInitialDraft && msg.initialDraftBeforeReview ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-xs text-rose-200">
-                          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                          <span>
-                            Viewing{' '}
-                            <strong>Draft Before Review</strong>{' '}
-                            (Revised after peer review before delivery).
-                          </span>
-                        </div>
-                        <div className="prose prose-invert max-w-none font-serif text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                          {msg.initialDraftBeforeReview}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="prose prose-invert max-w-none font-serif text-sm text-slate-100 whitespace-pre-wrap leading-relaxed">
-                        {msg.content}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Move on to Next Work Product Footer */}
-                  {!isEditingThisMsg && (
-                    <div className="px-5 py-3 bg-slate-950/70 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="font-medium text-slate-300">
-                          Move to next work product:
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {state.promptSettings.practiceAreaPresets
-                          .filter((p) => p.id !== turnPracticeArea)
-                          .slice(0, 3)
-                          .map((preset) => (
-                            <button
-                              key={preset.id}
-                              disabled={isRunningTurn}
-                              onClick={() => {
-                                setTurnPracticeArea(preset.id);
-                                const nextPrompt =
-                                  preset.id === 'vt_discovery_impeachment'
-                                    ? `Audit Trooper Keller's Affidavit against the BWC timestamps and Rule 15 deposition to draft an impeachment table.`
-                                    : preset.id === 'vt_bail_conditions'
-                                    ? `Draft a motion for amendment of conditions of release under 13 V.S.A. § 7554.`
-                                    : preset.id === 'vt_plea_sentencing'
-                                    ? `Prepare a sentencing memorandum evaluating deferred sentence under 13 V.S.A. § 7041.`
-                                    : `Prepare legal work product for ${preset.shortLabel}.`;
-                                setPromptInput(nextPrompt);
-                              }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-amber-300 transition text-[11px] cursor-pointer"
-                              title={`Switch task and start drafting ${preset.name}`}
-                            >
-                              <span>{preset.shortLabel}</span>
-                              <ArrowRight className="w-3 h-3 text-slate-500 group-hover:text-amber-400" />
-                            </button>
-                          ))}
-                        <button
-                          disabled={isRunningTurn}
-                          onClick={() => {
-                            setPromptInput('');
-                            const composerEl = document.getElementById('tour-composer');
-                            composerEl?.scrollIntoView({ behavior: 'smooth' });
-                            const textarea = composerEl?.querySelector('textarea');
-                            textarea?.focus();
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 transition text-[11px] font-medium cursor-pointer"
-                          title="Start a new drafting instruction in the composer"
-                        >
-                          <Plus className="w-3 h-3 text-amber-400" />
-                          <span>New Draft</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Live Streaming Turn Progress Card */}
+            {/* Live Turn Progress Indicator */}
             {isRunningTurn && liveProgress && (
-              <div className="max-w-3xl p-5 rounded-2xl bg-slate-900 border border-amber-500/40 shadow-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                    <span className="text-xs font-semibold text-amber-300 uppercase tracking-wider">
-                      Legal Assistant —{' '}
-                      {liveProgress.phase.replace(/_/g, ' ')}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-mono text-slate-400">
-                    Peer Review Active
-                  </span>
-                </div>
-                <div className="text-sm font-medium text-slate-100">
-                  {liveProgress.statusText}
-                </div>
+              <div className="py-3 flex items-center gap-2.5 text-xs text-zinc-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+                <span>{liveProgress.statusText}</span>
                 {liveProgress.detailText && (
-                  <div className="text-xs text-slate-400">
-                    {liveProgress.detailText}
-                  </div>
+                  <span className="text-zinc-600">• {liveProgress.detailText}</span>
                 )}
               </div>
             )}
           </div>
+        </div>
 
-          {/* Horizontal Resizer Divider for Composer */}
-          <div
-            onMouseDown={handleStartResizeComposer}
-            className="h-1.5 shrink-0 bg-slate-900 hover:bg-amber-500/50 active:bg-amber-500 cursor-row-resize transition-colors flex items-center justify-center group"
-            title="Drag to resize composer height"
-          >
-            <div className="h-0.5 w-12 rounded-full bg-slate-700 group-hover:bg-amber-400 transition-colors" />
-          </div>
-
-          {/* Bottom Legal Prompt Composer */}
-          <div
-            id="tour-composer"
-            style={{ height: `${composerHeight}px` }}
-            className="p-4 bg-slate-900/90 border-t border-slate-800 space-y-3 shrink-0 flex flex-col justify-between"
-          >
-            {/* Profile-Specific Quick Sample Prompts & Actions */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 shrink-0">
-              {docNeedingReview && (
+        {/* BOTTOM FLOATING T3-STYLE COMPOSER */}
+        <div
+          id="tour-composer"
+          className="px-6 pb-5 pt-2 bg-gradient-to-t from-[#0b0b0e] via-[#0b0b0e] to-transparent shrink-0"
+        >
+          <div className="max-w-[760px] mx-auto space-y-2 relative">
+            {/* Contextual Edited Document Review Pill (Only appears when a document was manually edited) */}
+            {docNeedingReview && (
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#131317] border border-white/[0.08] text-xs">
+                <span className="text-zinc-400 truncate">
+                  Edited <strong className="text-zinc-200">{docNeedingReview.doc.title}</strong> ({docNeedingReview.doc.batesRange})
+                </span>
                 <button
                   disabled={isRunningTurn}
                   onClick={() => {
                     const promptText = `Run a comprehensive peer review on the updated document "${docNeedingReview.doc.title}" (Bates: ${docNeedingReview.doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
                     setPromptInput(promptText);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-[11px] font-medium text-amber-300 transition shrink-0 cursor-pointer shadow-sm"
-                  title="Click to populate peer review prompt for this edited document"
+                  className="text-amber-300 hover:text-amber-200 font-medium text-[11px] ml-3 shrink-0 cursor-pointer"
                 >
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  <span>Peer Review Edited "{docNeedingReview.doc.title}"</span>
+                  Run Peer Review →
                 </button>
-              )}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>{activeProfile.name} Prompts:</span>
-              </span>
-              {(activeProfile.samplePrompts || []).map((qp, i) => (
-                <button
-                  key={i}
-                  disabled={isRunningTurn}
-                  onClick={() => handleSubmitPrompt(qp)}
-                  className="px-2.5 py-1 rounded-full bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-[11px] text-slate-300 truncate max-w-xs transition shrink-0 cursor-pointer"
-                >
-                  {qp}
-                </button>
-              ))}
-            </div>
+              </div>
+            )}
 
-            <div className="flex items-end gap-3 flex-1 min-h-0">
-              <div className="flex-1 h-full bg-slate-950 border border-slate-700/90 focus-within:border-amber-500/70 rounded-xl p-3 flex flex-col justify-between space-y-2.5">
-                <textarea
-                  value={promptInput}
-                  disabled={!activeMatter || isRunningTurn}
-                  onChange={(e) => setPromptInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      handleSubmitPrompt();
-                    }
-                  }}
-                  placeholder={
-                    activeMatter
-                      ? `Instruct ${formatAgentLabel(currentProviderConfig)} (${turnModel}) under ${activeProfile?.name ?? 'Defense Counsel'}... (⌘+Enter to send)`
-                      : 'No active matter. Create or select a matter to begin drafting...'
+            {/* Tucked-away Sample Prompts Popover */}
+            {showSamplePromptsMenu && (
+              <div className="p-2 rounded-xl bg-[#141419] border border-white/[0.08] shadow-2xl space-y-1">
+                <div className="px-2 py-1 flex items-center justify-between text-[11px] text-zinc-400">
+                  <span>{activeProfile.name} Sample Prompts</span>
+                  <button
+                    onClick={() => setShowSamplePromptsMenu(false)}
+                    className="text-zinc-500 hover:text-zinc-300"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {(activeProfile.samplePrompts || []).map((qp, i) => (
+                  <button
+                    key={i}
+                    disabled={isRunningTurn}
+                    onClick={() => handleSubmitPrompt(qp)}
+                    className="w-full px-2.5 py-1.5 rounded-lg hover:bg-white/[0.05] text-left text-xs text-zinc-300 transition cursor-pointer truncate"
+                  >
+                    {qp}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Main T3-Style Rounded Composer Box */}
+            <div className="rounded-2xl bg-[#131317] border border-white/[0.08] focus-within:border-white/[0.15] shadow-2xl px-4 pt-3 pb-2.5 transition">
+              <textarea
+                value={promptInput}
+                disabled={!activeMatter || isRunningTurn}
+                onChange={(e) => setPromptInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmitPrompt();
                   }
-                  className="w-full flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none overflow-y-auto disabled:opacity-50"
-                />
+                }}
+                rows={2}
+                placeholder={
+                  activeMatter
+                    ? `Ask anything. @corpus, $skills, /motions — or instruct ${formatAgentLabel(
+                        currentProviderConfig
+                      )}...`
+                    : 'Select or create a matter to begin...'
+                }
+                className="w-full bg-transparent text-[13.5px] text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none leading-relaxed disabled:opacity-50"
+              />
 
-                <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-800/80 shrink-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* T3-Style Agent Selector */}
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 hover:border-amber-500/40 transition">
-                      <Bot className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                        Agent:
-                      </span>
-                      <select
-                        value={turnProvider}
-                        onChange={(e) => {
-                          if (e.target.value === '__connect__') {
-                            setIsConnectAgentsOpen(true);
-                            return;
-                          }
-                          handleProviderChange(e.target.value as LLMProviderId);
-                        }}
-                        className="bg-transparent text-xs font-medium text-amber-300 focus:outline-none cursor-pointer"
-                        title="Select assistant"
+              {/* Quiet Composer Footer Row */}
+              <div className="flex items-center justify-between gap-2 pt-2">
+                {/* Left Controls: Prompts menu, Practice Task, Quiet PII Shield */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowSamplePromptsMenu((prev) => !prev)}
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.05] transition cursor-pointer"
+                    title="Sample legal prompts"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </button>
+
+                  <select
+                    value={turnPracticeArea}
+                    onChange={(e) =>
+                      setTurnPracticeArea(e.target.value as PracticeAreaId)
+                    }
+                    className="px-2 py-1 rounded-lg bg-transparent hover:bg-white/[0.04] text-[11.5px] text-zinc-400 hover:text-zinc-200 focus:outline-none cursor-pointer truncate max-w-[175px]"
+                    title="Active Legal Task Focus"
+                  >
+                    {state.promptSettings.practiceAreaPresets.map((p) => (
+                      <option
+                        key={p.id}
+                        value={p.id}
+                        className="bg-[#131317] text-zinc-200"
                       >
-                        {state.providers
-                          .filter(
-                            (p) =>
-                              p.id === 'legal-simulator' ||
-                              p.hasApiKey ||
-                              Boolean(p.runtimeStatus?.installed) ||
-                              p.id === turnProvider
-                          )
-                          .map((p) => (
-                            <option
-                              key={p.id}
-                              value={p.id}
-                              className="bg-slate-900 text-slate-100"
-                            >
-                              {formatAgentLabel(p)}
-                            </option>
-                          ))}
-                        <option
-                          value="__connect__"
-                          className="bg-slate-900 text-amber-400 font-medium"
-                        >
-                          + Connect More Agents...
-                        </option>
-                      </select>
-                    </div>
+                        {p.shortLabel}
+                      </option>
+                    ))}
+                  </select>
 
-                    {/* T3-Style Model Selector */}
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 hover:border-cyan-500/40 transition">
-                      <Cpu className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                        Model:
-                      </span>
-                      <select
-                        value={turnModel}
-                        onChange={(e) => handleModelChange(e.target.value)}
-                        className="bg-transparent text-xs font-mono font-medium text-cyan-300 focus:outline-none cursor-pointer max-w-[200px] truncate"
-                        title="Select Model"
-                      >
-                        {availableModelsForTurnProvider.map((m) => (
-                          <option
-                            key={m.id}
-                            value={m.id}
-                            className="bg-slate-900 text-slate-100 font-sans"
-                          >
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsRoutingDrawerOpen((prev) => !prev)}
+                    className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-white/[0.04] text-[11px] text-zinc-500 hover:text-emerald-300 transition cursor-pointer"
+                    title="PII Shield & Privacy Model Routing Telemetry (Cmd+Shift+D)"
+                  >
+                    <ShieldCheck className="w-3 h-3 text-emerald-400/80" />
+                    <span>PII Shield</span>
+                  </button>
+                </div>
 
-                    {/* Practice Task Selector */}
-                    <select
-                      value={turnPracticeArea}
-                      onChange={(e) =>
-                        setTurnPracticeArea(e.target.value as PracticeAreaId)
+                {/* Right Controls: Agent, Model, Review Mode & Circular Send Button */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={turnProvider}
+                    onChange={(e) => {
+                      if (e.target.value === '__connect__') {
+                        setIsConnectAgentsOpen(true);
+                        return;
                       }
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-slate-300 hover:border-slate-600 transition cursor-pointer"
-                      title="Practice Task"
-                    >
-                      {state.promptSettings.practiceAreaPresets.map((p) => (
+                      handleProviderChange(e.target.value as LLMProviderId);
+                    }}
+                    className="bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] text-zinc-400 hover:text-zinc-200 focus:outline-none cursor-pointer"
+                    title="Select Assistant Provider"
+                  >
+                    {state.providers
+                      .filter(
+                        (p) =>
+                          p.id === 'legal-simulator' ||
+                          p.hasApiKey ||
+                          Boolean(p.runtimeStatus?.installed) ||
+                          p.id === turnProvider
+                      )
+                      .map((p) => (
                         <option
                           key={p.id}
                           value={p.id}
-                          className="bg-slate-900 text-slate-100"
+                          className="bg-[#131317] text-zinc-200"
                         >
-                          Task: {p.shortLabel}
+                          {formatAgentLabel(p)}
                         </option>
                       ))}
-                    </select>
-
-                    {/* Turn Review Gate */}
-                    <select
-                      value={turnReviewMode}
-                      onChange={(e) =>
-                        setTurnReviewMode(
-                          e.target.value as AdversarialReviewMode
-                        )
-                      }
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs text-emerald-300 hover:border-slate-600 transition cursor-pointer"
-                      title="Review mode"
+                    <option
+                      value="__connect__"
+                      className="bg-[#131317] text-amber-300"
                     >
-                      <option
-                        value="multi_llm_default"
-                        className="bg-slate-900 text-slate-100"
-                      >
-                        Peer Review (Recommended)
-                      </option>
-                      <option
-                        value="single_critic"
-                        className="bg-slate-900 text-slate-100"
-                      >
-                        Quick Check
-                      </option>
-                      <option
-                        value="direct_bypass"
-                        className="bg-slate-900 text-slate-100"
-                      >
-                        Off
-                      </option>
-                    </select>
+                      + Connect Agents...
+                    </option>
+                  </select>
 
-                    {/* Phase 2: Privacy Model Routing & PII Shield Inspector Toggle */}
-                    <button
-                      type="button"
-                      onClick={() => setIsRoutingDrawerOpen((prev) => !prev)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 hover:border-emerald-500/50 text-emerald-300 text-xs transition cursor-pointer"
-                      title="Toggle Privacy Model Routing & Decision Debug Inspector (Cmd+Shift+D)"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span>PII Shield & Routing</span>
-                      <span className="text-[10px] text-emerald-400/80 font-mono">
-                        {state?.privacyRoutingSettings?.policyMode === 'force_frontier'
-                          ? 'Frontier'
-                          : state?.privacyRoutingSettings?.policyMode === 'local_only_airgapped'
-                          ? 'Air-Gapped'
-                          : 'Smart'}
-                      </span>
-                    </button>
-                  </div>
+                  <select
+                    value={turnModel}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                    className="bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] font-mono text-zinc-300 focus:outline-none cursor-pointer max-w-[155px] truncate"
+                    title="Select Model"
+                  >
+                    {availableModelsForTurnProvider.map((m) => (
+                      <option
+                        key={m.id}
+                        value={m.id}
+                        className="bg-[#131317] text-zinc-200 font-sans"
+                      >
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
 
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
-                      ⌘↵
-                    </span>
-                    <button
-                      disabled={isRunningTurn || !promptInput.trim()}
-                      onClick={() => handleSubmitPrompt()}
-                      title={`Send prompt to ${formatAgentLabel(currentProviderConfig)} (${turnModel}) — ⌘+Enter`}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-30 disabled:hover:bg-amber-500 text-slate-950 font-semibold text-xs shadow-sm transition active:scale-95 cursor-pointer"
+                  <select
+                    value={turnReviewMode}
+                    onChange={(e) =>
+                      setTurnReviewMode(e.target.value as AdversarialReviewMode)
+                    }
+                    className="hidden md:inline-block bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11px] text-zinc-500 hover:text-zinc-300 focus:outline-none cursor-pointer"
+                    title="Peer Review Mode"
+                  >
+                    <option
+                      value="multi_llm_default"
+                      className="bg-[#131317] text-zinc-200"
                     >
-                      {isRunningTurn ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Running...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Send</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                      Peer Review
+                    </option>
+                    <option
+                      value="single_critic"
+                      className="bg-[#131317] text-zinc-200"
+                    >
+                      Quick Check
+                    </option>
+                    <option
+                      value="direct_bypass"
+                      className="bg-[#131317] text-zinc-200"
+                    >
+                      Direct
+                    </option>
+                  </select>
+
+                  <button
+                    disabled={isRunningTurn || !promptInput.trim()}
+                    onClick={() => handleSubmitPrompt()}
+                    title="Send prompt (Enter)"
+                    className="w-7 h-7 rounded-full bg-zinc-200 hover:bg-white disabled:bg-white/[0.06] disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition cursor-pointer shrink-0"
+                  >
+                    {isRunningTurn ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ArrowUp className="w-3.5 h-3.5 stroke-[2.25]" />
+                    )}
+                  </button>
                 </div>
               </div>
-
-              {/* Routing Decision Debug Drawer */}
-              {state && (
-                <RoutingDebugDrawer
-                  isOpen={isRoutingDrawerOpen || Boolean(state.privacyRoutingSettings?.debugModeEnabled)}
-                  onClose={() => {
-                    setIsRoutingDrawerOpen(false);
-                    if (state.privacyRoutingSettings?.debugModeEnabled) {
-                      ipcBridge.savePrivacyRoutingSettings({ debugModeEnabled: false }).then(setState);
-                    }
-                  }}
-                  activeMatter={activeMatter}
-                  settings={state.privacyRoutingSettings}
-                  recentLogs={state.recentRoutingLogs}
-                  ancillaryRegistry={state.ancillaryModelRegistry}
-                  onClearLogs={async () => {
-                    const next = await ipcBridge.clearRoutingLogs({ matterId: activeMatter?.id });
-                    setState(next);
-                  }}
-                  onExportLogs={async () => {
-                    await ipcBridge.exportRoutingLogs();
-                  }}
-                  onSaveSettings={async (updated) => {
-                    const next = await ipcBridge.savePrivacyRoutingSettings(updated);
-                    setState(next);
-                  }}
-                  onRepickAncillaryModel={async (role, providerId, modelId) => {
-                    const next = await ipcBridge.repickAncillaryModel({ role, providerId, modelId });
-                    setState(next);
-                  }}
-                  onRefreshAncillaryModels={async () => {
-                    const next = await ipcBridge.refreshAncillaryModelRegistry();
-                    setState(next);
-                  }}
-                />
-              )}
             </div>
           </div>
-        </main>
-
-        {/* Vertical Resizer Divider for Right Pane */}
-        <div
-          onMouseDown={handleStartResizeRight}
-          className="w-1.5 shrink-0 bg-slate-900 hover:bg-amber-500/50 active:bg-amber-500 cursor-col-resize transition-colors flex items-center justify-center group"
-          title="Drag to resize workspace pane"
-        >
-          <div className="w-0.5 h-8 rounded-full bg-slate-700 group-hover:bg-amber-400 transition-colors" />
         </div>
+      </main>
 
-        {/* RIGHT PANE: Redline Viewer, Matter Corpus & Chronology */}
-        <RightWorkspacePane
-          width={rightPaneWidth}
-          matterId={activeMatter?.id ?? ''}
-          documents={state.documents}
-          documentVersions={state.documentVersions}
-          chronologyFacts={state.chronologyFacts}
-          selectedDocId={selectedDocId}
-          onSelectDoc={setSelectedDocId}
-          currentTab={rightPaneTab}
-          onTabChange={setRightPaneTab}
-          onCreateDocument={async (payload) => {
-            const updated = await ipcBridge.createDocument(payload);
-            setState(updated);
+      {/* RIGHT PANE: T3-Style Floating Context & Lineage Card + Detail Inspector */}
+      {isRightPaneVisible && (
+        <>
+          <div
+            onMouseDown={handleStartResizeRight}
+            className="w-1 shrink-0 bg-transparent hover:bg-white/[0.08] cursor-col-resize transition-colors"
+            title="Drag to resize right pane"
+          />
+          <RightWorkspacePane
+            width={rightPaneWidth}
+            matterId={activeMatter?.id ?? ''}
+            activeMatter={activeMatter}
+            adversarialConfig={state.adversarialConfig}
+            documents={state.documents}
+            documentVersions={state.documentVersions}
+            chronologyFacts={state.chronologyFacts}
+            selectedDocId={selectedDocId}
+            onSelectDoc={setSelectedDocId}
+            currentTab={rightPaneTab}
+            onTabChange={setRightPaneTab}
+            onEditMatter={openEditMatterDialog}
+            onConfigureAgents={() => {
+              setStudioInitialTab('providers_models');
+              setIsStudioOpen(true);
+            }}
+            onCreateDocument={async (payload) => {
+              const updated = await ipcBridge.createDocument(payload);
+              setState(updated);
+            }}
+            onUpdateDocument={async (payload) => {
+              const updated = await ipcBridge.updateDocument(payload);
+              setState(updated);
+            }}
+            onUpdateDocumentVersion={async (versionId, content) => {
+              const updated = await ipcBridge.updateDocumentVersion({
+                versionId,
+                content,
+              });
+              setState(updated);
+            }}
+            onRequestReview={(doc) => {
+              const promptText = `Run a comprehensive peer review on the updated document "${doc.title}" (Bates: ${doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
+              setPromptInput(promptText);
+              setTurnReviewMode('multi_llm_default');
+              handleSubmitPrompt(promptText);
+            }}
+            onAddChronologyFact={async (payload) => {
+              const updated = await ipcBridge.addChronologyFact(payload);
+              setState(updated);
+            }}
+          />
+        </>
+      )}
+
+      {/* Routing Decision Debug Drawer */}
+      {state && (
+        <RoutingDebugDrawer
+          isOpen={
+            isRoutingDrawerOpen ||
+            Boolean(state.privacyRoutingSettings?.debugModeEnabled)
+          }
+          onClose={() => {
+            setIsRoutingDrawerOpen(false);
+            if (state.privacyRoutingSettings?.debugModeEnabled) {
+              ipcBridge
+                .savePrivacyRoutingSettings({ debugModeEnabled: false })
+                .then(setState);
+            }
           }}
-          onUpdateDocument={async (payload) => {
-            const updated = await ipcBridge.updateDocument(payload);
-            setState(updated);
-          }}
-          onUpdateDocumentVersion={async (versionId, content) => {
-            const updated = await ipcBridge.updateDocumentVersion({
-              versionId,
-              content,
+          activeMatter={activeMatter}
+          settings={state.privacyRoutingSettings}
+          recentLogs={state.recentRoutingLogs}
+          ancillaryRegistry={state.ancillaryModelRegistry}
+          onClearLogs={async () => {
+            const next = await ipcBridge.clearRoutingLogs({
+              matterId: activeMatter?.id,
             });
-            setState(updated);
+            setState(next);
           }}
-          onRequestReview={(doc) => {
-            const promptText = `Run a comprehensive peer review on the updated document "${doc.title}" (Bates: ${doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
-            setPromptInput(promptText);
-            setTurnReviewMode('multi_llm_default');
-            handleSubmitPrompt(promptText);
+          onExportLogs={async () => {
+            await ipcBridge.exportRoutingLogs();
           }}
-          onAddChronologyFact={async (payload) => {
-            const updated = await ipcBridge.addChronologyFact(payload);
-            setState(updated);
+          onSaveSettings={async (updated) => {
+            const next = await ipcBridge.savePrivacyRoutingSettings(updated);
+            setState(next);
+          }}
+          onRepickAncillaryModel={async (role, providerId, modelId) => {
+            const next = await ipcBridge.repickAncillaryModel({
+              role,
+              providerId,
+              modelId,
+            });
+            setState(next);
+          }}
+          onRefreshAncillaryModels={async () => {
+            const next = await ipcBridge.refreshAncillaryModelRegistry();
+            setState(next);
           }}
         />
-      </div>
+      )}
 
       {/* Right-Click Context Menu for Matter Items */}
       {matterContextMenu && (
@@ -1763,23 +2022,41 @@ export const App: React.FC = () => {
             top: matterContextMenu.y,
             left: matterContextMenu.x,
           }}
-          className="fixed z-50 w-60 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1.5 text-xs"
+          className="fixed z-50 w-60 rounded-xl bg-[#141419] border border-white/[0.1] shadow-2xl py-1.5 text-xs"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-mono text-slate-400 truncate">
+          <div className="px-3 py-1.5 border-b border-white/[0.06] text-[10px] font-mono text-zinc-500 truncate">
             {matterContextMenu.matter.name}
           </div>
           <button
-            onClick={() => openEditMatterDialog(matterContextMenu.matter)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-slate-100 hover:bg-amber-500/20 hover:text-amber-300 transition"
+            onClick={() =>
+              handleToggleMatterSettled(matterContextMenu.matter)
+            }
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-zinc-200 hover:bg-white/[0.06] transition"
           >
-            <Settings className="w-3.5 h-3.5 text-amber-400" />
-            <span>Matter Settings (Edit Name, Docket ID...)</span>
+            {matterContextMenu.matter.settled ? (
+              <>
+                <ArchiveRestore className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Reopen to Active Matters</span>
+              </>
+            ) : (
+              <>
+                <Archive className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Settle Matter to Lower Pane</span>
+              </>
+            )}
           </button>
-          <div className="my-1 border-t border-slate-800" />
+          <button
+            onClick={() => openEditMatterDialog(matterContextMenu.matter)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-zinc-200 hover:bg-white/[0.06] transition"
+          >
+            <Settings className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Matter Settings...</span>
+          </button>
+          <div className="my-1 border-t border-white/[0.06]" />
           <button
             onClick={() => openDeleteMatterConfirm(matterContextMenu.matter)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-left text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 transition"
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-rose-300 hover:bg-rose-500/15 transition"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-400" />
             <span>Delete Matter...</span>
@@ -1787,86 +2064,86 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Matter Settings Dialog (Revisit Matter Name, Docket ID, Client, Forum, Citation Style, Folder, or Delete Matter) */}
+      {/* Edit Matter Settings Dialog */}
       {editingMatter && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl bg-slate-900 border border-slate-700 p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="w-full max-w-lg rounded-2xl bg-[#121216] border border-white/[0.1] p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
               <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-slate-100">
+                <Settings className="w-4 h-4 text-zinc-400" />
+                <h3 className="text-sm font-semibold text-zinc-100">
                   Matter Settings — {editingMatter.name}
                 </h3>
               </div>
-              <span className="text-[10px] font-mono text-slate-400">
+              <span className="text-[10px] font-mono text-zinc-500">
                 {editingMatter.id}
               </span>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 mb-1">
+                <label className="block text-zinc-400 mb-1">
                   Matter / Case Caption Name
                 </label>
                 <input
                   type="text"
                   value={editMatterName}
                   onChange={(e) => setEditMatterName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Client / Defendant Name
                   </label>
                   <input
                     type="text"
                     value={editClientName}
                     onChange={(e) => setEditClientName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Docket ID / Matter Number
                   </label>
                   <input
                     type="text"
                     value={editMatterNumber}
                     onChange={(e) => setEditMatterNumber(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 font-mono focus:outline-none focus:border-white/[0.25]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1">
+                <label className="block text-zinc-400 mb-1">
                   Governing Jurisdiction & Court Forum
                 </label>
                 <input
                   type="text"
                   value={editJurisdiction}
                   onChange={(e) => setEditJurisdiction(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Citation Style / Manual
                   </label>
                   <input
                     type="text"
                     value={editCitationStyle}
                     onChange={(e) => setEditCitationStyle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Default Task Persona
                   </label>
                   <select
@@ -1874,7 +2151,7 @@ export const App: React.FC = () => {
                     onChange={(e) =>
                       setEditPracticeArea(e.target.value as PracticeAreaId)
                     }
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 focus:outline-none focus:border-amber-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                   >
                     {state.promptSettings.practiceAreaPresets.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -1886,26 +2163,26 @@ export const App: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1">
+                <label className="block text-zinc-400 mb-1">
                   Local Matter Workspace Folder Path
                 </label>
                 <input
                   type="text"
                   value={editFolderPath}
                   onChange={(e) => setEditFolderPath(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono focus:outline-none focus:border-amber-500"
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 font-mono focus:outline-none focus:border-white/[0.25]"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+            <div className="flex items-center justify-between pt-3 border-t border-white/[0.07]">
               <button
                 onClick={() => {
                   const target = editingMatter;
                   setEditingMatter(null);
                   openDeleteMatterConfirm(target);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-xs font-medium text-rose-300 transition"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-xs font-medium text-rose-300 transition"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Matter...</span>
@@ -1914,7 +2191,7 @@ export const App: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setEditingMatter(null)}
-                  className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                  className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-200"
                 >
                   Cancel
                 </button>
@@ -1929,6 +2206,7 @@ export const App: React.FC = () => {
                       jurisdiction: editJurisdiction,
                       citationStyle: editCitationStyle,
                       folderPath: editFolderPath,
+                      settled: editingMatter.settled,
                     });
                     setState(updated);
                     if (editingMatter.id === activeMatter?.id) {
@@ -1936,9 +2214,9 @@ export const App: React.FC = () => {
                     }
                     setEditingMatter(null);
                   }}
-                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
+                  className="px-4 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition"
                 >
-                  Save Matter Settings
+                  Save Changes
                 </button>
               </div>
             </div>
@@ -1949,13 +2227,13 @@ export const App: React.FC = () => {
       {/* Delete Matter Confirmation Dialog */}
       {deletingMatter && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-xl bg-slate-900 border border-rose-500/50 p-6 space-y-4 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-[#121216] border border-rose-500/40 p-6 space-y-4 shadow-2xl">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-400">
+              <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-400">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-100">
+                <h3 className="text-sm font-semibold text-zinc-100">
                   Confirm Permanent Matter Deletion
                 </h3>
                 <p className="text-[11px] text-rose-300 font-mono">
@@ -1964,26 +2242,25 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-2 leading-relaxed">
+            <div className="p-3.5 rounded-lg bg-[#09090b] border border-white/[0.07] text-xs text-zinc-300 space-y-2 leading-relaxed">
               <p>
                 Are you sure you want to permanently delete{' '}
-                <strong className="text-slate-100">{deletingMatter.name}</strong>{' '}
+                <strong className="text-zinc-100">{deletingMatter.name}</strong>{' '}
                 ({deletingMatter.clientName})?
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-zinc-500">
                 This action will remove the Matter and all associated legal
-                messages, indexed discovery documents, redline
-                versions, and chronology facts from the local database. This
-                cannot be undone.
+                messages, indexed discovery documents, redline versions, and
+                chronology facts from the local database.
               </p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.07]">
               <button
                 onClick={() => setDeletingMatter(null)}
-                className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition"
+                className="px-3.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-xs text-zinc-200 transition"
               >
-                Cancel & Keep Matter
+                Cancel
               </button>
               <button
                 onClick={async () => {
@@ -2002,7 +2279,7 @@ export const App: React.FC = () => {
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Yes, Permanently Delete Matter</span>
+                <span>Delete Matter</span>
               </button>
             </div>
           </div>
@@ -2075,13 +2352,19 @@ export const App: React.FC = () => {
           await ipcBridge.exportRoutingLogs();
         }}
         onClearRoutingLogs={async () => {
-          const next = await ipcBridge.clearRoutingLogs({ matterId: activeMatter?.id });
+          const next = await ipcBridge.clearRoutingLogs({
+            matterId: activeMatter?.id,
+          });
           setState(next);
         }}
         isSampleCaseLoaded={state.activeMatterId === 'matter-1794160132556'}
         ancillaryRegistry={state.ancillaryModelRegistry}
         onRepickAncillaryModel={async (role, providerId, modelId) => {
-          const next = await ipcBridge.repickAncillaryModel({ role, providerId, modelId });
+          const next = await ipcBridge.repickAncillaryModel({
+            role,
+            providerId,
+            modelId,
+          });
           setState(next);
         }}
         onRefreshAncillaryModels={async () => {
@@ -2095,14 +2378,14 @@ export const App: React.FC = () => {
 
       {/* New Legal Matter Modal */}
       {showNewMatterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl bg-slate-900 border border-slate-700 p-6 space-y-4 shadow-2xl">
-            <h3 className="text-sm font-semibold text-slate-100">
-              Create New Legal Matter Workspace ({activeProfile.name})
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#121216] border border-white/[0.1] p-6 space-y-4 shadow-2xl">
+            <h3 className="text-sm font-semibold text-zinc-100">
+              Create New Legal Matter ({activeProfile.name})
             </h3>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-300 mb-1">
+                <label className="block text-zinc-400 mb-1">
                   Matter / Case Caption
                 </label>
                 <input
@@ -2110,12 +2393,12 @@ export const App: React.FC = () => {
                   value={newMatterName}
                   onChange={(e) => setNewMatterName(e.target.value)}
                   placeholder="e.g., State of Vermont v. Jordan Mercer"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Client / Defendant Name
                   </label>
                   <input
@@ -2123,46 +2406,46 @@ export const App: React.FC = () => {
                     value={newClientName}
                     onChange={(e) => setNewClientName(e.target.value)}
                     placeholder="Jordan Mercer"
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Docket ID / Matter No.
                   </label>
                   <input
                     type="text"
                     value={newMatterNumber}
                     onChange={(e) => setNewMatterNumber(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 font-mono focus:outline-none focus:border-white/[0.25]"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-slate-300 mb-1">
+                <label className="block text-zinc-400 mb-1">
                   Governing Jurisdiction & Forum
                 </label>
                 <input
                   type="text"
                   value={newMatterJurisdiction}
                   onChange={(e) => setNewMatterJurisdiction(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Citation Manual
                   </label>
                   <input
                     type="text"
                     value={newMatterCitation}
                     onChange={(e) => setNewMatterCitation(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 mb-1">
+                  <label className="block text-zinc-400 mb-1">
                     Default Task Persona
                   </label>
                   <select
@@ -2170,7 +2453,7 @@ export const App: React.FC = () => {
                     onChange={(e) =>
                       setNewMatterPracticeArea(e.target.value as PracticeAreaId)
                     }
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
                   >
                     {state.promptSettings.practiceAreaPresets.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -2184,7 +2467,7 @@ export const App: React.FC = () => {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setShowNewMatterModal(false)}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200"
+                className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-200"
               >
                 Cancel
               </button>
@@ -2204,7 +2487,7 @@ export const App: React.FC = () => {
                   setNewClientName('');
                   setShowNewMatterModal(false);
                 }}
-                className="px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-semibold text-xs"
+                className="px-4 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition"
               >
                 Create Matter
               </button>
@@ -2257,7 +2540,9 @@ export const App: React.FC = () => {
           onOpenNewMatterModal={() => {
             setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
             setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
-            setNewMatterPracticeArea(activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11');
+            setNewMatterPracticeArea(
+              activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11'
+            );
             setShowNewMatterModal(true);
           }}
         />

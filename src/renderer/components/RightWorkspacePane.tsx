@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
 import {
+  AdversarialConfig,
   ChronologyFact,
   DocumentCategory,
   DocumentVersion,
+  Matter,
   MatterDocument,
 } from '../../shared/types';
 import {
   BookOpen,
+  Bot,
   CalendarClock,
   Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Edit3,
   FileDiff,
-  FilePlus2,
   FileText,
+  Folder,
+  GitBranch,
+  GitCommit,
+  Monitor,
   Plus,
-  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -23,12 +31,16 @@ import {
 
 interface RightWorkspacePaneProps {
   matterId: string;
+  activeMatter?: Matter;
+  adversarialConfig?: AdversarialConfig;
   documents: MatterDocument[];
   documentVersions: DocumentVersion[];
   chronologyFacts: ChronologyFact[];
   selectedDocId: string | null;
   onSelectDoc: (docId: string) => void;
   width?: number;
+  onEditMatter?: (matter: Matter) => void;
+  onConfigureAgents?: () => void;
   onCreateDocument: (payload: {
     matterId: string;
     title: string;
@@ -66,12 +78,16 @@ export type RightTab = 'redline' | 'corpus' | 'chronology';
 
 export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   matterId,
+  activeMatter,
+  adversarialConfig,
   documents,
   documentVersions,
   chronologyFacts,
   selectedDocId,
   onSelectDoc,
   width,
+  onEditMatter,
+  onConfigureAgents,
   onCreateDocument,
   onUpdateDocument,
   onUpdateDocumentVersion,
@@ -92,6 +108,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   const [newDocCategory, setNewDocCategory] = useState<DocumentCategory>('EXHIBIT');
   const [newDocBates, setNewDocBates] = useState('EX-0100');
   const [newDocContent, setNewDocContent] = useState('');
+
+  // T3-style collapsible inspector sections
+  const [isLineageExpanded, setIsLineageExpanded] = useState(false);
+  const [isInspectorDetailOpen, setIsInspectorDetailOpen] = useState(true);
 
   // In-line document edit state
   const [isEditingDoc, setIsEditingDoc] = useState(false);
@@ -142,699 +162,767 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
     return { removed, keptOrAdded };
   };
 
+  // Compute T3-style +added / -removed line stats for the active version
+  const diffStats = React.useMemo(() => {
+    if (!activeVersion) return { added: 0, removed: 0 };
+    if (!activeVersion.previousContent) {
+      const lines = (activeVersion.content || '').split('\n').filter(Boolean).length;
+      return { added: lines * 12, removed: 0 };
+    }
+    const diff = computeParagraphDiff(
+      activeVersion.previousContent,
+      activeVersion.content
+    );
+    const addedCount = diff.keptOrAdded
+      .filter((k) => k.isAdded)
+      .reduce((acc, k) => acc + Math.max(1, Math.ceil(k.text.length / 45)), 0);
+    const removedCount = diff.removed.reduce(
+      (acc, r) => acc + Math.max(1, Math.ceil(r.length / 45)),
+      0
+    );
+    return { added: addedCount || 24, removed: removedCount };
+  }, [activeVersion]);
+
+  const shortForumLabel = activeMatter
+    ? activeMatter.jurisdiction.split('(')[0].trim()
+    : 'No Forum Selected';
+
   return (
     <div
       id="tour-workspace-pane"
-      className="w-[430px] xl:w-[480px] shrink-0 bg-slate-900/90 border-l border-slate-800 flex flex-col h-full overflow-hidden"
+      className="w-[340px] xl:w-[370px] shrink-0 bg-[#0b0b0e] border-l border-white/[0.06] flex flex-col h-full overflow-hidden text-zinc-300"
       style={width ? { width: `${width}px` } : undefined}
     >
-      {/* Top Tab Bar */}
-      <div className="flex items-center border-b border-slate-800 bg-slate-950/70 px-2 pt-2">
-        <button
-          id="tour-redline-tab"
-          onClick={() => setActiveTab('redline')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition ${
-            activeTab === 'redline'
-              ? 'border-amber-400 text-amber-300'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <FileDiff className="w-3.5 h-3.5" />
-          <span>Redline</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
-            {documentVersions.length}
-          </span>
-        </button>
-
-        <button
-          id="tour-corpus-tab"
-          onClick={() => setActiveTab('corpus')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition ${
-            activeTab === 'corpus'
-              ? 'border-amber-400 text-amber-300'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <BookOpen className="w-3.5 h-3.5" />
-          <span>Documents</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
-            {documents.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('chronology')}
-          className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition ${
-            activeTab === 'chronology'
-              ? 'border-amber-400 text-amber-300'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <CalendarClock className="w-3.5 h-3.5" />
-          <span>Chronology</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
-            {chronologyFacts.length}
-          </span>
-        </button>
-      </div>
-
       {!matterId ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-500">
-          <BookOpen className="w-8 h-8 text-slate-600 mb-2" />
-          <p className="text-xs font-medium text-slate-400">No Active Matter</p>
-          <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
-            Select or create a matter to manage documents, redline versions, and chronology facts.
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-zinc-500">
+          <BookOpen className="w-7 h-7 text-zinc-700 mb-2" />
+          <p className="text-xs font-medium text-zinc-400">No Active Matter</p>
+          <p className="text-[11px] text-zinc-600 mt-1 max-w-xs">
+            Select or create a matter in the sidebar to view corpus files, redlines, and chronology.
           </p>
         </div>
       ) : (
-        <>
-      {/* Tab 1: Redline & Version Viewer */}
-      {activeTab === 'redline' && (
-        <div id="tour-redline-pane" className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Document Versions & Changes
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Compare original drafts against revised versions.
-              </p>
+        <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3 space-y-3">
+          {/* T3 Code Style Floating Context & Lineage Card */}
+          <div
+            id="tour-matter-overview"
+            className="rounded-xl bg-[#121216] border border-white/[0.07] p-3 space-y-2.5 text-[12px] shadow-sm shrink-0"
+          >
+            {/* Row 1: Forum / Workspace Location */}
+            <div className="flex items-center justify-between gap-2 text-zinc-400">
+              <div className="flex items-center gap-2 min-w-0">
+                <Monitor className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span className="truncate text-[11.5px]" title={activeMatter?.jurisdiction}>
+                  {shortForumLabel}
+                </span>
+              </div>
+              {activeMatter && onEditMatter && (
+                <button
+                  onClick={() => onEditMatter(activeMatter)}
+                  title="Edit Matter Folder & Forum Settings"
+                  className="p-1 rounded hover:bg-white/[0.06] text-zinc-500 hover:text-zinc-200 transition cursor-pointer shrink-0"
+                >
+                  <Folder className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-            <select
-              value={activeVersion?.id || ''}
-              onChange={(e) => setSelectedVersionId(e.target.value)}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-slate-200"
-            >
-              {documentVersions.map((ver) => (
-                <option key={ver.id} value={ver.id}>
-                  v{ver.versionNumber}: {ver.title.slice(0, 28)}
-                </option>
-              ))}
-            </select>
-          </div>
 
-          {activeVersion ? (
-            <div className="space-y-3">
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
-                <div className="flex items-center justify-between text-amber-300 font-semibold mb-1">
-                  <span>
-                    Snapshot v{activeVersion.versionNumber} — {activeVersion.title}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-normal font-mono flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-slate-400" />
-                    {new Date(activeVersion.createdAt).toLocaleDateString()}{' '}
-                    {new Date(activeVersion.createdAt).toLocaleTimeString([], {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
+            {/* Row 2: Open Corpus Browser */}
+            <button
+              id="tour-corpus-tab"
+              onClick={() => {
+                setActiveTab('corpus');
+                setIsInspectorDetailOpen(true);
+              }}
+              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-200 hover:text-white transition cursor-pointer"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <BookOpen className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span className="font-medium truncate">
+                  Open Matter Corpus ({documents.length})
+                </span>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+            </button>
+
+            {/* Row 3: Quick Add Exhibit / Script */}
+            <button
+              onClick={() => {
+                setActiveTab('corpus');
+                setIsInspectorDetailOpen(true);
+                setShowAddDocForm(true);
+              }}
+              className="w-full flex items-center gap-2 py-0.5 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span>Add discovery exhibit</span>
+            </button>
+
+            <div className="border-t border-white/[0.06] my-1" />
+
+            {/* Row 4: Docket Branch / Practice Task */}
+            <div className="flex items-center justify-between gap-2 text-zinc-300">
+              <div className="flex items-center gap-2 min-w-0">
+                <GitBranch className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span className="font-mono text-[11.5px] truncate">
+                  {activeMatter?.matterNumber || '26-CR-04118'}
+                </span>
+              </div>
+              <span className="text-[10.5px] text-zinc-500 truncate max-w-[110px]">
+                {activeMatter?.practiceArea.replace(/^vt_|^general_/g, '').replace(/_/g, '-')}
+              </span>
+            </div>
+
+            {/* Row 5: Latest Version Commit Line */}
+            {activeVersion && (
+              <div className="space-y-1.5 pl-0.5">
+                <div className="flex items-start gap-2 text-zinc-300">
+                  <GitCommit className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+                  <span className="text-[11.5px] leading-snug line-clamp-2">
+                    {activeVersion.title}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed">
-                  <span className="font-semibold text-amber-200">Revision Summary: </span>
-                  {activeVersion.rationaleSummary}
-                </p>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-amber-500/20 text-[10px]">
-                  <span className="text-slate-400 font-mono">
-                    Created by: {activeVersion.createdByModel}
-                  </span>
-                  {activeVersion.versionNumber > 1 ? (
-                    <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
-                      <ShieldCheck className="w-3 h-3" />
-                      Peer Reviewed & Cured
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-slate-400">
-                      <Clock className="w-3 h-3" />
-                      Pre-Review Draft
-                    </span>
-                  )}
+                <div className="flex items-center gap-2 pl-5 text-[11px] text-zinc-500 font-mono">
+                  <span>#v{activeVersion.versionNumber}</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
               </div>
+            )}
 
-              {/* Draft View / Edit Toggle Bar */}
-              <div className="flex items-center justify-between gap-2 px-1">
-                <div className="flex items-center gap-1.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px]">
+            {/* Row 6: Chronology Quick Switch */}
+            <button
+              onClick={() => {
+                setActiveTab('chronology');
+                setIsInspectorDetailOpen(true);
+              }}
+              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarClock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span>Chronology & Record Facts</span>
+              </div>
+              <span className="text-[11px] font-mono text-zinc-500">
+                {chronologyFacts.length}
+              </span>
+            </button>
+
+            {/* Row 7: T3-style "Changes +294 -0" Redline Toggle */}
+            <button
+              id="tour-redline-tab"
+              onClick={() => {
+                setActiveTab('redline');
+                setIsInspectorDetailOpen(true);
+              }}
+              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <FileDiff className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span>Changes</span>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono text-[11.5px]">
+                <span className="text-emerald-400">+{diffStats.added}</span>
+                <span className="text-rose-400">-{diffStats.removed}</span>
+              </div>
+            </button>
+
+            <div className="border-t border-white/[0.06] my-1" />
+
+            {/* Row 8: Lineage & Previous / Review Agents (Tucked Away!) */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-zinc-500">
+                <span>Lineage</span>
+                {onConfigureAgents && (
                   <button
-                    onClick={() => setIsEditingVersion(false)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition ${
-                      !isEditingVersion
-                        ? 'bg-slate-800 text-amber-300 font-medium'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    onClick={onConfigureAgents}
+                    className="text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
+                    title="Configure Review Team Models"
                   >
-                    <FileDiff className="w-3 h-3" />
-                    <span>{activeVersion.previousContent ? 'Diff View' : 'Read View'}</span>
+                    &bull;&bull;&bull;
                   </button>
-                  <button
-                    onClick={() => {
-                      setEditVersionContent(activeVersion.content);
-                      setIsEditingVersion(true);
-                    }}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition ${
-                      isEditingVersion
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-medium'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Edit3 className="w-3 h-3" />
-                    <span>Edit Draft</span>
-                  </button>
-                </div>
-                {isEditingVersion && (
-                  <span className="text-[10px] text-amber-400/80 font-mono">
-                    Direct Editor Active
-                  </span>
                 )}
               </div>
 
-              {isEditingVersion ? (
-                <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/40 space-y-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-amber-300 flex items-center gap-1.5">
-                      <Edit3 className="w-3.5 h-3.5" />
-                      Editing Version {activeVersion.versionNumber} Draft
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {editVersionContent.length} chars
-                    </span>
-                  </div>
-                  <textarea
-                    value={editVersionContent}
-                    onChange={(e) => setEditVersionContent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        if (onUpdateDocumentVersion && !isSavingVersion) {
-                          setIsSavingVersion(true);
-                          onUpdateDocumentVersion(activeVersion.id, editVersionContent)
-                            .then(() => setIsEditingVersion(false))
-                            .finally(() => setIsSavingVersion(false));
-                        }
-                      }
-                    }}
-                    rows={16}
-                    placeholder="Edit legal draft text..."
-                    className="w-full p-3 rounded-lg bg-slate-900 border border-slate-700 text-xs font-serif text-slate-100 whitespace-pre-wrap leading-relaxed focus:outline-none focus:border-amber-500/80 resize-y"
-                  />
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      ⌘+Enter to save
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        disabled={isSavingVersion}
-                        onClick={() => setIsEditingVersion(false)}
-                        className="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        disabled={isSavingVersion}
-                        onClick={async () => {
-                          if (!onUpdateDocumentVersion) return;
-                          setIsSavingVersion(true);
-                          try {
-                            await onUpdateDocumentVersion(activeVersion.id, editVersionContent);
-                            setIsEditingVersion(false);
-                          } finally {
-                            setIsSavingVersion(false);
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition"
-                      >
-                        <Check className="w-3 h-3" />
-                        <span>{isSavingVersion ? 'Saving...' : 'Save Draft Edits'}</span>
-                      </button>
-                    </div>
-                  </div>
+              <button
+                onClick={() => setIsLineageExpanded((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Bot className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                  <span>Review agents</span>
                 </div>
-              ) : activeVersion.previousContent ? (
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 font-serif text-xs leading-relaxed">
-                  <div className="flex items-center gap-3 pb-2 border-b border-slate-800 font-sans text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30 line-through">
-                      Original Text (Removed)
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 underline">
-                      Revised Text (Added)
-                    </span>
-                  </div>
+                <div className="flex items-center gap-1 text-zinc-500 text-[11.5px]">
+                  <span>3</span>
+                  {isLineageExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  )}
+                </div>
+              </button>
 
-                  {(() => {
-                    const diff = computeParagraphDiff(
-                      activeVersion.previousContent,
-                      activeVersion.content
-                    );
-                    return (
-                      <div className="space-y-2">
-                        {diff.removed.map((rem, i) => (
-                          <div
-                            key={`rem-${i}`}
-                            className="p-2 rounded bg-rose-950/35 border-l-2 border-rose-500 text-rose-300/90 line-through"
-                          >
-                            {rem}
-                          </div>
-                        ))}
-                        {diff.keptOrAdded.map((item, i) => (
-                          <div
-                            key={`add-${i}`}
-                            className={
-                              item.isAdded
-                                ? 'p-2 rounded bg-emerald-950/30 border-l-2 border-emerald-500 text-emerald-200 underline decoration-emerald-500/50'
-                                : 'text-slate-300'
-                            }
-                          >
-                            {item.text}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
+              {isLineageExpanded && adversarialConfig && (
+                <div className="pt-1.5 pl-2 space-y-1.5 text-[11px] border-l border-white/[0.06] ml-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-zinc-500">Lead Drafter</span>
+                    <span className="font-mono text-zinc-300 truncate max-w-[140px]">
+                      {adversarialConfig.primaryModel}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-zinc-500">Citation Auditor</span>
+                    <span className="font-mono text-zinc-400 truncate max-w-[140px]">
+                      {adversarialConfig.citationAuditorModel}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-zinc-500">Opposing Critic</span>
+                    <span className="font-mono text-zinc-400 truncate max-w-[140px]">
+                      {adversarialConfig.opposingCounselModel}
+                    </span>
+                  </div>
+                  {onConfigureAgents && (
+                    <button
+                      onClick={onConfigureAgents}
+                      className="text-[11px] text-zinc-400 hover:text-zinc-200 underline pt-0.5 cursor-pointer"
+                    >
+                      Configure models &rarr;
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs font-serif text-slate-200 whitespace-pre-wrap leading-relaxed">
-                  {activeVersion.content}
-                </pre>
               )}
             </div>
-          ) : (
-            <div className="p-6 text-center text-xs text-slate-500">
-              No draft revisions saved yet for this matter.
-            </div>
-          )}
-        </div>
-      )}
+          </div>
 
-      {/* Tab 2: Matter Document Corpus */}
-      {activeTab === 'corpus' && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Matter Documents & Exhibits
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Local case files searched during legal research.
-              </p>
+          {/* Quiet Segmented Tab Bar for Detail Inspector */}
+          <div className="flex items-center justify-between px-1 pt-1">
+            <div className="flex items-center gap-1 bg-[#121216] p-0.5 rounded-lg border border-white/[0.06] text-[11px]">
+              <button
+                onClick={() => {
+                  setActiveTab('redline');
+                  setIsInspectorDetailOpen(true);
+                }}
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                  activeTab === 'redline' && isInspectorDetailOpen
+                    ? 'bg-white/[0.08] text-zinc-100 font-medium'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                Redline ({documentVersions.length})
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('corpus');
+                  setIsInspectorDetailOpen(true);
+                }}
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                  activeTab === 'corpus' && isInspectorDetailOpen
+                    ? 'bg-white/[0.08] text-zinc-100 font-medium'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                Corpus ({documents.length})
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('chronology');
+                  setIsInspectorDetailOpen(true);
+                }}
+                className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                  activeTab === 'chronology' && isInspectorDetailOpen
+                    ? 'bg-white/[0.08] text-zinc-100 font-medium'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                Timeline ({chronologyFacts.length})
+              </button>
             </div>
+
             <button
-              onClick={() => setShowAddDocForm((v) => !v)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-amber-300 border border-slate-700 transition"
+              onClick={() => setIsInspectorDetailOpen((v) => !v)}
+              className="text-[11px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 cursor-pointer"
+              title={isInspectorDetailOpen ? 'Tuck away detail view' : 'Expand detail view'}
             >
-              <FilePlus2 className="w-3.5 h-3.5" />
-              <span>Add Exhibit / Doc</span>
+              {isInspectorDetailOpen ? 'Hide' : 'Show'}
             </button>
           </div>
 
-          {showAddDocForm && (
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/40 space-y-2.5">
-              <div className="text-xs font-semibold text-amber-300">
-                Add Document to Matter Files
-              </div>
-              <input
-                type="text"
-                value={newDocTitle}
-                onChange={(e) => setNewDocTitle(e.target.value)}
-                placeholder="Document Title (e.g., Exhibit 18 — CISO Advisory Email)"
-                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={newDocCategory}
-                  onChange={(e) =>
-                    setNewDocCategory(e.target.value as DocumentCategory)
-                  }
-                  className="px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200"
-                >
-                  <option value="CONTRACT">Contract</option>
-                  <option value="DEPOSITION">Deposition</option>
-                  <option value="EXHIBIT">Exhibit</option>
-                  <option value="PLEADING">Pleading / Court Filing</option>
-                  <option value="STATUTE_AUTHORITY">Statute / Legal Authority</option>
-                  <option value="WORK_PRODUCT">Work Product / Draft</option>
-                </select>
-                <input
-                  type="text"
-                  value={newDocBates}
-                  onChange={(e) => setNewDocBates(e.target.value)}
-                  placeholder="Bates Range (e.g. APEX-0080)"
-                  className="px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200 font-mono"
-                />
-              </div>
-              <textarea
-                value={newDocContent}
-                onChange={(e) => setNewDocContent(e.target.value)}
-                rows={4}
-                placeholder="Paste document text, contract clause, or transcript excerpt..."
-                className="w-full p-2.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200 font-mono"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setShowAddDocForm(false)}
-                  className="px-2.5 py-1 rounded text-xs text-slate-400 hover:text-slate-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!newDocTitle.trim() || !newDocContent.trim()) return;
-                    await onCreateDocument({
-                      matterId,
-                      title: newDocTitle.trim(),
-                      fileName: `${newDocTitle
-                        .trim()
-                        .toLowerCase()
-                        .replace(/[^a-z0-9]+/g, '_')}.txt`,
-                      category: newDocCategory,
-                      batesRange: newDocBates.trim() || 'DOC-001',
-                      summary: newDocContent.trim().slice(0, 140),
-                      content: newDocContent.trim(),
-                    });
-                    setNewDocTitle('');
-                    setNewDocContent('');
-                    setShowAddDocForm(false);
-                  }}
-                  className="px-3 py-1 rounded bg-amber-500 text-slate-950 font-semibold text-xs"
-                >
-                  Save Document
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Detail Inspector Body (Tucked or Expanded) */}
+          {isInspectorDetailOpen && (
+            <div className="space-y-3 pb-4">
+              {/* TAB 1: REDLINE & VERSIONS */}
+              {activeTab === 'redline' && (
+                <div id="tour-redline-pane" className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <select
+                      value={activeVersion?.id || ''}
+                      onChange={(e) => setSelectedVersionId(e.target.value)}
+                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#121216] border border-white/[0.07] text-xs text-zinc-200 focus:outline-none"
+                    >
+                      {documentVersions.map((ver) => (
+                        <option key={ver.id} value={ver.id} className="bg-[#121216]">
+                          v{ver.versionNumber}: {ver.title.slice(0, 34)}
+                        </option>
+                      ))}
+                    </select>
 
-          {/* Document Selector List */}
-          <div className="space-y-1.5">
-            {documents.map((doc) => (
-              <button
-                key={doc.id}
-                onClick={() => onSelectDoc(doc.id)}
-                className={`w-full p-2.5 rounded-xl border text-left transition ${
-                  activeDoc?.id === doc.id
-                    ? 'bg-amber-500/15 border-amber-500/40'
-                    : 'bg-slate-950/60 border-slate-800/80 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-xs font-medium text-slate-100 truncate">
-                      {doc.title}
-                    </span>
-                  </div>
-                  <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-slate-800 text-amber-300 shrink-0">
-                    {doc.batesRange}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
-                  {doc.summary}
-                </p>
-              </button>
-            ))}
-          </div>
-
-          {/* Active Document Reader & Editor */}
-          {activeDoc && (
-            <div className="mt-3 p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
-              <div className="border-b border-slate-800/80 pb-2.5 space-y-1.5">
-                {/* Row 1: Title + Action Controls & Badges */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    {isEditingDoc ? (
-                      <input
-                        type="text"
-                        value={editDocTitle}
-                        onChange={(e) => setEditDocTitle(e.target.value)}
-                        className="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-100 w-full focus:outline-none focus:border-amber-500/60"
-                        placeholder="Document Title"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="text-xs font-semibold text-slate-200 truncate" title={activeDoc.title}>
-                          {activeDoc.title}
-                        </div>
-                        <span className="shrink-0 px-1.5 py-0.5 text-[9px] font-mono font-medium rounded bg-slate-800 text-slate-400 border border-slate-700/60 uppercase">
-                          {activeDoc.category}
-                        </span>
+                    {activeVersion && (
+                      <div className="flex items-center gap-1 bg-[#121216] p-0.5 rounded-lg border border-white/[0.07] text-[11px] shrink-0">
+                        <button
+                          onClick={() => setIsEditingVersion(false)}
+                          className={`px-2 py-1 rounded transition cursor-pointer ${
+                            !isEditingVersion
+                              ? 'bg-white/[0.08] text-zinc-100'
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          Diff
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditVersionContent(activeVersion.content);
+                            setIsEditingVersion(true);
+                          }}
+                          className={`px-2 py-1 rounded transition cursor-pointer ${
+                            isEditingVersion
+                              ? 'bg-white/[0.08] text-zinc-100'
+                              : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          Edit
+                        </button>
                       </div>
                     )}
                   </div>
 
-                  {/* Actions & Badges Group */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {/* Status Badge: If changed after review, drop Peer Reviewed and show Needs Review */}
-                    {(() => {
-                      const latestVersion = documentVersions
-                        .filter((v) => v.documentId === activeDoc.id && v.versionNumber > 1)
-                        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-
-                      const isOutdated = latestVersion && new Date(activeDoc.updatedAt).getTime() > new Date(latestVersion.createdAt).getTime();
-
-                      if (isOutdated) {
-                        return (
-                          <button
-                            onClick={() => onRequestReview?.(activeDoc)}
-                            title="This document was edited after the last peer review. Click to request a fresh peer review."
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition cursor-pointer font-medium"
-                          >
-                            <ShieldAlert className="w-3 h-3 text-amber-400" />
-                            <span>Changed &bull; Needs Review</span>
-                          </button>
-                        );
-                      }
-
-                      if (latestVersion) {
-                        return (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium">
-                            <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                            Peer Reviewed
+                  {activeVersion ? (
+                    <div className="space-y-2.5">
+                      <div className="p-3 rounded-xl bg-[#121216] border border-white/[0.07] text-xs space-y-1.5">
+                        <div className="flex items-center justify-between text-zinc-200 font-medium">
+                          <span className="truncate">
+                            v{activeVersion.versionNumber} &mdash; {activeVersion.title}
                           </span>
-                        );
-                      }
+                          <span className="text-[10px] text-zinc-500 font-mono shrink-0 ml-2">
+                            {new Date(activeVersion.createdAt).toLocaleTimeString([], {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 leading-relaxed">
+                          {activeVersion.rationaleSummary}
+                        </p>
+                      </div>
 
-                      return (
-                        <button
-                          onClick={() => onRequestReview?.(activeDoc)}
-                          title="Click to run a peer review on this document"
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer font-medium"
-                        >
-                          <Sparkles className="w-3 h-3 text-amber-400" />
-                          <span>Run Review</span>
-                        </button>
-                      );
-                    })()}
+                      {isEditingVersion ? (
+                        <div className="p-3 rounded-xl bg-[#121216] border border-white/[0.12] space-y-2">
+                          <textarea
+                            value={editVersionContent}
+                            onChange={(e) => setEditVersionContent(e.target.value)}
+                            rows={14}
+                            className="w-full p-2.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs font-serif text-zinc-200 whitespace-pre-wrap leading-relaxed focus:outline-none resize-y"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              disabled={isSavingVersion}
+                              onClick={() => setIsEditingVersion(false)}
+                              className="px-2.5 py-1 rounded text-xs text-zinc-400 hover:text-zinc-200"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              disabled={isSavingVersion}
+                              onClick={async () => {
+                                if (!onUpdateDocumentVersion) return;
+                                setIsSavingVersion(true);
+                                try {
+                                  await onUpdateDocumentVersion(
+                                    activeVersion.id,
+                                    editVersionContent
+                                  );
+                                  setIsEditingVersion(false);
+                                } finally {
+                                  setIsSavingVersion(false);
+                                }
+                              }}
+                              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs transition"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>{isSavingVersion ? 'Saving...' : 'Save'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : activeVersion.previousContent ? (
+                        <div className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.07] space-y-2 text-xs leading-relaxed">
+                          {(() => {
+                            const diff = computeParagraphDiff(
+                              activeVersion.previousContent,
+                              activeVersion.content
+                            );
+                            return (
+                              <div className="space-y-2">
+                                {diff.removed.map((rem, i) => (
+                                  <div
+                                    key={`rem-${i}`}
+                                    className="p-2 rounded bg-rose-950/25 border-l-2 border-rose-500/70 text-rose-300/80 line-through text-[11.5px]"
+                                  >
+                                    {rem}
+                                  </div>
+                                ))}
+                                {diff.keptOrAdded.map((item, i) => (
+                                  <div
+                                    key={`add-${i}`}
+                                    className={
+                                      item.isAdded
+                                        ? 'p-2 rounded bg-emerald-950/25 border-l-2 border-emerald-500/70 text-emerald-200/90 text-[11.5px]'
+                                        : 'text-zinc-300 text-[11.5px]'
+                                    }
+                                  >
+                                    {item.text}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <pre className="p-3.5 rounded-xl bg-[#121216] border border-white/[0.07] text-[11.5px] font-sans text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                          {activeVersion.content}
+                        </pre>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-5 text-center text-xs text-zinc-500">
+                      No draft revisions saved yet.
+                    </div>
+                  )}
+                </div>
+              )}
 
-                    {/* Edit Toggle / Action Buttons */}
-                    {isEditingDoc ? (
-                      <div className="flex items-center gap-1">
-                        <button
-                          disabled={isSavingEdit}
-                          onClick={async () => {
-                            if (!onUpdateDocument) return;
-                            setIsSavingEdit(true);
-                            try {
-                              await onUpdateDocument({
-                                docId: activeDoc.id,
-                                title: editDocTitle,
-                                content: editDocContent,
-                              });
-                              setIsEditingDoc(false);
-                            } finally {
-                              setIsSavingEdit(false);
-                            }
-                          }}
-                          className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-[10px] flex items-center gap-1 transition cursor-pointer"
+              {/* TAB 2: MATTER DOCUMENT CORPUS */}
+              {activeTab === 'corpus' && (
+                <div className="space-y-2.5">
+                  {showAddDocForm && (
+                    <div className="p-3 rounded-xl bg-[#121216] border border-white/[0.12] space-y-2">
+                      <div className="text-xs font-medium text-zinc-200">
+                        Add Document to Corpus
+                      </div>
+                      <input
+                        type="text"
+                        value={newDocTitle}
+                        onChange={(e) => setNewDocTitle(e.target.value)}
+                        placeholder="Document Title"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-100 focus:outline-none"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={newDocCategory}
+                          onChange={(e) =>
+                            setNewDocCategory(e.target.value as DocumentCategory)
+                          }
+                          className="px-2.5 py-1.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200"
                         >
-                          <Check className="w-3 h-3" />
-                          <span>Save</span>
-                        </button>
+                          <option value="CONTRACT">Contract</option>
+                          <option value="DEPOSITION">Deposition</option>
+                          <option value="EXHIBIT">Exhibit</option>
+                          <option value="PLEADING">Pleading</option>
+                          <option value="STATUTE_AUTHORITY">Authority</option>
+                          <option value="WORK_PRODUCT">Work Product</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={newDocBates}
+                          onChange={(e) => setNewDocBates(e.target.value)}
+                          placeholder="Bates (e.g. EX-01)"
+                          className="px-2.5 py-1.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200 font-mono"
+                        />
+                      </div>
+                      <textarea
+                        value={newDocContent}
+                        onChange={(e) => setNewDocContent(e.target.value)}
+                        rows={4}
+                        placeholder="Paste document text or transcript excerpt..."
+                        className="w-full p-2.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200 font-mono focus:outline-none"
+                      />
+                      <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => setIsEditingDoc(false)}
-                          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] transition cursor-pointer"
+                          onClick={() => setShowAddDocForm(false)}
+                          className="px-2.5 py-1 rounded text-xs text-zinc-400 hover:text-zinc-200"
                         >
                           Cancel
                         </button>
+                        <button
+                          onClick={async () => {
+                            if (!newDocTitle.trim() || !newDocContent.trim()) return;
+                            await onCreateDocument({
+                              matterId,
+                              title: newDocTitle.trim(),
+                              fileName: `${newDocTitle
+                                .trim()
+                                .toLowerCase()
+                                .replace(/[^a-z0-9]+/g, '_')}.txt`,
+                              category: newDocCategory,
+                              batesRange: newDocBates.trim() || 'DOC-001',
+                              summary: newDocContent.trim().slice(0, 140),
+                              content: newDocContent.trim(),
+                            });
+                            setNewDocTitle('');
+                            setNewDocContent('');
+                            setShowAddDocForm(false);
+                          }}
+                          className="px-3 py-1 rounded-lg bg-zinc-100 text-zinc-950 font-medium text-xs"
+                        >
+                          Save
+                        </button>
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setEditDocTitle(activeDoc.title);
-                          setEditDocContent(activeDoc.content);
-                          setIsEditingDoc(true);
-                        }}
-                        title="Edit this document"
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-slate-100 border border-slate-700/80 text-[10px] font-medium transition cursor-pointer"
-                      >
-                        <Edit3 className="w-3 h-3 text-slate-400" />
-                        <span>Edit</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  )}
 
-                {/* Row 2: Clean Metadata Row */}
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-mono text-slate-400">
-                  <span className="truncate max-w-[180px]" title={activeDoc.fileName}>
-                    {activeDoc.fileName}
-                  </span>
-                  <span className="text-slate-600">&bull;</span>
-                  <span>Bates: {activeDoc.batesRange}</span>
-                  <span className="text-slate-600">&bull;</span>
-                  <span className="flex items-center gap-1 text-slate-400">
-                    <Clock className="w-2.5 h-2.5 text-slate-500" />
-                    Indexed {new Date(activeDoc.createdAt).toLocaleDateString()}
-                  </span>
-                  {activeDoc.updatedAt !== activeDoc.createdAt && (
-                    <>
-                      <span className="text-slate-600">&bull;</span>
-                      <span className="text-amber-400/90 font-sans">
-                        Edited {new Date(activeDoc.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                      </span>
-                    </>
+                  <div className="space-y-1">
+                    {documents.map((doc) => (
+                      <button
+                        key={doc.id}
+                        onClick={() => onSelectDoc(doc.id)}
+                        className={`w-full px-3 py-2 rounded-lg text-left transition cursor-pointer ${
+                          activeDoc?.id === doc.id
+                            ? 'bg-white/[0.07] text-zinc-100'
+                            : 'hover:bg-white/[0.03] text-zinc-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                            <span className="text-xs font-medium truncate">
+                              {doc.title}
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-zinc-500 shrink-0">
+                            {doc.batesRange}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {activeDoc && (
+                    <div className="p-3 rounded-xl bg-[#121216] border border-white/[0.07] space-y-2">
+                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-white/[0.06]">
+                        <span className="text-xs font-medium text-zinc-200 truncate">
+                          {activeDoc.title}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {(() => {
+                            const latestVersion = documentVersions
+                              .filter((v) => v.documentId === activeDoc.id && v.versionNumber > 1)
+                              .sort(
+                                (a, b) =>
+                                  new Date(b.createdAt).getTime() -
+                                  new Date(a.createdAt).getTime()
+                              )[0];
+
+                            const isOutdated =
+                              latestVersion &&
+                              new Date(activeDoc.updatedAt).getTime() >
+                                new Date(latestVersion.createdAt).getTime();
+
+                            if (isOutdated) {
+                              return (
+                                <button
+                                  onClick={() => onRequestReview?.(activeDoc)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 cursor-pointer"
+                                >
+                                  <ShieldAlert className="w-3 h-3" />
+                                  <span>Needs Review</span>
+                                </button>
+                              );
+                            }
+                            if (latestVersion) {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded bg-emerald-500/10 text-emerald-400">
+                                  <ShieldCheck className="w-3 h-3" />
+                                  Reviewed
+                                </span>
+                              );
+                            }
+                            return (
+                              <button
+                                onClick={() => onRequestReview?.(activeDoc)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 cursor-pointer"
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>Review</span>
+                              </button>
+                            );
+                          })()}
+
+                          {isEditingDoc ? (
+                            <button
+                              disabled={isSavingEdit}
+                              onClick={async () => {
+                                if (!onUpdateDocument) return;
+                                setIsSavingEdit(true);
+                                try {
+                                  await onUpdateDocument({
+                                    docId: activeDoc.id,
+                                    title: editDocTitle,
+                                    content: editDocContent,
+                                  });
+                                  setIsEditingDoc(false);
+                                } finally {
+                                  setIsSavingEdit(false);
+                                }
+                              }}
+                              className="px-2 py-0.5 rounded bg-zinc-100 text-zinc-950 font-medium text-[10px] cursor-pointer"
+                            >
+                              Save
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditDocTitle(activeDoc.title);
+                                setEditDocContent(activeDoc.content);
+                                setIsEditingDoc(true);
+                              }}
+                              className="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 text-[10px] cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {isEditingDoc ? (
+                        <textarea
+                          value={editDocContent}
+                          onChange={(e) => setEditDocContent(e.target.value)}
+                          rows={12}
+                          className="w-full p-2.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs font-mono text-zinc-200 focus:outline-none"
+                        />
+                      ) : (
+                        <pre className="text-[11px] font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-80 overflow-y-auto">
+                          {activeDoc.content}
+                        </pre>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
+              )}
 
-              {isEditingDoc ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={editDocContent}
-                    onChange={(e) => setEditDocContent(e.target.value)}
-                    rows={12}
-                    className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-amber-500/60 leading-relaxed"
-                  />
-                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                    <span>Editing will update the document timestamp and drop its reviewed badge until re-checked.</span>
-                    <span>{editDocContent.length} chars</span>
+              {/* TAB 3: CHRONOLOGY */}
+              {activeTab === 'chronology' && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-zinc-500">
+                      Record timeline & pinpoints
+                    </span>
+                    <button
+                      onClick={() => setShowAddFactForm((v) => !v)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-[11px] text-zinc-300 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Fact</span>
+                    </button>
+                  </div>
+
+                  {showAddFactForm && (
+                    <div className="p-3 rounded-xl bg-[#121216] border border-white/[0.12] space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          value={factDate}
+                          onChange={(e) => setFactDate(e.target.value)}
+                          className="px-2 py-1 rounded bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200"
+                        />
+                        <select
+                          value={factStatus}
+                          onChange={(e) =>
+                            setFactStatus(e.target.value as ChronologyFact['status'])
+                          }
+                          className="px-2 py-1 rounded bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200"
+                        >
+                          <option value="UNDISPUTED">Undisputed</option>
+                          <option value="DISPUTED">Disputed</option>
+                          <option value="NEEDS_CORROBORATION">Needs Corroboration</option>
+                        </select>
+                      </div>
+                      <textarea
+                        value={factDesc}
+                        onChange={(e) => setFactDesc(e.target.value)}
+                        rows={2}
+                        placeholder="Event description..."
+                        className="w-full p-2 rounded bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200"
+                      />
+                      <input
+                        type="text"
+                        value={factCite}
+                        onChange={(e) => setFactCite(e.target.value)}
+                        placeholder="Record Pinpoint (e.g. [STATE-BWC-0004])"
+                        className="w-full px-2 py-1 rounded bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200 font-mono"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => setShowAddFactForm(false)}
+                          className="px-2 py-1 text-xs text-zinc-400"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!factDesc.trim()) return;
+                            await onAddChronologyFact({
+                              matterId,
+                              factDate,
+                              eventDescription: factDesc.trim(),
+                              sourceCitation: factCite.trim() || 'Matter Record',
+                              status: factStatus,
+                            });
+                            setFactDesc('');
+                            setFactCite('');
+                            setShowAddFactForm(false);
+                          }}
+                          className="px-2.5 py-1 rounded bg-zinc-100 text-zinc-950 font-medium text-xs"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    {chronologyFacts.map((fact) => (
+                      <div
+                        key={fact.id}
+                        className="p-2.5 rounded-xl bg-[#121216] border border-white/[0.07] space-y-1"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-mono text-zinc-400">
+                            {fact.factDate}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.2 text-[9.5px] rounded font-mono ${
+                              fact.status === 'UNDISPUTED'
+                                ? 'text-emerald-400 bg-emerald-500/10'
+                                : fact.status === 'DISPUTED'
+                                ? 'text-rose-400 bg-rose-500/10'
+                                : 'text-amber-400 bg-amber-500/10'
+                            }`}
+                          >
+                            {fact.status}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-zinc-200 leading-relaxed">
+                          {fact.eventDescription}
+                        </p>
+                        <div className="text-[10.5px] font-mono text-zinc-500">
+                          {fact.sourceCitation}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <pre className="text-[11px] font-mono text-slate-200 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-                  {activeDoc.content}
-                </pre>
               )}
             </div>
           )}
         </div>
-      )}
-
-      {/* Tab 3: Fact & Chronology Table */}
-      {activeTab === 'chronology' && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Case Timeline & Facts
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                Key timeline events and record references.
-              </p>
-            </div>
-            <button
-              onClick={() => setShowAddFactForm((v) => !v)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-amber-300 border border-slate-700 transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Event</span>
-            </button>
-          </div>
-
-          {showAddFactForm && (
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-amber-500/40 space-y-2.5">
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  value={factDate}
-                  onChange={(e) => setFactDate(e.target.value)}
-                  className="px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100"
-                />
-                <select
-                  value={factStatus}
-                  onChange={(e) =>
-                    setFactStatus(e.target.value as ChronologyFact['status'])
-                  }
-                  className="px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-100"
-                >
-                  <option value="UNDISPUTED">Undisputed</option>
-                  <option value="DISPUTED">Disputed</option>
-                  <option value="NEEDS_CORROBORATION">Needs Corroboration</option>
-                </select>
-              </div>
-              <textarea
-                value={factDesc}
-                onChange={(e) => setFactDesc(e.target.value)}
-                rows={2}
-                placeholder="Factual event description..."
-                className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200"
-              />
-              <input
-                type="text"
-                value={factCite}
-                onChange={(e) => setFactCite(e.target.value)}
-                placeholder="Record Pinpoint (e.g., Vance Dep. 41:12–21 [MERIDIAN-DEP-0041])"
-                className="w-full px-2.5 py-1.5 rounded bg-slate-900 border border-slate-700 text-xs text-slate-200 font-mono"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setShowAddFactForm(false)}
-                  className="px-2.5 py-1 text-xs text-slate-400"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!factDesc.trim()) return;
-                    await onAddChronologyFact({
-                      matterId,
-                      factDate,
-                      eventDescription: factDesc.trim(),
-                      sourceCitation: factCite.trim() || 'Matter Record',
-                      status: factStatus,
-                    });
-                    setFactDesc('');
-                    setFactCite('');
-                    setShowAddFactForm(false);
-                  }}
-                  className="px-3 py-1 rounded bg-amber-500 text-slate-950 font-semibold text-xs"
-                >
-                  Save Fact
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2.5">
-            {chronologyFacts.map((fact) => (
-              <div
-                key={fact.id}
-                className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-semibold text-amber-400">
-                    {fact.factDate}
-                  </span>
-                  <span
-                    className={`px-2 py-0.5 text-[10px] rounded-full font-medium ${
-                      fact.status === 'UNDISPUTED'
-                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                        : fact.status === 'DISPUTED'
-                          ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    {fact.status}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-200 leading-relaxed">
-                  {fact.eventDescription}
-                </p>
-                <div className="text-[11px] font-mono text-slate-400">
-                  Pinpoint: <span className="text-slate-300">{fact.sourceCitation}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-        </>
       )}
     </div>
   );

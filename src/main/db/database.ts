@@ -226,6 +226,8 @@ export class LegalDatabase {
         jurisdiction TEXT NOT NULL,
         citation_style TEXT NOT NULL,
         folder_path TEXT NOT NULL,
+        settled INTEGER DEFAULT 0,
+        settled_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -410,6 +412,15 @@ export class LegalDatabase {
       if (!refreshedCols.includes('pii_audit_json')) {
         this.db.run('ALTER TABLE messages ADD COLUMN pii_audit_json TEXT;');
       }
+
+      const mattersInfo = this.db.exec('PRAGMA table_info(matters)');
+      const mattersCols = mattersInfo[0]?.values?.map((row) => String(row[1])) || [];
+      if (!mattersCols.includes('settled')) {
+        this.db.run('ALTER TABLE matters ADD COLUMN settled INTEGER DEFAULT 0;');
+      }
+      if (!mattersCols.includes('settled_at')) {
+        this.db.run('ALTER TABLE matters ADD COLUMN settled_at TEXT;');
+      }
     } catch (err) {
       console.error('Failed migrating messages table schema:', err);
     }
@@ -496,18 +507,20 @@ export class LegalDatabase {
     const stmt = this.db.prepare('SELECT * FROM matters ORDER BY updated_at DESC');
     const results: Matter[] = [];
     while (stmt.step()) {
-      const row = stmt.getAsObject() as Record<string, string>;
+      const row = stmt.getAsObject() as Record<string, unknown>;
       results.push({
-        id: row.id,
-        name: row.name,
-        clientName: row.client_name,
-        matterNumber: row.matter_number,
-        practiceArea: row.practice_area as PracticeAreaId,
-        jurisdiction: row.jurisdiction,
-        citationStyle: row.citation_style,
-        folderPath: row.folder_path,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
+        id: String(row.id),
+        name: String(row.name),
+        clientName: String(row.client_name),
+        matterNumber: String(row.matter_number),
+        practiceArea: String(row.practice_area) as PracticeAreaId,
+        jurisdiction: String(row.jurisdiction),
+        citationStyle: String(row.citation_style),
+        folderPath: String(row.folder_path),
+        settled: Boolean(row.settled),
+        settledAt: row.settled_at ? String(row.settled_at) : undefined,
+        createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
       });
     }
     stmt.free();
@@ -521,8 +534,8 @@ export class LegalDatabase {
 
   insertMatter(matter: Matter, flush = true): Matter {
     this.db.run(
-      `INSERT OR REPLACE INTO matters (id, name, client_name, matter_number, practice_area, jurisdiction, citation_style, folder_path, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO matters (id, name, client_name, matter_number, practice_area, jurisdiction, citation_style, folder_path, settled, settled_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         matter.id,
         matter.name,
@@ -532,6 +545,8 @@ export class LegalDatabase {
         matter.jurisdiction,
         matter.citationStyle,
         matter.folderPath,
+        matter.settled ? 1 : 0,
+        matter.settledAt ?? null,
         matter.createdAt,
         matter.updatedAt,
       ]
@@ -543,6 +558,7 @@ export class LegalDatabase {
   updateMatter(payload: UpdateMatterPayload): Matter | null {
     const existing = this.getMatter(payload.matterId);
     if (!existing) return null;
+    const isSettled = payload.settled !== undefined ? payload.settled : existing.settled;
     const updated: Matter = {
       ...existing,
       name: payload.name.trim() || existing.name,
@@ -552,7 +568,27 @@ export class LegalDatabase {
       jurisdiction: payload.jurisdiction.trim() || existing.jurisdiction,
       citationStyle: payload.citationStyle.trim() || existing.citationStyle,
       folderPath: payload.folderPath.trim() || existing.folderPath,
+      settled: isSettled,
+      settledAt:
+        payload.settled === true
+          ? existing.settledAt || new Date().toISOString()
+          : payload.settled === false
+          ? undefined
+          : existing.settledAt,
       updatedAt: new Date().toISOString(),
+    };
+    return this.insertMatter(updated, true);
+  }
+
+  setMatterSettled(matterId: string, settled: boolean): Matter | null {
+    const existing = this.listMatters().find((m) => m.id === matterId);
+    if (!existing) return null;
+    const now = new Date().toISOString();
+    const updated: Matter = {
+      ...existing,
+      settled,
+      settledAt: settled ? now : undefined,
+      updatedAt: now,
     };
     return this.insertMatter(updated, true);
   }

@@ -117,6 +117,8 @@ export interface Matter {
   jurisdiction: string;
   citationStyle: string;
   folderPath: string;
+  settled?: boolean;
+  settledAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -130,6 +132,7 @@ export interface UpdateMatterPayload {
   jurisdiction: string;
   citationStyle: string;
   folderPath: string;
+  settled?: boolean;
 }
 
 export type DocumentCategory =
