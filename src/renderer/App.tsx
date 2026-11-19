@@ -884,7 +884,10 @@ export const App: React.FC = () => {
               const monogram = getMonogram(m.clientName, m.name);
               const relativeLabels = ['4m', '22h', '2d', '3d', '5d'];
               const timeLabel = relativeLabels[idx % relativeLabels.length];
-              const branchSlug = `${m.practiceArea.replace(/_/g, '-')}/${m.matterNumber.split(' ')[0]}`;
+              const practicePreset = state.promptSettings.practiceAreaPresets.find(
+                (p) => p.id === m.practiceArea
+              );
+              const practiceShort = practicePreset?.shortLabel || 'Legal Matter';
 
               return (
                 <div
@@ -959,12 +962,11 @@ export const App: React.FC = () => {
                     {m.name}
                   </div>
 
-                  {/* Row 3: Branch / Docket Metadata */}
+                  {/* Row 3: Practice Area & Docket Metadata */}
                   <div className="flex items-center justify-between gap-2 mt-1 text-[11px] text-zinc-500">
-                    <span className="font-mono truncate">{branchSlug}</span>
-                    <span className="flex items-center gap-1 shrink-0 font-mono text-[10px] text-zinc-400">
-                      <GitBranch className="w-2.5 h-2.5 text-emerald-400/80" />
-                      <span>{m.matterNumber.split(' ')[0]}</span>
+                    <span className="truncate">{practiceShort}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-zinc-500">
+                      {m.matterNumber.split(' ')[0]}
                     </span>
                   </div>
                 </div>
@@ -1116,7 +1118,7 @@ export const App: React.FC = () => {
               className="relative p-1.5 rounded-lg hover:bg-white/[0.05] hover:text-zinc-200 transition cursor-pointer"
               title={`Connected Assistants (${readyAgentsCount} Ready)`}
             >
-              <GitBranch className="w-3.5 h-3.5" />
+              <Plug className="w-3.5 h-3.5" />
               {readyAgentsCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />
               )}
@@ -1760,7 +1762,7 @@ export const App: React.FC = () => {
                 rows={2}
                 placeholder={
                   activeMatter
-                    ? `Ask anything. @corpus, $skills, /motions — or instruct ${formatAgentLabel(
+                    ? `Draft a motion, audit discovery exhibits, or check citations with ${formatAgentLabel(
                         currentProviderConfig
                       )}...`
                     : 'Select or create a matter to begin...'

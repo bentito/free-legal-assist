@@ -9,7 +9,6 @@ import {
 } from '../../shared/types';
 import {
   BookOpen,
-  Bot,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -17,13 +16,12 @@ import {
   ChevronRight,
   Clock,
   Edit3,
-  FileDiff,
+  FileCheck2,
   FileText,
-  Folder,
-  GitBranch,
-  GitCommit,
-  Monitor,
+  Gavel,
   Plus,
+  Scale,
+  Settings,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -76,6 +74,25 @@ interface RightWorkspacePaneProps {
 
 export type RightTab = 'redline' | 'corpus' | 'chronology';
 
+const formatPracticeAreaLabel = (practiceArea?: string): string => {
+  switch (practiceArea) {
+    case 'vt_suppression_art11':
+      return 'Suppression & Art. 11';
+    case 'vt_discovery_impeachment':
+      return 'Discovery & Impeachment';
+    case 'vt_bail_conditions':
+      return 'Bail & Release';
+    case 'vt_plea_sentencing':
+      return 'Plea & Sentencing';
+    case 'general_transactional':
+      return 'Contracts & Advisory';
+    case 'general_litigation_adr':
+      return 'Civil Disputes & ADR';
+    default:
+      return 'General Practice';
+  }
+};
+
 export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   matterId,
   activeMatter,
@@ -109,8 +126,8 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   const [newDocBates, setNewDocBates] = useState('EX-0100');
   const [newDocContent, setNewDocContent] = useState('');
 
-  // T3-style collapsible inspector sections
-  const [isLineageExpanded, setIsLineageExpanded] = useState(false);
+  // Collapsible inspector sections
+  const [isReviewPanelExpanded, setIsReviewPanelExpanded] = useState(false);
   const [isInspectorDetailOpen, setIsInspectorDetailOpen] = useState(true);
 
   // In-line document edit state
@@ -162,27 +179,6 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
     return { removed, keptOrAdded };
   };
 
-  // Compute T3-style +added / -removed line stats for the active version
-  const diffStats = React.useMemo(() => {
-    if (!activeVersion) return { added: 0, removed: 0 };
-    if (!activeVersion.previousContent) {
-      const lines = (activeVersion.content || '').split('\n').filter(Boolean).length;
-      return { added: lines * 12, removed: 0 };
-    }
-    const diff = computeParagraphDiff(
-      activeVersion.previousContent,
-      activeVersion.content
-    );
-    const addedCount = diff.keptOrAdded
-      .filter((k) => k.isAdded)
-      .reduce((acc, k) => acc + Math.max(1, Math.ceil(k.text.length / 45)), 0);
-    const removedCount = diff.removed.reduce(
-      (acc, r) => acc + Math.max(1, Math.ceil(r.length / 45)),
-      0
-    );
-    return { added: addedCount || 24, removed: removedCount };
-  }, [activeVersion]);
-
   const shortForumLabel = activeMatter
     ? activeMatter.jurisdiction.split('(')[0].trim()
     : 'No Forum Selected';
@@ -198,20 +194,17 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           <BookOpen className="w-7 h-7 text-zinc-700 mb-2" />
           <p className="text-xs font-medium text-zinc-400">No Active Matter</p>
           <p className="text-[11px] text-zinc-600 mt-1 max-w-xs">
-            Select or create a matter in the sidebar to view corpus files, redlines, and chronology.
+            Select or create a matter in the sidebar to view case files, redlines, and chronology.
           </p>
         </div>
       ) : (
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3 space-y-3">
-          {/* T3 Code Style Floating Context & Lineage Card */}
-          <div
-            id="tour-matter-overview"
-            className="rounded-xl bg-[#121216] border border-white/[0.07] p-3 space-y-2.5 text-[12px] shadow-sm shrink-0"
-          >
-            {/* Row 1: Forum / Workspace Location */}
+          {/* Calm Legal Matter & Case File Summary Card */}
+          <div className="rounded-xl bg-[#121216] border border-white/[0.07] p-3 space-y-2.5 text-[12px] shadow-sm shrink-0">
+            {/* Row 1: Court Forum & Matter Settings */}
             <div className="flex items-center justify-between gap-2 text-zinc-400">
               <div className="flex items-center gap-2 min-w-0">
-                <Monitor className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <Scale className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                 <span className="truncate text-[11.5px]" title={activeMatter?.jurisdiction}>
                   {shortForumLabel}
                 </span>
@@ -219,15 +212,30 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               {activeMatter && onEditMatter && (
                 <button
                   onClick={() => onEditMatter(activeMatter)}
-                  title="Edit Matter Folder & Forum Settings"
+                  title="Edit Matter Caption, Docket & Forum Settings"
                   className="p-1 rounded hover:bg-white/[0.06] text-zinc-500 hover:text-zinc-200 transition cursor-pointer shrink-0"
                 >
-                  <Folder className="w-3.5 h-3.5" />
+                  <Settings className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            {/* Row 2: Open Corpus Browser */}
+            {/* Row 2: Docket Number & Practice Focus */}
+            <div className="flex items-center justify-between gap-2 text-zinc-300">
+              <div className="flex items-center gap-2 min-w-0">
+                <Gavel className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span className="text-[11.5px] truncate">
+                  {activeMatter?.matterNumber || '26-CR-04118'}
+                </span>
+              </div>
+              <span className="text-[10.5px] text-zinc-500 truncate max-w-[135px]">
+                {formatPracticeAreaLabel(activeMatter?.practiceArea)}
+              </span>
+            </div>
+
+            <div className="border-t border-white/[0.06] my-1" />
+
+            {/* Row 3: Case Exhibits & Authorities */}
             <button
               id="tour-corpus-tab"
               onClick={() => {
@@ -239,13 +247,13 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <BookOpen className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                 <span className="font-medium truncate">
-                  Open Matter Corpus ({documents.length})
+                  Case Exhibits & Authorities ({documents.length})
                 </span>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
             </button>
 
-            {/* Row 3: Quick Add Exhibit / Script */}
+            {/* Row 4: Quick Add Exhibit or Filing */}
             <button
               onClick={() => {
                 setActiveTab('corpus');
@@ -255,58 +263,34 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               className="w-full flex items-center gap-2 py-0.5 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-              <span>Add discovery exhibit</span>
+              <span>Add discovery exhibit or authority</span>
             </button>
 
             <div className="border-t border-white/[0.06] my-1" />
 
-            {/* Row 4: Docket Branch / Practice Task */}
-            <div className="flex items-center justify-between gap-2 text-zinc-300">
-              <div className="flex items-center gap-2 min-w-0">
-                <GitBranch className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                <span className="font-mono text-[11.5px] truncate">
-                  {activeMatter?.matterNumber || '26-CR-04118'}
-                </span>
-              </div>
-              <span className="text-[10.5px] text-zinc-500 truncate max-w-[110px]">
-                {activeMatter?.practiceArea.replace(/^vt_|^general_/g, '').replace(/_/g, '-')}
-              </span>
-            </div>
-
-            {/* Row 5: Latest Version Commit Line */}
+            {/* Row 5: Current Work Product Draft & Redline Comparison */}
             {activeVersion && (
-              <div className="space-y-1.5 pl-0.5">
+              <div className="space-y-1">
                 <div className="flex items-start gap-2 text-zinc-300">
-                  <GitCommit className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
-                  <span className="text-[11.5px] leading-snug line-clamp-2">
-                    {activeVersion.title}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 pl-5 text-[11px] text-zinc-500 font-mono">
-                  <span>#v{activeVersion.versionNumber}</span>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <FileText className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11.5px] leading-snug truncate">
+                      {activeVersion.title}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-zinc-500">
+                      <span>Draft v{activeVersion.versionNumber}</span>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1 text-emerald-400/90">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Peer Reviewed</span>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Row 6: Chronology Quick Switch */}
-            <button
-              onClick={() => {
-                setActiveTab('chronology');
-                setIsInspectorDetailOpen(true);
-              }}
-              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <CalendarClock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span>Chronology & Record Facts</span>
-              </div>
-              <span className="text-[11px] font-mono text-zinc-500">
-                {chronologyFacts.length}
-              </span>
-            </button>
-
-            {/* Row 7: T3-style "Changes +294 -0" Redline Toggle */}
+            {/* Row 6: Redline Comparison Switcher */}
             <button
               id="tour-redline-tab"
               onClick={() => {
@@ -316,43 +300,48 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
             >
               <div className="flex items-center gap-2">
-                <FileDiff className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span>Changes</span>
+                <FileCheck2 className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span>Redline & Draft History</span>
               </div>
-              <div className="flex items-center gap-1.5 font-mono text-[11.5px]">
-                <span className="text-emerald-400">+{diffStats.added}</span>
-                <span className="text-rose-400">-{diffStats.removed}</span>
+              <span className="text-[11px] text-zinc-500">
+                {documentVersions.length}{' '}
+                {documentVersions.length === 1 ? 'draft' : 'drafts'}
+              </span>
+            </button>
+
+            {/* Row 7: Chronology Quick Switch */}
+            <button
+              onClick={() => {
+                setActiveTab('chronology');
+                setIsInspectorDetailOpen(true);
+              }}
+              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarClock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <span>Fact Timeline & Record Dates</span>
               </div>
+              <span className="text-[11px] text-zinc-500">
+                {chronologyFacts.length}{' '}
+                {chronologyFacts.length === 1 ? 'fact' : 'facts'}
+              </span>
             </button>
 
             <div className="border-t border-white/[0.06] my-1" />
 
-            {/* Row 8: Lineage & Previous / Review Agents (Tucked Away!) */}
+            {/* Row 8: Peer Review Panel (Tucked Away) */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] text-zinc-500">
-                <span>Lineage</span>
-                {onConfigureAgents && (
-                  <button
-                    onClick={onConfigureAgents}
-                    className="text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
-                    title="Configure Review Team Models"
-                  >
-                    &bull;&bull;&bull;
-                  </button>
-                )}
-              </div>
-
               <button
-                onClick={() => setIsLineageExpanded((v) => !v)}
-                className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
+                onClick={() => setIsReviewPanelExpanded((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <Bot className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                  <span>Review agents</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400/80 shrink-0" />
+                  <span>Peer Review Panel</span>
                 </div>
-                <div className="flex items-center gap-1 text-zinc-500 text-[11.5px]">
-                  <span>3</span>
-                  {isLineageExpanded ? (
+                <div className="flex items-center gap-1 text-zinc-500 text-[11px]">
+                  <span>2 reviewers</span>
+                  {isReviewPanelExpanded ? (
                     <ChevronDown className="w-3.5 h-3.5" />
                   ) : (
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -360,23 +349,23 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 </div>
               </button>
 
-              {isLineageExpanded && adversarialConfig && (
+              {isReviewPanelExpanded && adversarialConfig && (
                 <div className="pt-1.5 pl-2 space-y-1.5 text-[11px] border-l border-white/[0.06] ml-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-zinc-500">Lead Drafter</span>
-                    <span className="font-mono text-zinc-300 truncate max-w-[140px]">
+                    <span className="text-zinc-300 truncate max-w-[140px]">
                       {adversarialConfig.primaryModel}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-500">Citation Auditor</span>
-                    <span className="font-mono text-zinc-400 truncate max-w-[140px]">
+                    <span className="text-zinc-500">Citation & Authority Check</span>
+                    <span className="text-zinc-400 truncate max-w-[140px]">
                       {adversarialConfig.citationAuditorModel}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-500">Opposing Critic</span>
-                    <span className="font-mono text-zinc-400 truncate max-w-[140px]">
+                    <span className="text-zinc-500">Opposing Counsel Check</span>
+                    <span className="text-zinc-400 truncate max-w-[140px]">
                       {adversarialConfig.opposingCounselModel}
                     </span>
                   </div>
@@ -385,7 +374,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                       onClick={onConfigureAgents}
                       className="text-[11px] text-zinc-400 hover:text-zinc-200 underline pt-0.5 cursor-pointer"
                     >
-                      Configure models &rarr;
+                      Configure review panel →
                     </button>
                   )}
                 </div>
@@ -420,7 +409,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                     : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                Corpus ({documents.length})
+                Exhibits ({documents.length})
               </button>
               <button
                 onClick={() => {
@@ -460,7 +449,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                     >
                       {documentVersions.map((ver) => (
                         <option key={ver.id} value={ver.id} className="bg-[#121216]">
-                          v{ver.versionNumber}: {ver.title.slice(0, 34)}
+                          Draft v{ver.versionNumber}: {ver.title.slice(0, 34)}
                         </option>
                       ))}
                     </select>
@@ -475,7 +464,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                               : 'text-zinc-500 hover:text-zinc-300'
                           }`}
                         >
-                          Diff
+                          Redline
                         </button>
                         <button
                           onClick={() => {
