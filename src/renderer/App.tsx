@@ -346,13 +346,22 @@ export const App: React.FC = () => {
     setMatterContextMenu(null);
   };
 
-  // Resizable right pane dimension
+  // Resizable right pane and composer dimensions with localStorage persistence
   const [rightPaneWidth, setRightPaneWidth] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('lexharness_right_pane_width');
       return saved ? Math.max(300, Math.min(parseInt(saved, 10), 820)) : 340;
     } catch {
       return 340;
+    }
+  });
+
+  const [composerHeight, setComposerHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('lexharness_composer_height');
+      return saved ? Math.max(56, Math.min(parseInt(saved, 10), 480)) : 76;
+    } catch {
+      return 76;
     }
   });
 
@@ -365,14 +374,15 @@ export const App: React.FC = () => {
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = rightPaneWidth;
+    let latestWidth = startWidth;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const delta = startX - moveEvent.clientX;
-      const newWidth = Math.max(
+      latestWidth = Math.max(
         300,
         Math.min(startWidth + delta, window.innerWidth * 0.65)
       );
-      setRightPaneWidth(newWidth);
+      setRightPaneWidth(latestWidth);
     };
 
     const onMouseUp = () => {
@@ -381,7 +391,39 @@ export const App: React.FC = () => {
       try {
         localStorage.setItem(
           'lexharness_right_pane_width',
-          String(rightPaneWidth)
+          String(Math.round(latestWidth))
+        );
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleStartResizeComposer = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = composerHeight;
+    let latestHeight = startHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = startY - moveEvent.clientY;
+      latestHeight = Math.max(
+        56,
+        Math.min(startHeight + delta, Math.floor(window.innerHeight * 0.6))
+      );
+      setComposerHeight(latestHeight);
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      try {
+        localStorage.setItem(
+          'lexharness_composer_height',
+          String(Math.round(latestHeight))
         );
       } catch {
         // ignore
@@ -1693,7 +1735,16 @@ export const App: React.FC = () => {
             )}
 
             {/* Main T3-Style Rounded Composer Box */}
-            <div className="rounded-2xl bg-[#131317] border border-white/[0.08] focus-within:border-white/[0.15] shadow-2xl px-4 pt-3 pb-2.5 transition">
+            <div className="relative rounded-2xl bg-[#131317] border border-white/[0.08] focus-within:border-white/[0.15] shadow-2xl px-4 pt-3 pb-2.5 transition">
+              {/* Top Vertical Resize Handle */}
+              <div
+                onMouseDown={handleStartResizeComposer}
+                title="Drag to resize prompt area"
+                className="group absolute -top-1.5 left-4 right-4 h-3 cursor-row-resize flex items-center justify-center z-10 select-none"
+              >
+                <div className="w-10 h-1 rounded-full bg-white/[0.08] group-hover:bg-white/[0.28] group-active:bg-white/[0.45] transition-colors" />
+              </div>
+
               <textarea
                 value={promptInput}
                 disabled={!activeMatter || isRunningTurn}
@@ -1704,7 +1755,7 @@ export const App: React.FC = () => {
                     handleSubmitPrompt();
                   }
                 }}
-                rows={2}
+                style={{ height: `${composerHeight}px` }}
                 placeholder={
                   activeMatter
                     ? `Draft a motion, audit discovery exhibits, or check citations with ${formatAgentLabel(
@@ -1712,7 +1763,7 @@ export const App: React.FC = () => {
                       )}...`
                     : 'Select or create a matter to begin...'
                 }
-                className="w-full bg-transparent text-[13.5px] text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none leading-relaxed disabled:opacity-50"
+                className="w-full bg-transparent text-[13.5px] text-zinc-100 placeholder-zinc-500 focus:outline-none resize-y min-h-[56px] max-h-[60vh] leading-relaxed disabled:opacity-50"
               />
 
               {/* Quiet Composer Footer Row */}
