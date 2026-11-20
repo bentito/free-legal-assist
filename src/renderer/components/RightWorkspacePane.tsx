@@ -201,24 +201,20 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3 space-y-3">
           {/* Calm Legal Matter & Case File Summary Card */}
           <div className="rounded-xl bg-[#121216] border border-white/[0.07] p-3 space-y-2.5 text-[12px] shadow-sm shrink-0">
-            {/* Row 1: Court Forum & Matter Settings */}
-            <div className="flex items-center justify-between gap-2 text-zinc-400">
+            {/* Row 1: Court Forum (Click to edit matter settings) */}
+            <button
+              onClick={() => activeMatter && onEditMatter?.(activeMatter)}
+              className="w-full flex items-center justify-between gap-2 text-zinc-400 hover:text-zinc-200 transition cursor-pointer text-left"
+              title="Click to edit matter caption, docket, or forum"
+            >
               <div className="flex items-center gap-2 min-w-0">
                 <Scale className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                <span className="truncate text-[11.5px]" title={activeMatter?.jurisdiction}>
+                <span className="truncate text-[11.5px]">
                   {shortForumLabel}
                 </span>
               </div>
-              {activeMatter && onEditMatter && (
-                <button
-                  onClick={() => onEditMatter(activeMatter)}
-                  title="Edit Matter Caption, Docket & Forum Settings"
-                  className="p-1 rounded hover:bg-white/[0.06] text-zinc-500 hover:text-zinc-200 transition cursor-pointer shrink-0"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+              <span className="text-[10.5px] text-zinc-500 shrink-0">Edit</span>
+            </button>
 
             {/* Row 2: Docket Number & Practice Focus */}
             <div className="flex items-center justify-between gap-2 text-zinc-300">
@@ -235,25 +231,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
 
             <div className="border-t border-white/[0.06] my-1" />
 
-            {/* Row 3: Case Exhibits & Authorities */}
-            <button
-              id="tour-corpus-tab"
-              onClick={() => {
-                setActiveTab('corpus');
-                setIsInspectorDetailOpen(true);
-              }}
-              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-200 hover:text-white transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <BookOpen className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span className="font-medium truncate">
-                  Case Exhibits & Authorities ({documents.length})
-                </span>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-            </button>
-
-            {/* Row 4: Quick Add Exhibit or Filing */}
+            {/* Row 3: Quick Add Exhibit or Filing */}
             <button
               onClick={() => {
                 setActiveTab('corpus');
@@ -266,70 +244,29 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               <span>Add discovery exhibit or authority</span>
             </button>
 
-            <div className="border-t border-white/[0.06] my-1" />
-
-            {/* Row 5: Current Work Product Draft & Redline Comparison */}
+            {/* Row 4: Current Work Product Draft Status */}
             {activeVersion && (
-              <div className="space-y-1">
-                <div className="flex items-start gap-2 text-zinc-300">
-                  <FileText className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11.5px] leading-snug truncate">
-                      {activeVersion.title}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-zinc-500">
-                      <span>Draft v{activeVersion.versionNumber}</span>
-                      <span>•</span>
-                      <span className="inline-flex items-center gap-1 text-emerald-400/90">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Peer Reviewed</span>
-                      </span>
-                    </div>
+              <div className="flex items-start gap-2 pt-0.5 text-zinc-300">
+                <FileText className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11.5px] leading-snug truncate">
+                    {activeVersion.title}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-zinc-500">
+                    <span>Draft v{activeVersion.versionNumber}</span>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1 text-emerald-400/90">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Peer Reviewed</span>
+                    </span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Row 6: Redline Comparison Switcher */}
-            <button
-              id="tour-redline-tab"
-              onClick={() => {
-                setActiveTab('redline');
-                setIsInspectorDetailOpen(true);
-              }}
-              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <FileCheck2 className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span>Redline & Draft History</span>
-              </div>
-              <span className="text-[11px] text-zinc-500">
-                {documentVersions.length}{' '}
-                {documentVersions.length === 1 ? 'draft' : 'drafts'}
-              </span>
-            </button>
-
-            {/* Row 7: Chronology Quick Switch */}
-            <button
-              onClick={() => {
-                setActiveTab('chronology');
-                setIsInspectorDetailOpen(true);
-              }}
-              className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-300 hover:text-white transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <CalendarClock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                <span>Fact Timeline & Record Dates</span>
-              </div>
-              <span className="text-[11px] text-zinc-500">
-                {chronologyFacts.length}{' '}
-                {chronologyFacts.length === 1 ? 'fact' : 'facts'}
-              </span>
-            </button>
-
             <div className="border-t border-white/[0.06] my-1" />
 
-            {/* Row 8: Peer Review Panel (Tucked Away) */}
+            {/* Row 5: Peer Review Panel (Tucked Away) */}
             <div className="space-y-1.5">
               <button
                 onClick={() => setIsReviewPanelExpanded((v) => !v)}
@@ -386,6 +323,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           <div className="flex items-center justify-between px-1 pt-1">
             <div className="flex items-center gap-1 bg-[#121216] p-0.5 rounded-lg border border-white/[0.06] text-[11px]">
               <button
+                id="tour-redline-tab"
                 onClick={() => {
                   setActiveTab('redline');
                   setIsInspectorDetailOpen(true);
@@ -399,6 +337,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 Redline ({documentVersions.length})
               </button>
               <button
+                id="tour-corpus-tab"
                 onClick={() => {
                   setActiveTab('corpus');
                   setIsInspectorDetailOpen(true);
