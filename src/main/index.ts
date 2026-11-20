@@ -672,12 +672,12 @@ async function createWindow(): Promise<void> {
     minWidth: 1120,
     minHeight: 720,
     title: 'LexHarness',
-    backgroundColor: '#020617',
+    backgroundColor: '#0b0b0e',
     icon: appIcon,
     ...(isMac
       ? {
           titleBarStyle: 'hiddenInset',
-          trafficLightPosition: { x: 18, y: 20 },
+          trafficLightPosition: { x: 18, y: 12 },
         }
       : {}),
     webPreferences: {
@@ -691,6 +691,20 @@ async function createWindow(): Promise<void> {
     await mainWindow.loadURL('http://localhost:5173');
   } else {
     await mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
+  }
+
+  const screenshotOut = process.env.LEXHARNESS_SCREENSHOT_PATH;
+  if (screenshotOut) {
+    setTimeout(async () => {
+      try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          const img = await mainWindow.webContents.capturePage();
+          fs.writeFileSync(screenshotOut, img.toPNG());
+        }
+      } finally {
+        app.quit();
+      }
+    }, 1800);
   }
 
   mainWindow.on('closed', () => {
