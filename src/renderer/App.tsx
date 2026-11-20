@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AdversarialReviewMode,
   AgentProgressEvent,
@@ -579,44 +579,6 @@ export const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  const docNeedingReview = useMemo(() => {
-    if (!state) return null;
-    const selectedDoc = state.documents.find((d) => d.id === selectedDocId);
-    if (selectedDoc) {
-      const versions = state.documentVersions.filter(
-        (v) => v.documentId === selectedDoc.id && v.versionNumber > 1
-      );
-      const latestVer = versions.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0];
-      const isEdited =
-        (latestVer && new Date(selectedDoc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime()) ||
-        (!latestVer && selectedDoc.updatedAt !== selectedDoc.createdAt);
-
-      if (isEdited) {
-        return { doc: selectedDoc, reason: 'edited' as const };
-      }
-    }
-
-    for (const doc of state.documents) {
-      const versions = state.documentVersions.filter(
-        (v) => v.documentId === doc.id && v.versionNumber > 1
-      );
-      const latestVer = versions.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0];
-      const isEdited =
-        (latestVer && new Date(doc.updatedAt).getTime() > new Date(latestVer.createdAt).getTime()) ||
-        (!latestVer && doc.updatedAt !== doc.createdAt);
-
-      if (isEdited) {
-        return { doc, reason: 'edited' as const };
-      }
-    }
-
-    return null;
-  }, [state?.documents, state?.documentVersions, selectedDocId]);
 
   if (loading) {
     return (
@@ -1690,25 +1652,6 @@ export const App: React.FC = () => {
           className="px-6 pb-5 pt-2 bg-gradient-to-t from-[#0b0b0e] via-[#0b0b0e] to-transparent shrink-0"
         >
           <div className="max-w-[760px] mx-auto space-y-2 relative">
-            {/* Contextual Edited Document Review Pill (Only appears when a document was manually edited) */}
-            {docNeedingReview && (
-              <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#131317] border border-white/[0.08] text-xs">
-                <span className="text-zinc-400 truncate">
-                  Edited <strong className="text-zinc-200">{docNeedingReview.doc.title}</strong> ({docNeedingReview.doc.batesRange})
-                </span>
-                <button
-                  disabled={isRunningTurn}
-                  onClick={() => {
-                    const promptText = `Run a comprehensive peer review on the updated document "${docNeedingReview.doc.title}" (Bates: ${docNeedingReview.doc.batesRange}). Audit citations against controlling forum law and discovery exhibits, identify weaknesses, and propose a redline revision.`;
-                    setPromptInput(promptText);
-                  }}
-                  className="text-amber-300 hover:text-amber-200 font-medium text-[11px] ml-3 shrink-0 cursor-pointer"
-                >
-                  Run Peer Review →
-                </button>
-              </div>
-            )}
-
             {/* Tucked-away Sample Prompts Popover */}
             {showSamplePromptsMenu && (
               <div className="p-2 rounded-xl bg-[#141419] border border-white/[0.08] shadow-2xl space-y-1">
@@ -1860,7 +1803,7 @@ export const App: React.FC = () => {
                     onChange={(e) =>
                       setTurnReviewMode(e.target.value as AdversarialReviewMode)
                     }
-                    className="hidden md:inline-block bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11px] text-zinc-500 hover:text-zinc-300 focus:outline-none cursor-pointer"
+                    className="hidden md:inline-block bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] text-zinc-400 hover:text-zinc-200 focus:outline-none cursor-pointer"
                     title="Peer Review Mode"
                   >
                     <option
