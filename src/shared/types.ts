@@ -464,3 +464,18 @@ export interface AppBootstrapState {
   ancillaryModelRegistry: AncillaryModelRegistryState;
 }
 
+export interface ParsedDocxPreview {
+  fileName: string;
+  suggestedTitle: string;
+  content: string;
+  pageCount: number;
+  summary: string;
+  stats: {
+    headingCount: number;
+    numberedParagraphCount: number;
+    tableCount: number;
+    footnoteCount: number;
+  };
+}
+
+

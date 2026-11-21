@@ -11,6 +11,7 @@ import {
   CustomLegalMcpServer,
   DocumentCategory,
   LLMProviderId,
+  ParsedDocxPreview,
   PracticeAreaId,
   PractitionerProfileId,
   PrivacyRoutingSettings,
@@ -105,6 +106,11 @@ export interface LexHarnessBridge {
     summary: string;
     content: string;
   }): Promise<AppBootstrapState>;
+  parseDocxBuffer(payload: {
+    fileName: string;
+    base64Data: string;
+  }): Promise<ParsedDocxPreview>;
+  pickDocxFile(): Promise<ParsedDocxPreview | null>;
   updateDocument(payload: {
     docId: string;
     title?: string;
@@ -188,6 +194,8 @@ const bridge: LexHarnessBridge = {
   openExternalUrl: (payload) =>
     ipcRenderer.invoke('legal:open-external-url', payload),
   createDocument: (payload) => ipcRenderer.invoke('legal:create-document', payload),
+  parseDocxBuffer: (payload) => ipcRenderer.invoke('legal:parse-docx-buffer', payload),
+  pickDocxFile: () => ipcRenderer.invoke('legal:pick-docx-file'),
   updateDocument: (payload) => ipcRenderer.invoke('legal:update-document', payload),
   updateDocumentVersion: (payload) =>
     ipcRenderer.invoke('legal:update-document-version', payload),

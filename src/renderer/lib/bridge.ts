@@ -10,6 +10,7 @@ import {
   CustomLegalMcpServer,
   DocumentCategory,
   LLMProviderId,
+  ParsedDocxPreview,
   PracticeAreaId,
   PractitionerProfileId,
   PrivacyRoutingSettings,
@@ -106,6 +107,11 @@ declare global {
         summary: string;
         content: string;
       }): Promise<AppBootstrapState>;
+      parseDocxBuffer(payload: {
+        fileName: string;
+        base64Data: string;
+      }): Promise<ParsedDocxPreview>;
+      pickDocxFile(): Promise<ParsedDocxPreview | null>;
       updateDocument(payload: {
         docId: string;
         title?: string;
@@ -326,6 +332,17 @@ export const ipcBridge = {
     content: string;
   }): Promise<AppBootstrapState> {
     return window.lexharness!.createDocument(payload);
+  },
+
+  async parseDocxBuffer(payload: {
+    fileName: string;
+    base64Data: string;
+  }): Promise<ParsedDocxPreview> {
+    return window.lexharness!.parseDocxBuffer(payload);
+  },
+
+  async pickDocxFile(): Promise<ParsedDocxPreview | null> {
+    return window.lexharness!.pickDocxFile();
   },
 
   async updateDocument(payload: {

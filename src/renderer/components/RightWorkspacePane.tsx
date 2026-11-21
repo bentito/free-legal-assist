@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   AdversarialConfig,
   ChronologyFact,
@@ -6,8 +6,11 @@ import {
   DocumentVersion,
   Matter,
   MatterDocument,
+  ParsedDocxPreview,
 } from '../../shared/types';
+import { ipcBridge } from '../lib/bridge';
 import {
+  AlertCircle,
   BookOpen,
   CalendarClock,
   Check,
@@ -18,13 +21,16 @@ import {
   Edit3,
   FileCheck2,
   FileText,
+  FileUp,
   Gavel,
+  Loader2,
   Plus,
   Scale,
   Settings,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 
 interface RightWorkspacePaneProps {
@@ -93,6 +99,51 @@ const formatPracticeAreaLabel = (practiceArea?: string): string => {
   }
 };
 
+function inferCategoryFromFileName(name: string): DocumentCategory {
+  const lower = name.toLowerCase();
+  if (
+    lower.includes('contract') ||
+    lower.includes('agreement') ||
+    lower.includes('lease') ||
+    lower.includes('engagement') ||
+    lower.includes('settlement')
+  ) {
+    return 'CONTRACT';
+  }
+  if (
+    lower.includes('motion') ||
+    lower.includes('pleading') ||
+    lower.includes('complaint') ||
+    lower.includes('brief') ||
+    lower.includes('petition')
+  ) {
+    return 'PLEADING';
+  }
+  if (lower.includes('depo') || lower.includes('transcript')) {
+    return 'DEPOSITION';
+  }
+  if (
+    lower.includes('memo') ||
+    lower.includes('demand') ||
+    lower.includes('draft') ||
+    lower.includes('letter')
+  ) {
+    return 'WORK_PRODUCT';
+  }
+  return 'EXHIBIT';
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const slice = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
+}
+
 export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   matterId,
   activeMatter,
@@ -122,9 +173,72 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [showAddDocForm, setShowAddDocForm] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
+  const [newDocFileName, setNewDocFileName] = useState('');
   const [newDocCategory, setNewDocCategory] = useState<DocumentCategory>('EXHIBIT');
   const [newDocBates, setNewDocBates] = useState('EX-0100');
   const [newDocContent, setNewDocContent] = useState('');
+  const [docxPreviewMeta, setDocxPreviewMeta] = useState<ParsedDocxPreview | null>(null);
+  const [isParsingDocx, setIsParsingDocx] = useState(false);
+  const [docxError, setDocxError] = useState<string | null>(null);
+  const [isDraggingDocx, setIsDraggingDocx] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const applyParsedDocx = (parsed: ParsedDocxPreview) => {
+    setDocxPreviewMeta(parsed);
+    setNewDocTitle(parsed.suggestedTitle);
+    setNewDocFileName(parsed.fileName);
+    setNewDocCategory(inferCategoryFromFileName(parsed.fileName));
+    setNewDocContent(parsed.content);
+    setDocxError(null);
+    setActiveTab('corpus');
+    setIsInspectorDetailOpen(true);
+    setShowAddDocForm(true);
+  };
+
+  const handleUploadDocxFileObject = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      setDocxError('Please select a Word (.docx) file.');
+      return;
+    }
+    setIsParsingDocx(true);
+    setDocxError(null);
+    try {
+      const arrayBuf = await file.arrayBuffer();
+      const base64Data = arrayBufferToBase64(arrayBuf);
+      const parsed = await ipcBridge.parseDocxBuffer({
+        fileName: file.name,
+        base64Data,
+      });
+      applyParsedDocx(parsed);
+    } catch (err) {
+      setDocxError(
+        err instanceof Error ? err.message : 'Failed to parse .docx file.'
+      );
+    } finally {
+      setIsParsingDocx(false);
+    }
+  };
+
+  const handlePickDocxClick = async () => {
+    setDocxError(null);
+    if (ipcBridge.isElectron()) {
+      setIsParsingDocx(true);
+      try {
+        const parsed = await ipcBridge.pickDocxFile();
+        if (parsed) {
+          applyParsedDocx(parsed);
+        }
+      } catch (err) {
+        setDocxError(
+          err instanceof Error ? err.message : 'Failed to open .docx file.'
+        );
+      } finally {
+        setIsParsingDocx(false);
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
 
   // Collapsible inspector sections
   const [isReviewPanelExpanded, setIsReviewPanelExpanded] = useState(false);
@@ -231,18 +345,33 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
 
             <div className="border-t border-white/[0.06] my-1" />
 
-            {/* Row 3: Quick Add Exhibit or Filing */}
-            <button
-              onClick={() => {
-                setActiveTab('corpus');
-                setIsInspectorDetailOpen(true);
-                setShowAddDocForm(true);
-              }}
-              className="w-full flex items-center gap-2 py-0.5 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-              <span>Add discovery exhibit or authority</span>
-            </button>
+            {/* Row 3: Quick Add Exhibit or Upload Word (.docx) Filing */}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={() => {
+                  setActiveTab('corpus');
+                  setIsInspectorDetailOpen(true);
+                  setShowAddDocForm(true);
+                }}
+                className="flex items-center gap-2 py-0.5 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <span>Add discovery exhibit or authority</span>
+              </button>
+              <button
+                onClick={handlePickDocxClick}
+                disabled={isParsingDocx}
+                title="Upload a Word (.docx) document with headings, numbered paragraphs, tables & footnotes"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-[10.5px] text-zinc-200 transition cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {isParsingDocx ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <FileUp className="w-3 h-3 text-zinc-400" />
+                )}
+                <span>Upload .docx</span>
+              </button>
+            </div>
 
             {/* Row 4: Current Work Product Draft Status */}
             {activeVersion && (
@@ -528,12 +657,129 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
 
               {/* TAB 2: MATTER DOCUMENT CORPUS */}
               {activeTab === 'corpus' && (
-                <div className="space-y-2.5">
+                <div
+                  className="space-y-2.5"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingDocx(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingDocx(false);
+                  }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingDocx(false);
+                    const droppedFile = e.dataTransfer?.files?.[0];
+                    if (droppedFile) {
+                      await handleUploadDocxFileObject(droppedFile);
+                    }
+                  }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        await handleUploadDocxFileObject(file);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+
+                  {/* Quick Corpus Action Bar: Upload Word (.docx) or Add Text */}
+                  <div
+                    className={`p-2.5 rounded-xl border border-dashed transition ${
+                      isDraggingDocx
+                        ? 'bg-emerald-500/10 border-emerald-400/50 text-emerald-200'
+                        : 'bg-[#121216] border-white/[0.1] text-zinc-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Upload className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <span className="text-[11px] truncate">
+                          {isDraggingDocx
+                            ? 'Drop Word (.docx) file to import...'
+                            : 'Drop a Word (.docx) draft or upload'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={isParsingDocx}
+                          onClick={handlePickDocxClick}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-[11px] transition cursor-pointer disabled:opacity-50"
+                        >
+                          {isParsingDocx ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <FileUp className="w-3 h-3" />
+                          )}
+                          <span>Upload .docx</span>
+                        </button>
+                        {!showAddDocForm && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDocxPreviewMeta(null);
+                              setNewDocFileName('');
+                              setShowAddDocForm(true);
+                            }}
+                            className="px-2 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 text-[11px] transition cursor-pointer"
+                          >
+                            Paste Text
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {docxError && (
+                    <div className="p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 flex items-center gap-2 text-[11px] text-rose-200">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      <span>{docxError}</span>
+                    </div>
+                  )}
+
                   {showAddDocForm && (
                     <div className="p-3 rounded-xl bg-[#121216] border border-white/[0.12] space-y-2">
-                      <div className="text-xs font-medium text-zinc-200">
-                        Add Document to Corpus
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-medium text-zinc-200">
+                          {docxPreviewMeta
+                            ? `Import Word Document (${docxPreviewMeta.fileName})`
+                            : 'Add Document to Corpus'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-[10.5px] text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+                        >
+                          Choose .docx file
+                        </button>
                       </div>
+
+                      {docxPreviewMeta && (
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
+                          <span>Parsed .docx:</span>
+                          <span>{docxPreviewMeta.stats.headingCount} headings</span>
+                          <span>•</span>
+                          <span>
+                            {docxPreviewMeta.stats.numberedParagraphCount} numbered paras
+                          </span>
+                          <span>•</span>
+                          <span>{docxPreviewMeta.stats.tableCount} tables</span>
+                          <span>•</span>
+                          <span>{docxPreviewMeta.stats.footnoteCount} footnotes</span>
+                        </div>
+                      )}
+
                       <input
                         type="text"
                         value={newDocTitle}
@@ -567,13 +813,17 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                       <textarea
                         value={newDocContent}
                         onChange={(e) => setNewDocContent(e.target.value)}
-                        rows={4}
-                        placeholder="Paste document text or transcript excerpt..."
+                        rows={6}
+                        placeholder="Paste document text or upload a .docx file..."
                         className="w-full p-2.5 rounded-lg bg-[#0b0b0e] border border-white/[0.08] text-xs text-zinc-200 font-mono focus:outline-none"
                       />
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => setShowAddDocForm(false)}
+                          onClick={() => {
+                            setShowAddDocForm(false);
+                            setDocxPreviewMeta(null);
+                            setNewDocFileName('');
+                          }}
                           className="px-2.5 py-1 rounded text-xs text-zinc-400 hover:text-zinc-200"
                         >
                           Cancel
@@ -581,23 +831,30 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                         <button
                           onClick={async () => {
                             if (!newDocTitle.trim() || !newDocContent.trim()) return;
+                            const resolvedFileName =
+                              newDocFileName.trim() ||
+                              `${newDocTitle
+                                .trim()
+                                .toLowerCase()
+                                .replace(/[^a-z0-9]+/g, '_')}.txt`;
                             await onCreateDocument({
                               matterId,
                               title: newDocTitle.trim(),
-                              fileName: `${newDocTitle
-                                .trim()
-                                .toLowerCase()
-                                .replace(/[^a-z0-9]+/g, '_')}.txt`,
+                              fileName: resolvedFileName,
                               category: newDocCategory,
                               batesRange: newDocBates.trim() || 'DOC-001',
-                              summary: newDocContent.trim().slice(0, 140),
+                              summary:
+                                docxPreviewMeta?.summary ||
+                                newDocContent.trim().slice(0, 140),
                               content: newDocContent.trim(),
                             });
                             setNewDocTitle('');
+                            setNewDocFileName('');
                             setNewDocContent('');
+                            setDocxPreviewMeta(null);
                             setShowAddDocForm(false);
                           }}
-                          className="px-3 py-1 rounded-lg bg-zinc-100 text-zinc-950 font-medium text-xs"
+                          className="px-3 py-1 rounded-lg bg-zinc-100 text-zinc-950 font-medium text-xs cursor-pointer"
                         >
                           Save
                         </button>
