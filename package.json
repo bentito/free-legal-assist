@@ -1,7 +1,7 @@
 {
   "name": "lexharness-desktop",
   "productName": "LexHarness",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Legal drafting and review workspace",
   "main": "dist-electron/main/index.js",
   "private": true,
