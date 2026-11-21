@@ -10,6 +10,7 @@ import {
   ChronologyFact,
   CustomLegalMcpServer,
   DocumentCategory,
+  ExportDocxPayload,
   LLMProviderId,
   ParsedDocxPreview,
   PracticeAreaId,
@@ -111,6 +112,11 @@ export interface LexHarnessBridge {
     base64Data: string;
   }): Promise<ParsedDocxPreview>;
   pickDocxFile(): Promise<ParsedDocxPreview | null>;
+  exportDocx(payload: ExportDocxPayload): Promise<{
+    saved: boolean;
+    filePath?: string;
+    byteLength?: number;
+  }>;
   updateDocument(payload: {
     docId: string;
     title?: string;
@@ -196,6 +202,7 @@ const bridge: LexHarnessBridge = {
   createDocument: (payload) => ipcRenderer.invoke('legal:create-document', payload),
   parseDocxBuffer: (payload) => ipcRenderer.invoke('legal:parse-docx-buffer', payload),
   pickDocxFile: () => ipcRenderer.invoke('legal:pick-docx-file'),
+  exportDocx: (payload) => ipcRenderer.invoke('legal:export-docx', payload),
   updateDocument: (payload) => ipcRenderer.invoke('legal:update-document', payload),
   updateDocumentVersion: (payload) =>
     ipcRenderer.invoke('legal:update-document-version', payload),

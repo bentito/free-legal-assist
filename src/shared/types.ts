@@ -464,18 +464,55 @@ export interface AppBootstrapState {
   ancillaryModelRegistry: AncillaryModelRegistryState;
 }
 
+export interface DocxTrackedChange {
+  id: string;
+  type: 'insertion' | 'deletion';
+  author: string;
+  date?: string;
+  text: string;
+}
+
+export interface DocxComment {
+  id: string;
+  author: string;
+  date?: string;
+  initials?: string;
+  anchorText?: string;
+  text: string;
+}
+
 export interface ParsedDocxPreview {
   fileName: string;
   suggestedTitle: string;
   content: string;
   pageCount: number;
   summary: string;
+  trackedChanges?: DocxTrackedChange[];
+  comments?: DocxComment[];
   stats: {
     headingCount: number;
     numberedParagraphCount: number;
     tableCount: number;
     footnoteCount: number;
+    trackedChangeCount: number;
+    commentCount: number;
   };
 }
+
+export interface ExportDocxPayload {
+  title: string;
+  suggestedFileName?: string;
+  content: string;
+  previousContent?: string;
+  author?: string;
+  rationaleSummary?: string;
+  comments?: Array<{
+    author: string;
+    text: string;
+    anchorText?: string;
+    date?: string;
+  }>;
+}
+
 
 

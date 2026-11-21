@@ -6,7 +6,7 @@ import { LegalAgentLoop } from './agent/LegalAgentLoop';
 import { PromptAssembler } from './agent/PromptAssembler';
 import { CliAgentDriverManager } from './agent/providers/CliAgentDriverManager';
 import { AncillaryModelManager } from './agent/providers/AncillaryModelManager';
-import { parseDocxBuffer } from './tools/DocxParser';
+import { exportDocxBuffer, parseDocxBuffer } from './tools/DocxParser';
 import {
   AdversarialConfig,
   AdversarialReviewMode,
@@ -15,6 +15,7 @@ import {
   ChronologyFact,
   CustomLegalMcpServer,
   DocumentCategory,
+  ExportDocxPayload,
   LLMProviderId,
   Matter,
   MatterDocument,
@@ -385,6 +386,41 @@ function registerIpcHandlers(): void {
       const filePath = result.filePaths[0];
       const buffer = fs.readFileSync(filePath);
       return parseDocxBuffer(buffer, path.basename(filePath));
+    }
+  );
+
+  ipcMain.handle(
+    'legal:export-docx',
+    async (
+      _event,
+      payload: ExportDocxPayload
+    ): Promise<{ saved: boolean; filePath?: string; byteLength?: number }> => {
+      const safeDefaultName = (
+        payload.suggestedFileName ||
+        `${(payload.title || 'Legal_Work_Product').replace(/[^a-zA-Z0-9-_]+/g, '_')}.docx`
+      ).replace(/\.docx$/i, '') + '.docx';
+
+      const saveOptions = {
+        title: 'Export Word (.docx) with Tracked Changes & Comments',
+        defaultPath: safeDefaultName,
+        filters: [{ name: 'Word Document (.docx)', extensions: ['docx'] }],
+      };
+
+      const result = mainWindow
+        ? await dialog.showSaveDialog(mainWindow, saveOptions)
+        : await dialog.showSaveDialog(saveOptions);
+
+      if (result.canceled || !result.filePath) {
+        return { saved: false };
+      }
+
+      const docxBuffer = exportDocxBuffer(payload);
+      fs.writeFileSync(result.filePath, docxBuffer);
+      return {
+        saved: true,
+        filePath: result.filePath,
+        byteLength: docxBuffer.byteLength,
+      };
     }
   );
 
