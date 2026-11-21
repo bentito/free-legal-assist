@@ -9,6 +9,7 @@ import {
   ChronologyFact,
   CustomLegalMcpServer,
   DocumentCategory,
+  ExportDocxPayload,
   LLMProviderId,
   ParsedDocxPreview,
   PracticeAreaId,
@@ -112,6 +113,11 @@ declare global {
         base64Data: string;
       }): Promise<ParsedDocxPreview>;
       pickDocxFile(): Promise<ParsedDocxPreview | null>;
+      exportDocx(payload: ExportDocxPayload): Promise<{
+        saved: boolean;
+        filePath?: string;
+        byteLength?: number;
+      }>;
       updateDocument(payload: {
         docId: string;
         title?: string;
@@ -343,6 +349,14 @@ export const ipcBridge = {
 
   async pickDocxFile(): Promise<ParsedDocxPreview | null> {
     return window.lexharness!.pickDocxFile();
+  },
+
+  async exportDocx(payload: ExportDocxPayload): Promise<{
+    saved: boolean;
+    filePath?: string;
+    byteLength?: number;
+  }> {
+    return window.lexharness!.exportDocx(payload);
   },
 
   async updateDocument(payload: {

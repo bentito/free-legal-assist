@@ -33,6 +33,7 @@ import {
   ChevronRight,
   Clock,
   Cpu,
+  Download,
   Edit3,
   FileSearch,
   FileUp,
@@ -1380,6 +1381,40 @@ export const App: React.FC = () => {
                         >
                           <Edit3 className="w-3 h-3" />
                           <span>{isEditingThisMsg ? 'Cancel' : 'Edit'}</span>
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const reviewComments = msg.adversarialReviews.flatMap(
+                              (rev) =>
+                                rev.objections.map((obj) => ({
+                                  author: `${rev.criticTitle} (${rev.model})`,
+                                  text: `[${rev.severity} • ${obj.category}] (${obj.location}): ${obj.critique} — Cure: ${obj.requiredFix}`,
+                                  targetSnippet: obj.location,
+                                }))
+                            );
+                            await ipcBridge.exportDocx({
+                              title: `${activeMatter.name} — ${workProductLabel}`,
+                              suggestedFileName: `${activeMatter.name.replace(
+                                /[^a-zA-Z0-9-_]+/g,
+                                '_'
+                              )}_${workProductLabel.replace(
+                                /[^a-zA-Z0-9-_]+/g,
+                                '_'
+                              )}.docx`,
+                              content: msg.content,
+                              previousContent: msg.initialDraftBeforeReview,
+                              author: msg.primaryModel || 'LexHarness Peer Review',
+                              comments:
+                                reviewComments.length > 0
+                                  ? reviewComments
+                                  : undefined,
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.03] hover:bg-white/[0.08] text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                          title="Export work product to Word (.docx) with native Tracked Changes and peer-review comments"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Export .docx</span>
                         </button>
                       </div>
                     </div>

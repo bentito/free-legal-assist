@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  Download,
   Edit3,
   FileCheck2,
   FileText,
@@ -181,7 +182,36 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   const [isParsingDocx, setIsParsingDocx] = useState(false);
   const [docxError, setDocxError] = useState<string | null>(null);
   const [isDraggingDocx, setIsDraggingDocx] = useState(false);
+  const [isExportingDocx, setIsExportingDocx] = useState(false);
+  const [docxExportNotice, setDocxExportNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleExportDocx = async (payload: {
+    title: string;
+    suggestedFileName?: string;
+    content: string;
+    previousContent?: string;
+    rationaleSummary?: string;
+    author?: string;
+  }) => {
+    setIsExportingDocx(true);
+    setDocxError(null);
+    setDocxExportNotice(null);
+    try {
+      const res = await ipcBridge.exportDocx(payload);
+      if (res.saved && res.filePath) {
+        const shortName = res.filePath.split(/[\\/]/).pop() || res.filePath;
+        setDocxExportNotice(`Exported Word redline to ${shortName}`);
+        setTimeout(() => setDocxExportNotice(null), 5000);
+      }
+    } catch (err) {
+      setDocxError(
+        err instanceof Error ? err.message : 'Failed to export .docx file.'
+      );
+    } finally {
+      setIsExportingDocx(false);
+    }
+  };
 
   const applyParsedDocx = (parsed: ParsedDocxPreview) => {
     setDocxPreviewMeta(parsed);
@@ -506,6 +536,13 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
           {/* Detail Inspector Body (Tucked or Expanded) */}
           {isInspectorDetailOpen && (
             <div className="space-y-3 pb-4">
+              {docxExportNotice && (
+                <div className="p-2.5 rounded-xl bg-emerald-950/35 border border-emerald-500/30 flex items-center gap-2 text-[11px] text-emerald-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="truncate">{docxExportNotice}</span>
+                </div>
+              )}
+
               {/* TAB 1: REDLINE & VERSIONS */}
               {activeTab === 'redline' && (
                 <div id="tour-redline-pane" className="space-y-3">
@@ -546,6 +583,33 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                           }`}
                         >
                           Edit
+                        </button>
+                        <button
+                          disabled={isExportingDocx}
+                          onClick={() =>
+                            handleExportDocx({
+                              title: activeVersion.title,
+                              suggestedFileName: `${activeVersion.title.replace(
+                                /[^a-zA-Z0-9-_]+/g,
+                                '_'
+                              )}_v${activeVersion.versionNumber}_Redline.docx`,
+                              content: activeVersion.content,
+                              previousContent: activeVersion.previousContent,
+                              rationaleSummary: activeVersion.rationaleSummary,
+                              author:
+                                activeVersion.createdByModel ||
+                                'LexHarness Peer Review',
+                            })
+                          }
+                          title="Export to Word (.docx) with native Tracked Changes (<w:ins>, <w:del>) and margin comments"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/[0.06] hover:bg-white/[0.12] text-zinc-200 transition cursor-pointer disabled:opacity-50"
+                        >
+                          {isExportingDocx ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Download className="w-3 h-3 text-zinc-400" />
+                          )}
+                          <span>.docx</span>
                         </button>
                       </div>
                     )}
@@ -777,6 +841,22 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                           <span>{docxPreviewMeta.stats.tableCount} tables</span>
                           <span>•</span>
                           <span>{docxPreviewMeta.stats.footnoteCount} footnotes</span>
+                          {docxPreviewMeta.stats.trackedChangeCount > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="font-medium text-amber-300">
+                                {docxPreviewMeta.stats.trackedChangeCount} tracked changes
+                              </span>
+                            </>
+                          )}
+                          {docxPreviewMeta.stats.commentCount > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className="font-medium text-sky-300">
+                                {docxPreviewMeta.stats.commentCount} comments
+                              </span>
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -972,6 +1052,37 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                               Edit
                             </button>
                           )}
+
+                          <button
+                            disabled={isExportingDocx}
+                            onClick={() => {
+                              const latestVer = documentVersions
+                                .filter((v) => v.documentId === activeDoc.id)
+                                .sort(
+                                  (a, b) =>
+                                    new Date(b.createdAt).getTime() -
+                                    new Date(a.createdAt).getTime()
+                                )[0];
+                              handleExportDocx({
+                                title: activeDoc.title,
+                                suggestedFileName: `${activeDoc.title.replace(
+                                  /[^a-zA-Z0-9-_]+/g,
+                                  '_'
+                                )}.docx`,
+                                content: activeDoc.content,
+                                previousContent: latestVer?.previousContent,
+                                rationaleSummary:
+                                  latestVer?.rationaleSummary || activeDoc.summary,
+                                author:
+                                  latestVer?.createdByModel || 'LexHarness',
+                              });
+                            }}
+                            title="Export to Word (.docx) with native Tracked Changes and comments"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 text-[10px] cursor-pointer disabled:opacity-50"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span>.docx</span>
+                          </button>
                         </div>
                       </div>
 
