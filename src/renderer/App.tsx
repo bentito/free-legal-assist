@@ -35,6 +35,7 @@ import {
   Cpu,
   Edit3,
   FileSearch,
+  FileUp,
   FolderPlus,
   GitBranch,
   ListFilter,
@@ -1720,6 +1721,45 @@ export const App: React.FC = () => {
                     title="Sample legal prompts"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={!activeMatter || isRunningTurn}
+                    onClick={async () => {
+                      if (!activeMatter) return;
+                      if (ipcBridge.isElectron()) {
+                        const parsed = await ipcBridge.pickDocxFile();
+                        if (parsed) {
+                          const docCount = state.documents.length + 1;
+                          const bates = `DOC-${String(docCount).padStart(4, '0')}`;
+                          const updated = await ipcBridge.createDocument({
+                            matterId: activeMatter.id,
+                            title: parsed.suggestedTitle,
+                            fileName: parsed.fileName,
+                            category: 'WORK_PRODUCT',
+                            batesRange: bates,
+                            summary: parsed.summary,
+                            content: parsed.content,
+                          });
+                          setState(updated);
+                          setIsRightPaneVisible(true);
+                          setRightPaneTab('corpus');
+                          if (updated.documents.length > 0) {
+                            setSelectedDocId(
+                              updated.documents[updated.documents.length - 1].id
+                            );
+                          }
+                        }
+                      } else {
+                        setIsRightPaneVisible(true);
+                        setRightPaneTab('corpus');
+                      }
+                    }}
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.05] transition cursor-pointer disabled:opacity-40"
+                    title="Upload Word (.docx) document into matter corpus"
+                  >
+                    <FileUp className="w-3.5 h-3.5" />
                   </button>
 
                   <select

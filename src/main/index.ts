@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, session, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { LegalDatabase, SecretEncryptor } from './db/database';
@@ -6,6 +6,7 @@ import { LegalAgentLoop } from './agent/LegalAgentLoop';
 import { PromptAssembler } from './agent/PromptAssembler';
 import { CliAgentDriverManager } from './agent/providers/CliAgentDriverManager';
 import { AncillaryModelManager } from './agent/providers/AncillaryModelManager';
+import { parseDocxBuffer } from './tools/DocxParser';
 import {
   AdversarialConfig,
   AdversarialReviewMode,
@@ -17,6 +18,7 @@ import {
   LLMProviderId,
   Matter,
   MatterDocument,
+  ParsedDocxPreview,
   PracticeAreaId,
   PractitionerProfileId,
   PrivacyRoutingSettings,
@@ -344,6 +346,45 @@ function registerIpcHandlers(): void {
       };
       db.insertDocument(doc);
       return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:parse-docx-buffer',
+    async (
+      _event,
+      payload: {
+        fileName: string;
+        base64Data: string;
+      }
+    ): Promise<ParsedDocxPreview> => {
+      const buffer = Buffer.from(payload.base64Data, 'base64');
+      return parseDocxBuffer(buffer, payload.fileName);
+    }
+  );
+
+  ipcMain.handle(
+    'legal:pick-docx-file',
+    async (): Promise<ParsedDocxPreview | null> => {
+      const result = mainWindow
+        ? await dialog.showOpenDialog(mainWindow, {
+            title: 'Select Word (.docx) Document',
+            filters: [{ name: 'Word Document (.docx)', extensions: ['docx'] }],
+            properties: ['openFile'],
+          })
+        : await dialog.showOpenDialog({
+            title: 'Select Word (.docx) Document',
+            filters: [{ name: 'Word Document (.docx)', extensions: ['docx'] }],
+            properties: ['openFile'],
+          });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return null;
+      }
+
+      const filePath = result.filePaths[0];
+      const buffer = fs.readFileSync(filePath);
+      return parseDocxBuffer(buffer, path.basename(filePath));
     }
   );
 
