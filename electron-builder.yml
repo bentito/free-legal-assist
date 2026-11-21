@@ -18,5 +18,13 @@ mac:
     - zip
 win:
   target:
-    - nsis
-    - zip
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+nsis:
+  include: build/installer.nsh
+
