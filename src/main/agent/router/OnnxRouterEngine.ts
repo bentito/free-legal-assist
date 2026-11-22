@@ -110,19 +110,19 @@ export class OnnxRouterEngine {
       promptLower.includes('public domain format') ||
       promptLower.includes('verify citation');
 
+    const isSubstantiveDraftOrPleading =
+      /\b(draft|write|prepare|compose|redline|revise|argue|challenge|audit|analyze|complaint|motion|brief|memorandum|memo|petition|pleading|demand letter|summary judgment|counterclaim|answer|objection|suppress|dismiss|exit order|art\.\s*11|article\s*11|unconstitutional)\b/i.test(
+        promptLower
+      );
+
     const isSimpleStatuteOrRule =
-      promptLower.includes('13 v.s.a. § 7554') ||
-      promptLower.includes('bail factors') ||
-      promptLower.includes('rule 12 deadline') ||
-      promptLower.includes('filing deadline') ||
-      promptLower.includes('standard of review') ||
-      (promptLen < 120 &&
-        !promptLower.includes('suppress') &&
-        !promptLower.includes('motion') &&
-        !promptLower.includes('exit order') &&
-        !promptLower.includes('art. 11') &&
-        !promptLower.includes('article 11') &&
-        !promptLower.includes('unconstitutional'));
+      !isSubstantiveDraftOrPleading &&
+      (promptLower.includes('13 v.s.a. § 7554') ||
+        promptLower.includes('bail factors') ||
+        promptLower.includes('rule 12 deadline') ||
+        promptLower.includes('filing deadline') ||
+        promptLower.includes('standard of review') ||
+        promptLen < 120);
 
     if (isCitationFormat || isSimpleStatuteOrRule) {
       const intent = isCitationFormat ? 'format_citation' : 'vt_procedural_lookup';

@@ -112,6 +112,7 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
     availableModels: [
       { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet (Extended Legal Reasoning)' },
       { id: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' },
+      { id: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku (Fast Economy)' },
       { id: 'claude-3-opus-latest', label: 'Claude 3 Opus (Deepest Analysis)' },
     ],
     enabled: true,
@@ -500,6 +501,25 @@ export class LegalDatabase {
 
   setLastActiveMatterId(matterId: string, flush = true): void {
     this.setKeyValue('last_active_matter_id', matterId, flush);
+  }
+
+  generateNextMatterNumber(practiceArea?: PracticeAreaId): string {
+    const existingNumbers = new Set(
+      this.listMatters().map((m) => m.matterNumber.split(' ')[0].trim().toUpperCase())
+    );
+    const yearPrefix = String(new Date().getFullYear()).slice(-2);
+    const isCriminal = !practiceArea || practiceArea.startsWith('vt_');
+    const typeCode = isCriminal ? 'CR' : 'CV';
+
+    let seq = 1;
+    while (seq < 99999) {
+      const candidate = `${yearPrefix}-${typeCode}-${String(seq).padStart(5, '0')}`;
+      if (!existingNumbers.has(candidate.toUpperCase())) {
+        return candidate;
+      }
+      seq++;
+    }
+    return `${yearPrefix}-${typeCode}-${Date.now().toString().slice(-5)}`;
   }
 
   // --- Matters ---

@@ -91,10 +91,15 @@ const formatPracticeAreaLabel = (practiceArea?: string): string => {
       return 'Bail & Release';
     case 'vt_plea_sentencing':
       return 'Plea & Sentencing';
-    case 'general_transactional':
-      return 'Contracts & Advisory';
+    case 'general_litigation':
     case 'general_litigation_adr':
-      return 'Civil Disputes & ADR';
+      return 'Civil Litigation';
+    case 'general_transactional':
+      return 'Contracts & M&A';
+    case 'general_regulatory':
+      return 'Regulatory & Statutory';
+    case 'general_investigation':
+      return 'Fact Chronology';
     default:
       return 'General Practice';
   }
@@ -213,16 +218,24 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
     }
   };
 
-  const applyParsedDocx = (parsed: ParsedDocxPreview) => {
+  const saveParsedDocxDirectly = async (parsed: ParsedDocxPreview) => {
+    const nextBatesNum = documents.length + 1;
+    const autoBates = `EX-${String(nextBatesNum).padStart(4, '0')}`;
+    const category = inferCategoryFromFileName(parsed.fileName);
+    await onCreateDocument({
+      matterId,
+      title: parsed.suggestedTitle || parsed.fileName,
+      fileName: parsed.fileName,
+      category,
+      batesRange: autoBates,
+      summary: parsed.summary || parsed.content.slice(0, 140),
+      content: parsed.content,
+    });
     setDocxPreviewMeta(parsed);
-    setNewDocTitle(parsed.suggestedTitle);
-    setNewDocFileName(parsed.fileName);
-    setNewDocCategory(inferCategoryFromFileName(parsed.fileName));
-    setNewDocContent(parsed.content);
     setDocxError(null);
     setActiveTab('corpus');
     setIsInspectorDetailOpen(true);
-    setShowAddDocForm(true);
+    setShowAddDocForm(false);
   };
 
   const handleUploadDocxFileObject = async (file: File) => {
@@ -239,7 +252,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
         fileName: file.name,
         base64Data,
       });
-      applyParsedDocx(parsed);
+      await saveParsedDocxDirectly(parsed);
     } catch (err) {
       setDocxError(
         err instanceof Error ? err.message : 'Failed to parse .docx file.'
@@ -256,7 +269,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
       try {
         const parsed = await ipcBridge.pickDocxFile();
         if (parsed) {
-          applyParsedDocx(parsed);
+          await saveParsedDocxDirectly(parsed);
         }
       } catch (err) {
         setDocxError(
@@ -287,7 +300,9 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
 
   // Chronology form state
   const [showAddFactForm, setShowAddFactForm] = useState(false);
-  const [factDate, setFactDate] = useState('2026-09-10');
+  const [factDate, setFactDate] = useState(
+    () => new Date().toISOString().slice(0, 10)
+  );
   const [factDesc, setFactDesc] = useState('');
   const [factCite, setFactCite] = useState('');
   const [factStatus, setFactStatus] =
@@ -365,7 +380,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <Gavel className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                 <span className="text-[11.5px] truncate">
-                  {activeMatter?.matterNumber || '26-CR-04118'}
+                  {activeMatter?.matterNumber || 'No Docket ID'}
                 </span>
               </div>
               <span className="text-[10.5px] text-zinc-500 truncate max-w-[135px]">
@@ -809,6 +824,29 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                     <div className="p-2.5 rounded-xl bg-rose-950/30 border border-rose-500/30 flex items-center gap-2 text-[11px] text-rose-200">
                       <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                       <span>{docxError}</span>
+                    </div>
+                  )}
+
+                  {docxPreviewMeta && !showAddDocForm && (
+                    <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                        <span>Indexed {docxPreviewMeta.fileName}:</span>
+                        <span>{docxPreviewMeta.stats.headingCount} headings</span>
+                        <span>•</span>
+                        <span>
+                          {docxPreviewMeta.stats.numberedParagraphCount} numbered paras
+                        </span>
+                        <span>•</span>
+                        <span>{docxPreviewMeta.stats.tableCount} tables</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDocxPreviewMeta(null)}
+                        className="text-zinc-400 hover:text-zinc-200 ml-1"
+                      >
+                        Dismiss
+                      </button>
                     </div>
                   )}
 

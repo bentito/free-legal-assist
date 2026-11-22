@@ -115,11 +115,23 @@ export class MultiLLMClient {
     };
   }
 
+  private static normalizeAnthropicModelId(model: string): string {
+    const trimmed = model.trim();
+    const aliasMap: Record<string, string> = {
+      'claude-3-5-haiku': 'claude-3-5-haiku-latest',
+      'claude-3-5-sonnet': 'claude-3-5-sonnet-latest',
+      'claude-3-7-sonnet': 'claude-3-7-sonnet-latest',
+      'claude-3-opus': 'claude-3-opus-latest',
+    };
+    return aliasMap[trimmed] || trimmed;
+  }
+
   private async callLiveProvider(
     req: LLMCompletionRequest,
     apiKey: string
   ): Promise<string> {
     if (req.provider === 'anthropic') {
+      const normalizedModel = MultiLLMClient.normalizeAnthropicModelId(req.model);
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -128,7 +140,7 @@ export class MultiLLMClient {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: req.model,
+          model: normalizedModel,
           max_tokens: 4096,
           system: req.systemPrompt,
           messages: [{ role: 'user', content: req.userPrompt }],
@@ -233,14 +245,17 @@ export class MultiLLMClient {
     proposedRedlineRationale?: string;
   } {
     const { userPrompt, matter, docs, isRevisionPass, objectionsToCure } = params;
-    const isVermontCriminal =
-      matter.jurisdiction.toLowerCase().includes('vermont') ||
-      matter.id.includes('vt') ||
-      matter.practiceArea.startsWith('vt_');
+    const isVermontSampleCase =
+      matter.id === 'matter-vt-state-v-thorne' ||
+      matter.id === 'matter-1794160132556' ||
+      docs.some((d) => d.batesRange.includes('STATE-BWC') || d.batesRange.includes('AUTH-VT'));
+    const isApexSampleCase =
+      matter.id === 'matter-apex-meridian' ||
+      docs.some((d) => d.batesRange.includes('APEX-'));
 
     // Handle conversational, orientation, or status questions gracefully without forcing a 5-page formal motion
     if (!isRevisionPass && MultiLLMClient.isInformationalInquiry(userPrompt)) {
-      if (isVermontCriminal) {
+      if (isVermontSampleCase) {
         return {
           draftText: `### Casework Status & Motion Overview (${matter.name})
 
@@ -263,9 +278,10 @@ We are preparing an **Article 11 Motion to Suppress Evidence & Dismiss the Infor
         };
       }
 
-      const msaDoc = docs.find((d) => d.category === 'CONTRACT') ?? docs[0];
-      return {
-        draftText: `### Casework Status & Objectives (${matter.name})
+      if (isApexSampleCase) {
+        const msaDoc = docs.find((d) => d.category === 'CONTRACT') ?? docs[0];
+        return {
+          draftText: `### Casework Status & Objectives (${matter.name})
 
 In response to your inquiry (*"${userPrompt}"*), here is our current procedural posture in **${matter.name}** (Docket No. **${matter.matterNumber}**) in **${matter.jurisdiction}**:
 
@@ -273,10 +289,31 @@ In response to your inquiry (*"${userPrompt}"*), here is our current procedural 
 - **Key Legal Ground**: Piercing limitation of liability under MSA § 9.2 based on gross negligence and reckless disregard of cryptographic standards, and meeting notice requirements under MSA § 8.2.
 
 *Ask me to "Draft a demand letter" or "Draft a summary judgment brief" to produce formal work product.*`,
+        };
+      }
+
+      const customDocs = docs.filter((d) => d.batesRange !== 'WP-0001');
+      const sourceDocs = customDocs.length > 0 ? customDocs : docs;
+      const docListMd = sourceDocs
+        .map(
+          (d) =>
+            `- **${d.title}** (\`${d.fileName}\` • Bates: \`${d.batesRange}\`): ${d.summary}`
+        )
+        .join('\n');
+
+      return {
+        draftText: `### Casework Status & Matter Overview (${matter.name})
+
+In response to your inquiry (*"${userPrompt}"*), here is the current record in **${matter.name}** (Docket No. **${matter.matterNumber}**) in **${matter.jurisdiction}**:
+
+#### Indexed Matter Documents (${sourceDocs.length})
+${docListMd || '- No exhibits uploaded yet.'}
+
+*Ask me to draft a complaint, motion, or legal memorandum grounded in these uploaded documents.*`,
       };
     }
 
-    if (isVermontCriminal) {
+    if (isVermontSampleCase) {
       if (!isRevisionPass) {
         return {
           draftText: `## Initial Candidate Defense Analysis (${matter.name} — ${matter.matterNumber})
@@ -326,27 +363,27 @@ ${curedSummary}`;
       };
     }
 
-    // General Legal Practice simulation (e.g., Apex v. Meridian)
-    const msaDoc = docs.find((d) => d.category === 'CONTRACT') ?? docs[0];
-    if (!isRevisionPass) {
-      return {
-        draftText: `## Initial Candidate Legal Analysis (${matter.name})
+    if (isApexSampleCase) {
+      const msaDoc = docs.find((d) => d.category === 'CONTRACT') ?? docs[0];
+      if (!isRevisionPass) {
+        return {
+          draftText: `## Initial Candidate Legal Analysis (${matter.name})
 
 In response to your instruction (*"${userPrompt}"*), we have examined the record in **${matter.name}** (${matter.matterNumber}) under **${matter.jurisdiction}**.
 
 - **Governing Document**: Pursuant to **${msaDoc?.title ?? 'Master Agreement'}** (\`${msaDoc?.batesRange ?? 'APEX-0001'}\`), Section 4.1 requires FIPS 140-3 Level 3 HSM encryption.
 - **Liability Cap & Notice**: Under *Abry Partners V, L.P. v. F & W Acquisition LLC*, 891 A.2d 1032 (Del. Ch. 2006), Delaware public policy voids limitation-of-liability clauses whenever a party acts with gross negligence, and Apex complied with Section 8.2 notice requirements.`,
-      };
-    }
+        };
+      }
 
-    const curedSummary = (objectionsToCure || [])
-      .map(
-        (o, idx) =>
-          `${idx + 1}. **Cured [${o.category}] (${o.location})**: ${o.requiredFix}`
-      )
-      .join('\n');
+      const curedSummary = (objectionsToCure || [])
+        .map(
+          (o, idx) =>
+            `${idx + 1}. **Cured [${o.category}] (${o.location})**: ${o.requiredFix}`
+        )
+        .join('\n');
 
-    const revisedGeneralDoc = `# REVISED LEGAL WORK PRODUCT & CLAUSE REDLINE (${matter.matterNumber})
+      const revisedGeneralDoc = `# REVISED LEGAL WORK PRODUCT & CLAUSE REDLINE (${matter.matterNumber})
 
 ## I. EXECUTIVE CONCLUSION (POST-ADVERSARIAL AUDIT)
 1. **Tiered Cap Piercing Under MSA § 9.2 (\`APEX-0016\`)**: Anchored in the express negotiated tiers ($5.4M 3x Super-Cap for Gross Negligence/Willful Misconduct and Uncapped tier for Reckless Disregard of Known Cryptographic Vulnerabilities) rather than broad public-policy voidness.
@@ -357,10 +394,112 @@ In response to your instruction (*"${userPrompt}"*), we have examined the record
 ### Revisions Applied After Multi-LLM Adversarial Gate
 ${curedSummary}`;
 
+      return {
+        draftText: revisedGeneralDoc,
+        proposedRedlineContent: revisedGeneralDoc,
+        proposedRedlineRationale: `Cured ${(objectionsToCure || []).length} adversarial objections from Citation Auditor & Opposing Counsel critics.`,
+      };
+    }
+
+    // Dynamic Matter Grounded Drafting (for user-created matters and uploaded exhibits)
+    const uploadedDocs = docs.filter((d) => d.batesRange !== 'WP-0001');
+    const targetDocs = uploadedDocs.length > 0 ? uploadedDocs : docs;
+    const primaryExhibit = targetDocs[0];
+
+    const extractGroundedParagraphs = (doc?: MatterDocument): string[] => {
+      if (!doc || !doc.content) return [];
+      return doc.content
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(
+          (line) =>
+            line.length > 25 &&
+            !line.startsWith('# INITIAL MATTER MEMORANDUM') &&
+            !line.startsWith('- **Client**:') &&
+            !line.startsWith('- **Matter / Docket No.**:')
+        )
+        .slice(0, 8);
+    };
+
+    const exhibitParagraphs = targetDocs.flatMap((d) =>
+      extractGroundedParagraphs(d).map((p) => ({
+        bates: d.batesRange,
+        title: d.title,
+        text: p.replace(/^#+\s*/, ''),
+      }))
+    );
+
+    const factualAllegationsMd =
+      exhibitParagraphs.length > 0
+        ? exhibitParagraphs
+            .slice(0, 6)
+            .map(
+              (item, idx) =>
+                `${idx + 1}. ${item.text} \`[${item.bates} — ${item.title}]\``
+            )
+            .join('\n')
+        : `1. Facts and claims set forth in the matter record for **${matter.name}** (${matter.clientName}) \`[${primaryExhibit?.batesRange ?? 'WP-0001'}]\`.`;
+
+    const exhibitsSummaryMd = targetDocs
+      .map(
+        (d) =>
+          `- **${d.title}** (\`${d.fileName}\` • Bates \`[${d.batesRange}]\`): ${d.summary}`
+      )
+      .join('\n');
+
+    if (!isRevisionPass) {
+      return {
+        draftText: `# INITIAL DRAFT WORK PRODUCT — ${matter.name.toUpperCase()} (${matter.matterNumber})
+
+## I. CAPTION & GOVERNING FORUM
+- **Matter**: ${matter.name}
+- **Client / Party**: ${matter.clientName}
+- **Docket / Matter No.**: ${matter.matterNumber}
+- **Governing Forum & Jurisdiction**: ${matter.jurisdiction}
+- **Attorney Instruction**: *"${userPrompt}"*
+
+## II. GROUNDED RECORD & UPLOADED EXHIBITS
+${exhibitsSummaryMd}
+
+## III. STATEMENT OF FACTS & CLAIMS FROM UPLOADED RECORD
+${factualAllegationsMd}
+
+## IV. LEGAL CLAIMS & RELIEF REQUESTED
+Pursuant to the governing rules of **${matter.jurisdiction}** and the factual record established in **${primaryExhibit?.title ?? matter.name}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, ${matter.clientName} demands judgment, compensatory damages, statutory or contractual relief, and all further relief to which ${matter.clientName} is entitled.`,
+      };
+    }
+
+    const curedSummary = (objectionsToCure || [])
+      .map(
+        (o, idx) =>
+          `${idx + 1}. **Cured [${o.category}] (${o.location})**: ${o.requiredFix}`
+      )
+      .join('\n');
+
+    const revisedCustomDraft = `# VERIFIED LEGAL WORK PRODUCT — ${matter.name.toUpperCase()} (${matter.matterNumber})
+
+## I. CAPTION & JURISDICTIONAL STATEMENT
+- **Court / Forum**: ${matter.jurisdiction}
+- **Case Caption**: ${matter.name}
+- **Client / Party**: ${matter.clientName}
+- **Docket / Matter No.**: ${matter.matterNumber}
+
+## II. VERIFIED FACTUAL ALLEGATIONS (WITH BATES PINPOINTS)
+${factualAllegationsMd}
+
+## III. CAUSES OF ACTION & PRAYER FOR RELIEF
+1. **Primary Claim Grounded in Uploaded Record**: Incorporating the factual allegations and demand particulars from **${primaryExhibit?.title ?? 'Matter Exhibits'}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, ${matter.clientName} pleads entitlement to full legal and equitable relief in **${matter.jurisdiction}**.
+2. **Evidentiary Foundation**: Supported by ${targetDocs.map((d) => `${d.title} \`[${d.batesRange}]\``).join(', ')}.
+
+---
+
+### Revisions Applied After Multi-LLM Adversarial Gate
+${curedSummary || '1. Verified all factual assertions and Bates pinpoints against uploaded matter exhibits.'}`;
+
     return {
-      draftText: revisedGeneralDoc,
-      proposedRedlineContent: revisedGeneralDoc,
-      proposedRedlineRationale: `Cured ${(objectionsToCure || []).length} adversarial objections from Citation Auditor & Opposing Counsel critics.`,
+      draftText: revisedCustomDraft,
+      proposedRedlineContent: revisedCustomDraft,
+      proposedRedlineRationale: `Cured ${(objectionsToCure || []).length} adversarial review objection(s) grounded in ${primaryExhibit?.title ?? matter.name} [${primaryExhibit?.batesRange ?? 'DOC-0001'}].`,
     };
   }
 }

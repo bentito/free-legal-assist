@@ -121,14 +121,33 @@ export class LegalAgentLoop {
       toolCall: searchCall,
     });
 
+    const isVermontSampleCase =
+      matter.id === 'matter-vt-state-v-thorne' ||
+      matter.id === 'matter-1794160132556' ||
+      docs.some((d) => d.batesRange.includes('STATE-BWC') || d.batesRange.includes('AUTH-VT'));
+    const isApexSampleCase =
+      matter.id === 'matter-apex-meridian' ||
+      docs.some((d) => d.batesRange.includes('APEX-'));
     const isVermontCriminal =
+      isVermontSampleCase ||
       matter.jurisdiction.toLowerCase().includes('vermont') ||
       matter.id.includes('vt') ||
       matter.practiceArea.startsWith('vt_');
 
-    const defaultCitationToVerify = isVermontCriminal
-      ? 'State v. Sprague, 2003 VT 20; State v. Bauder, 2007 VT 16; State v. Savva, 159 Vt. 75 (1991); State v. Oakes, 157 Vt. 171 (1991)'
-      : 'Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006); Express Scripts, Inc. v. Bracket Holdings Corp., 248 A.3d 824 (Del. 2021)';
+    let defaultCitationToVerify: string;
+    if (isVermontSampleCase) {
+      defaultCitationToVerify =
+        'State v. Sprague, 2003 VT 20; State v. Bauder, 2007 VT 16; State v. Savva, 159 Vt. 75 (1991); State v. Oakes, 157 Vt. 171 (1991)';
+    } else if (isApexSampleCase) {
+      defaultCitationToVerify =
+        'Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006); Express Scripts, Inc. v. Bracket Holdings Corp., 248 A.3d 824 (Del. 2021)';
+    } else {
+      const authorityDocs = docs.filter((d) => d.category === 'STATUTE_AUTHORITY');
+      defaultCitationToVerify =
+        authorityDocs.length > 0
+          ? `${authorityDocs[0].title} (${authorityDocs[0].batesRange})`
+          : `${matter.jurisdiction} (${matter.citationStyle || 'Controlling Forum Authorities'})`;
+    }
 
     const verifyCall = await this.toolExecutor.executeTool(
       matterId,
@@ -184,6 +203,7 @@ export class LegalAgentLoop {
     });
 
     let candidateDraft = '';
+    let primaryConnectionAdvisoryNote = '';
     const hasLivePrimary = this.llmClient.hasLiveCredentials(
       effectivePrimaryProvider
     );
@@ -218,7 +238,8 @@ export class LegalAgentLoop {
         });
         candidateDraft = simulated.draftText;
         const errMsg = (err as Error).message.replace(/[\r\n]+/g, ' ');
-        candidateDraft = `> [!NOTE]\n> **Agent Connection Note**: ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel}) encountered an issue: *${errMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n${candidateDraft}`;
+        primaryConnectionAdvisoryNote = `> [!NOTE]\n> **Agent Connection Note**: ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel}) encountered an issue: *${errMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n`;
+        candidateDraft = `${primaryConnectionAdvisoryNote}${candidateDraft}`;
       }
     } else {
       const simulated = this.llmClient.generateGroundedLegalDraft({
@@ -308,7 +329,7 @@ export class LegalAgentLoop {
             candidateDraft = revRes.text;
             revisedRedlineContent = revRes.text;
             revisedRedlineRationale = `Cured ${gateResult.combinedObjections.length} adversarial review objections.`;
-          } catch {
+          } catch (revErr) {
             const revisedSim = this.llmClient.generateGroundedLegalDraft({
               userPrompt,
               matter,
@@ -316,7 +337,11 @@ export class LegalAgentLoop {
               isRevisionPass: true,
               objectionsToCure: gateResult.combinedObjections,
             });
-            candidateDraft = revisedSim.draftText;
+            const revErrMsg = (revErr as Error).message.replace(/[\r\n]+/g, ' ');
+            const advisoryPrefix =
+              primaryConnectionAdvisoryNote ||
+              `> [!NOTE]\n> **Agent Connection Note**: ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel}) encountered an issue: *${revErrMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n`;
+            candidateDraft = `${advisoryPrefix}${revisedSim.draftText}`;
             revisedRedlineContent = revisedSim.proposedRedlineContent;
             revisedRedlineRationale = revisedSim.proposedRedlineRationale;
           }
@@ -328,7 +353,7 @@ export class LegalAgentLoop {
             isRevisionPass: true,
             objectionsToCure: gateResult.combinedObjections,
           });
-          candidateDraft = revisedSim.draftText;
+          candidateDraft = `${primaryConnectionAdvisoryNote}${revisedSim.draftText}`;
           revisedRedlineContent = revisedSim.proposedRedlineContent;
           revisedRedlineRationale = revisedSim.proposedRedlineRationale;
         }
