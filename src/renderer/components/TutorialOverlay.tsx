@@ -109,7 +109,7 @@ export const TOUR_STEPS: TourStep[] = [
     ],
     keyHighlight:
       'Second-Chair Review & Spin Off Issue: Catch citation and record errors automatically or branch any turn into a dedicated Case Issue.',
-    cardPlacement: 'center',
+    cardPlacement: 'bottom-right',
   },
   {
     id: 'work_product_editing',
@@ -125,7 +125,7 @@ export const TOUR_STEPS: TourStep[] = [
     ],
     keyHighlight:
       'Native Word (.docx) Export & Master Brief Synthesis: Combine Case Issues into a Master Brief and export native Word redlines with comments.',
-    cardPlacement: 'bottom-right',
+    cardPlacement: 'bottom-left',
     preferredTab: 'redline',
   },
   {
@@ -257,27 +257,53 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({
     }
   };
 
+  const getCardContainerAlignment = (
+    placement: TourStep['cardPlacement']
+  ): string => {
+    switch (placement) {
+      case 'top-left':
+        return 'items-start justify-center pt-16';
+      case 'top-right':
+        return 'items-center justify-end pr-12';
+      case 'bottom-left':
+        return 'items-center justify-start pl-72';
+      case 'bottom-right':
+        return 'items-end justify-center pb-28';
+      case 'center':
+      default:
+        return 'items-center justify-center';
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden pointer-events-auto">
-      {/* Translucent backdrop */}
-      <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] transition-opacity duration-300" />
+      {/* Subtle unblurred dim when no specific spotlight target is found */}
+      {!targetRect && (
+        <div className="absolute inset-0 bg-black/45 transition-opacity duration-300" />
+      )}
 
-      {/* Spotlight cutout / focus ring around target element */}
+      {/* True Spotlight Cutout: 100% clear inside targetRect, subtle unblurred dim outside */}
       {targetRect && (
         <div
           style={{
-            top: Math.max(8, targetRect.top - 6),
-            left: Math.max(8, targetRect.left - 6),
+            top: Math.max(6, targetRect.top - 6),
+            left: Math.max(6, targetRect.left - 6),
             width: targetRect.width + 12,
             height: targetRect.height + 12,
+            boxShadow:
+              '0 0 0 9999px rgba(9, 9, 11, 0.48), 0 0 28px rgba(245, 158, 11, 0.45)',
           }}
-          className="absolute rounded-2xl border-2 border-amber-400 bg-amber-400/10 shadow-[0_0_50px_rgba(245,158,11,0.35)] pointer-events-none transition-all duration-300 ease-out animate-pulse"
+          className="absolute rounded-2xl border-2 border-amber-400 bg-transparent pointer-events-none transition-all duration-300 ease-out"
         />
       )}
 
-      {/* Floating Tutorial Card */}
-      <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto w-full max-w-xl rounded-2xl bg-slate-900/95 border border-amber-500/40 shadow-2xl backdrop-blur-xl p-6 text-slate-100 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+      {/* Floating Tutorial Card positioned away from the highlighted target */}
+      <div
+        className={`absolute inset-0 flex p-6 pointer-events-none ${getCardContainerAlignment(
+          currentStep.cardPlacement
+        )}`}
+      >
+        <div className="pointer-events-auto w-full max-w-lg rounded-2xl bg-[#121216]/95 border border-amber-500/40 shadow-2xl p-6 text-slate-100 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
           {/* Card Top Navigation & Metadata */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2.5">
