@@ -6,7 +6,11 @@ import { LegalAgentLoop } from './agent/LegalAgentLoop';
 import { PromptAssembler } from './agent/PromptAssembler';
 import { CliAgentDriverManager } from './agent/providers/CliAgentDriverManager';
 import { AncillaryModelManager } from './agent/providers/AncillaryModelManager';
-import { exportDocxBuffer, parseDocxBuffer } from './tools/DocxParser';
+import {
+  exportDocxBuffer,
+  parseDocumentBuffer,
+  SUPPORTED_IMPORT_EXTENSIONS,
+} from './tools/DocxParser';
 import {
   AdversarialConfig,
   AdversarialReviewMode,
@@ -376,24 +380,31 @@ function registerIpcHandlers(): void {
       }
     ): Promise<ParsedDocxPreview> => {
       const buffer = Buffer.from(payload.base64Data, 'base64');
-      return parseDocxBuffer(buffer, payload.fileName);
+      return parseDocumentBuffer(buffer, payload.fileName);
     }
   );
 
   ipcMain.handle(
     'legal:pick-docx-file',
     async (): Promise<ParsedDocxPreview | null> => {
+      const dialogOptions = {
+        title: 'Import Case Document or Exhibit (.docx, .pdf, .txt, .rtf, .csv, .xlsx)',
+        filters: [
+          {
+            name: 'Supported Legal Documents (.docx, .pdf, .txt, .md, .rtf, .csv, .xlsx)',
+            extensions: [...SUPPORTED_IMPORT_EXTENSIONS],
+          },
+          { name: 'Word Document (.docx)', extensions: ['docx'] },
+          { name: 'PDF Document (.pdf)', extensions: ['pdf'] },
+          { name: 'Spreadsheets & Tables (.xlsx, .csv)', extensions: ['xlsx', 'csv'] },
+          { name: 'Text & Rich Text (.txt, .md, .rtf)', extensions: ['txt', 'md', 'rtf'] },
+        ],
+        properties: ['openFile' as const],
+      };
+
       const result = mainWindow
-        ? await dialog.showOpenDialog(mainWindow, {
-            title: 'Select Word (.docx) Document',
-            filters: [{ name: 'Word Document (.docx)', extensions: ['docx'] }],
-            properties: ['openFile'],
-          })
-        : await dialog.showOpenDialog({
-            title: 'Select Word (.docx) Document',
-            filters: [{ name: 'Word Document (.docx)', extensions: ['docx'] }],
-            properties: ['openFile'],
-          });
+        ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
 
       if (result.canceled || result.filePaths.length === 0) {
         return null;
@@ -401,7 +412,7 @@ function registerIpcHandlers(): void {
 
       const filePath = result.filePaths[0];
       const buffer = fs.readFileSync(filePath);
-      return parseDocxBuffer(buffer, path.basename(filePath));
+      return parseDocumentBuffer(buffer, path.basename(filePath));
     }
   );
 

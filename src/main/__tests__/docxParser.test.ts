@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import {
   buildZipArchive,
   exportDocxBuffer,
+  parseDocumentBuffer,
   parseDocxBuffer,
 } from '../tools/DocxParser';
 import { LegalDatabase } from '../db/database';
@@ -467,4 +469,187 @@ describe('DocxParser: Tracked changes, comments, and exporting redlines back to 
     ]);
   });
 });
+
+describe('Multi-format document & exhibit ingestion (.txt, .csv, .xlsx, .rtf, .pdf)', () => {
+  it('parses plain text (.txt) and Markdown (.md) files with heading and numbered paragraph stats', () => {
+    const txtBuffer = Buffer.from(
+      [
+        '# DEPOSITION TRANSCRIPT OF OFFICER KELLER',
+        '',
+        '1. Q: State your full name and badge number for the record.',
+        '2. A: Trooper Marcus Keller, Badge #412, Vermont State Police.',
+      ].join('\n'),
+      'utf8'
+    );
+
+    const parsed = parseDocumentBuffer(txtBuffer, 'Keller_Deposition_Excerpt.txt');
+    expect(parsed.fileName).toBe('Keller_Deposition_Excerpt.txt');
+    expect(parsed.suggestedTitle).toBe('DEPOSITION TRANSCRIPT OF OFFICER KELLER');
+    expect(parsed.stats.headingCount).toBe(1);
+    expect(parsed.stats.numberedParagraphCount).toBe(2);
+    expect(parsed.content).toContain('Trooper Marcus Keller, Badge #412');
+  });
+
+  it('parses CSV (.csv) exhibits with quoted commas and newlines into structured Markdown tables', () => {
+    const csvText = [
+      'Bates ID,Date,Amount,Description',
+      'EX-101,2026-09-01,"$12,500.00","Initial retainer wire, escrow account"',
+      'EX-102,2026-09-15,"$4,200.50","Forensic accounting invoice | Phase 1"',
+    ].join('\r\n');
+
+    const parsed = parseDocumentBuffer(
+      Buffer.from(csvText, 'utf8'),
+      'Damages_Ledger_2026.csv'
+    );
+
+    expect(parsed.suggestedTitle).toBe('Damages Ledger 2026');
+    expect(parsed.stats.tableCount).toBe(1);
+    expect(parsed.content).toContain('| Bates ID | Date | Amount | Description |');
+    expect(parsed.content).toContain(
+      '| EX-101 | 2026-09-01 | $12,500.00 | Initial retainer wire, escrow account |'
+    );
+    expect(parsed.content).toContain('Forensic accounting invoice \\| Phase 1');
+    expect(parsed.summary).toContain('CSV table (2 rows');
+  });
+
+  it('parses Excel workbooks (.xlsx) with multiple sheets, shared strings, inline strings, and serial dates', () => {
+    const workbookXml = `<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="Privilege Log" sheetId="1" r:id="rId1"/>
+    <sheet name="Damages Calculation" sheetId="2" r:id="rId2"/>
+  </sheets>
+</workbook>`;
+
+    const workbookRelsXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Target="worksheets/sheet2.xml"/>
+</Relationships>`;
+
+    const sharedStringsXml = `<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <si><t>Doc ID</t></si>
+  <si><t>Date</t></si>
+  <si><t>Privilege Basis</t></si>
+  <si><t>PRIV-001</t></si>
+  <si><t>Attorney-Client Communication re: Merger</t></si>
+</sst>`;
+
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <cellXfs count="2">
+    <xf numFmtId="0"/>
+    <xf numFmtId="14"/>
+  </cellXfs>
+</styleSheet>`;
+
+    // 46296 in Excel 1900 date system = 2026-10-01
+    const sheet1Xml = `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+      <c r="B1" t="s"><v>1</v></c>
+      <c r="C1" t="s"><v>2</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="s"><v>3</v></c>
+      <c r="B2" s="1"><v>46296</v></c>
+      <c r="C2" t="s"><v>4</v></c>
+    </row>
+  </sheetData>
+</worksheet>`;
+
+    const sheet2Xml = `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="inlineStr"><is><t>Category</t></is></c>
+      <c r="B1" t="inlineStr"><is><t>Amount</t></is></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="inlineStr"><is><t>Lost Profits</t></is></c>
+      <c r="B2"><v>185000</v></c>
+    </row>
+  </sheetData>
+</worksheet>`;
+
+    const xlsxBuffer = buildZipArchive({
+      'xl/workbook.xml': workbookXml,
+      'xl/_rels/workbook.xml.rels': workbookRelsXml,
+      'xl/sharedStrings.xml': sharedStringsXml,
+      'xl/styles.xml': stylesXml,
+      'xl/worksheets/sheet1.xml': sheet1Xml,
+      'xl/worksheets/sheet2.xml': sheet2Xml,
+    });
+
+    const parsed = parseDocumentBuffer(xlsxBuffer, 'Matter_Privilege_and_Damages.xlsx');
+    expect(parsed.stats.tableCount).toBe(2);
+    expect(parsed.content).toContain('## Sheet: Privilege Log');
+    expect(parsed.content).toContain(
+      '| PRIV-001 | 2026-10-01 | Attorney-Client Communication re: Merger |'
+    );
+    expect(parsed.content).toContain('## Sheet: Damages Calculation');
+    expect(parsed.content).toContain('| Lost Profits | 185000 |');
+    expect(parsed.summary).toContain('Excel workbook (2 sheets');
+  });
+
+  it('parses Rich Text Format (.rtf) filings while stripping font/color tables and decoding escapes', () => {
+    const rtfContent = [
+      '{\\rtf1\\ansi\\deff0',
+      '{\\fonttbl{\\f0 Times New Roman;}}',
+      '{\\colortbl;\\red0\\green0\\blue0;}',
+      '\\pard\\b AFFIDAVIT OF JANE DOE\\b0\\par',
+      '1. I am the Chief Financial Officer of Apex Logistics.\\par',
+      '2. On October 12\\\'2c 2026\\\'2c I reviewed the \\u167? 409A valuation report.\\par',
+      '}',
+    ].join('\n');
+
+    const parsed = parseDocumentBuffer(
+      Buffer.from(rtfContent, 'latin1'),
+      'Affidavit_of_Jane_Doe.rtf'
+    );
+
+    expect(parsed.suggestedTitle).toBe('AFFIDAVIT OF JANE DOE');
+    expect(parsed.content).not.toContain('Times New Roman');
+    expect(parsed.content).toContain(
+      '1. I am the Chief Financial Officer of Apex Logistics.'
+    );
+    expect(parsed.content).toContain(
+      '2. On October 12, 2026, I reviewed the § 409A valuation report.'
+    );
+  });
+
+  it('parses PDF (.pdf) documents with FlateDecode compressed text streams and BT/ET operators', () => {
+    const contentStream = [
+      'BT',
+      '/F1 14 Tf',
+      '72 720 Td',
+      '(SUPERIOR COURT OF VERMONT) Tj',
+      '0 -24 Td',
+      '[(1. Plaintiff alleges breach of Section 4.2 ) -15 (of the Supply Agreement.)] TJ',
+      'ET',
+    ].join('\n');
+    const compressed = zlib.deflateSync(Buffer.from(contentStream, 'latin1'));
+
+    const header = Buffer.from(
+      '%PDF-1.4\n1 0 obj\n<< /Type /Page /Parent 2 0 R /Contents 3 0 R >>\nendobj\n3 0 obj\n<< /Length ' +
+        compressed.length +
+        ' /Filter /FlateDecode >>\nstream\r\n',
+      'latin1'
+    );
+    const footer = Buffer.from('\r\nendstream\nendobj\n%%EOF', 'latin1');
+    const pdfBuffer = Buffer.concat([header, compressed, footer]);
+
+    const parsed = parseDocumentBuffer(pdfBuffer, 'Vermont_Complaint_Filing.pdf');
+    expect(parsed.pageCount).toBe(1);
+    expect(parsed.content).toContain('SUPERIOR COURT OF VERMONT');
+    expect(parsed.content).toContain(
+      '1. Plaintiff alleges breach of Section 4.2 of the Supply Agreement.'
+    );
+    expect(parsed.summary).toContain('SUPERIOR COURT OF VERMONT');
+  });
+});
+
 

@@ -15,7 +15,10 @@ import {
   PromptGovernanceModal,
   StudioTab,
 } from './components/PromptGovernanceModal';
-import { RightWorkspacePane } from './components/RightWorkspacePane';
+import {
+  RightWorkspacePane,
+  inferCategoryFromFileName,
+} from './components/RightWorkspacePane';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import { RoutingDebugDrawer } from './components/RoutingDebugDrawer';
 import {
@@ -1686,12 +1689,12 @@ export const App: React.FC = () => {
                         const parsed = await ipcBridge.pickDocxFile();
                         if (parsed) {
                           const docCount = state.documents.length + 1;
-                          const bates = `DOC-${String(docCount).padStart(4, '0')}`;
+                          const bates = `EX-${String(docCount).padStart(4, '0')}`;
                           const updated = await ipcBridge.createDocument({
                             matterId: activeMatter.id,
                             title: parsed.suggestedTitle,
                             fileName: parsed.fileName,
-                            category: 'WORK_PRODUCT',
+                            category: inferCategoryFromFileName(parsed.fileName),
                             batesRange: bates,
                             summary: parsed.summary,
                             content: parsed.content,
@@ -1711,7 +1714,7 @@ export const App: React.FC = () => {
                       }
                     }}
                     className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.05] transition cursor-pointer disabled:opacity-40"
-                    title="Upload Word (.docx) document into matter corpus"
+                    title="Import document or exhibit (.docx, .pdf, .txt, .rtf, .csv, .xlsx) into matter corpus"
                   >
                     <FileUp className="w-3.5 h-3.5" />
                   </button>

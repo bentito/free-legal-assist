@@ -980,6 +980,985 @@ export function parseDocxBuffer(
   };
 }
 
+export const SUPPORTED_IMPORT_EXTENSIONS = [
+  'docx',
+  'pdf',
+  'txt',
+  'md',
+  'rtf',
+  'csv',
+  'xlsx',
+] as const;
+
+export function parseCsvBuffer(
+  buffer: Buffer,
+  originalFileName = 'Table.csv'
+): ParsedDocxResult {
+  let raw = buffer.toString('utf8');
+  if (raw.charCodeAt(0) === 0xfeff) {
+    raw = raw.slice(1);
+  }
+  raw = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < raw.length && raw[i + 1] === '"') {
+          currentField += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        currentField += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if (ch === '\n') {
+      currentRow.push(currentField.trim());
+      if (currentRow.some((cell) => cell.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = '';
+    } else {
+      currentField += ch;
+    }
+  }
+  currentRow.push(currentField.trim());
+  if (currentRow.some((cell) => cell.length > 0)) {
+    rows.push(currentRow);
+  }
+
+  const baseName =
+    path
+      .basename(originalFileName, path.extname(originalFileName))
+      .replace(/[_-]+/g, ' ')
+      .trim() || 'Imported CSV Table';
+
+  const MAX_CSV_ROWS = 500;
+  const totalDataRows = Math.max(0, rows.length - 1);
+  const displayRows = rows.slice(0, MAX_CSV_ROWS + 1);
+
+  let mdTable = '';
+  if (displayRows.length > 0) {
+    const colCount = Math.max(...displayRows.map((r) => r.length));
+    const normalized = displayRows.map((r) => {
+      const padded = r.map((c) => c.replace(/\s+/g, ' ').replace(/\|/g, '\\|'));
+      while (padded.length < colCount) padded.push('');
+      return padded;
+    });
+    const headerLine = `| ${normalized[0].join(' | ')} |`;
+    const dividerLine = `| ${normalized[0].map(() => '---').join(' | ')} |`;
+    const bodyLines = normalized.slice(1).map((r) => `| ${r.join(' | ')} |`);
+    mdTable = [headerLine, dividerLine, ...bodyLines].join('\n');
+    if (rows.length > MAX_CSV_ROWS + 1) {
+      mdTable += `\n\n*(Showing first ${MAX_CSV_ROWS} of ${totalDataRows} rows)*`;
+    }
+  }
+
+  const content = `# ${baseName}\n\n${mdTable}`.trim();
+  const headersPreview =
+    rows[0]?.filter(Boolean).slice(0, 6).join(', ') || 'Tabular data';
+  const summary = `CSV table (${totalDataRows} row${totalDataRows === 1 ? '' : 's'}, columns: ${headersPreview})`.slice(
+    0,
+    160
+  );
+
+  return {
+    fileName: path.basename(originalFileName),
+    suggestedTitle: baseName,
+    content,
+    pageCount: Math.max(1, Math.ceil(content.length / 1800)),
+    summary,
+    trackedChanges: [],
+    comments: [],
+    stats: {
+      headingCount: 1,
+      numberedParagraphCount: totalDataRows,
+      tableCount: rows.length > 0 ? 1 : 0,
+      footnoteCount: 0,
+      trackedChangeCount: 0,
+      commentCount: 0,
+    },
+  };
+}
+
+function colRefToIndex(colLetters: string): number {
+  let idx = 0;
+  for (let i = 0; i < colLetters.length; i++) {
+    idx = idx * 26 + (colLetters.toUpperCase().charCodeAt(i) - 64);
+  }
+  return Math.max(0, idx - 1);
+}
+
+function formatExcelSerialDate(serial: number): string {
+  // Excel 1900 epoch (accounting for 1900 leap year bug)
+  const utcDays = Math.floor(serial - 25569);
+  const utcValue = utcDays * 86400 * 1000;
+  const dateInfo = new Date(utcValue);
+  if (Number.isNaN(dateInfo.getTime())) return String(serial);
+  return dateInfo.toISOString().slice(0, 10);
+}
+
+export function parseXlsxBuffer(
+  buffer: Buffer,
+  originalFileName = 'Workbook.xlsx'
+): ParsedDocxResult {
+  const entries = extractZipEntries(buffer);
+  const workbookXml = entries.get('xl/workbook.xml')?.toString('utf8');
+  if (!workbookXml) {
+    throw new Error(
+      'Invalid .xlsx file: missing xl/workbook.xml inside archive.'
+    );
+  }
+
+  // 1. Parse Shared Strings (xl/sharedStrings.xml)
+  const sharedStrings: string[] = [];
+  const sharedStringsXml = entries
+    .get('xl/sharedStrings.xml')
+    ?.toString('utf8');
+  if (sharedStringsXml) {
+    const siRegex = /<si\b[^>]*>([\s\S]*?)<\/si>/g;
+    let siMatch: RegExpExecArray | null;
+    while ((siMatch = siRegex.exec(sharedStringsXml)) !== null) {
+      const tRegex = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g;
+      let text = '';
+      let tMatch: RegExpExecArray | null;
+      while ((tMatch = tRegex.exec(siMatch[1])) !== null) {
+        text += decodeXmlEntities(tMatch[1]);
+      }
+      sharedStrings.push(text);
+    }
+  }
+
+  // 2. Parse Styles (xl/styles.xml) to detect date number formats
+  const dateStyleIndices = new Set<number>();
+  const stylesXml = entries.get('xl/styles.xml')?.toString('utf8');
+  if (stylesXml) {
+    const customDateNumFmts = new Set<number>();
+    const numFmtRegex = /<numFmt\b([^>]*)\/?>/g;
+    let nfMatch: RegExpExecArray | null;
+    while ((nfMatch = numFmtRegex.exec(stylesXml)) !== null) {
+      const idStr = getAttr(nfMatch[1], 'numFmtId');
+      const code = getAttr(nfMatch[1], 'formatCode') || '';
+      if (
+        idStr &&
+        /[ymd]/i.test(code) &&
+        !/[0#]/.test(code.replace(/\[[^\]]*\]/g, ''))
+      ) {
+        customDateNumFmts.add(parseInt(idStr, 10));
+      }
+    }
+
+    const cellXfsMatch = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(
+      stylesXml
+    );
+    if (cellXfsMatch) {
+      const xfRegex = /<xf\b([^>]*)\/?>/g;
+      let xfMatch: RegExpExecArray | null;
+      let xfIdx = 0;
+      while ((xfMatch = xfRegex.exec(cellXfsMatch[1])) !== null) {
+        const numFmtIdStr = getAttr(xfMatch[1], 'numFmtId');
+        if (numFmtIdStr) {
+          const nfId = parseInt(numFmtIdStr, 10);
+          if (
+            (nfId >= 14 && nfId <= 22) ||
+            (nfId >= 45 && nfId <= 47) ||
+            customDateNumFmts.has(nfId)
+          ) {
+            dateStyleIndices.add(xfIdx);
+          }
+        }
+        xfIdx++;
+      }
+    }
+  }
+
+  // 3. Map workbook relationships (xl/_rels/workbook.xml.rels)
+  const relTargetById = new Map<string, string>();
+  const relsXml = entries
+    .get('xl/_rels/workbook.xml.rels')
+    ?.toString('utf8');
+  if (relsXml) {
+    const relRegex = /<Relationship\b([^>]*)\/?>/g;
+    let relMatch: RegExpExecArray | null;
+    while ((relMatch = relRegex.exec(relsXml)) !== null) {
+      const id = getAttr(relMatch[1], 'Id');
+      const target = getAttr(relMatch[1], 'Target');
+      if (id && target) {
+        const cleanTarget = target.replace(/^\/+/, '');
+        relTargetById.set(
+          id,
+          cleanTarget.startsWith('xl/') ? cleanTarget : `xl/${cleanTarget}`
+        );
+      }
+    }
+  }
+
+  // 4. Discover sheets in xl/workbook.xml
+  const sheets: Array<{ name: string; path: string }> = [];
+  const sheetRegex = /<sheet\b([^>]*)\/?>/g;
+  let sheetMatch: RegExpExecArray | null;
+  let fallbackIdx = 1;
+  while ((sheetMatch = sheetRegex.exec(workbookXml)) !== null) {
+    const name =
+      getAttr(sheetMatch[1], 'name') || `Sheet ${fallbackIdx}`;
+    const rId =
+      getAttr(sheetMatch[1], 'r:id') || getAttr(sheetMatch[1], 'id');
+    const resolvedPath =
+      (rId && relTargetById.get(rId)) ||
+      `xl/worksheets/sheet${fallbackIdx}.xml`;
+    sheets.push({ name, path: resolvedPath });
+    fallbackIdx++;
+  }
+
+  if (sheets.length === 0) {
+    for (const key of entries.keys()) {
+      if (/^xl\/worksheets\/sheet\d+\.xml$/i.test(key)) {
+        sheets.push({ name: `Sheet ${sheets.length + 1}`, path: key });
+      }
+    }
+  }
+
+  const baseName =
+    path
+      .basename(originalFileName, path.extname(originalFileName))
+      .replace(/[_-]+/g, ' ')
+      .trim() || 'Imported Spreadsheet';
+
+  const blocks: string[] = [`# ${baseName}`];
+  let tableCount = 0;
+  let totalRowsAcrossSheets = 0;
+
+  for (const sheet of sheets) {
+    const sheetXml = entries.get(sheet.path)?.toString('utf8');
+    if (!sheetXml) continue;
+
+    const rows: string[][] = [];
+    const rowRegex = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
+    let rMatch: RegExpExecArray | null;
+
+    while ((rMatch = rowRegex.exec(sheetXml)) !== null) {
+      const rowCells: string[] = [];
+      const cellRegex = /<c\b([^>]*)(?:>([\s\S]*?)<\/c>|\/>)/g;
+      let cMatch: RegExpExecArray | null;
+
+      while ((cMatch = cellRegex.exec(rMatch[1])) !== null) {
+        const cAttrs = cMatch[1];
+        const cInner = cMatch[2] || '';
+        const ref = getAttr(cAttrs, 'r') || '';
+        const colLettersMatch = /^([A-Za-z]+)/.exec(ref);
+        const colIdx = colLettersMatch
+          ? colRefToIndex(colLettersMatch[1])
+          : rowCells.length;
+
+        const cellType = getAttr(cAttrs, 't') || '';
+        const styleIdxStr = getAttr(cAttrs, 's');
+        const styleIdx = styleIdxStr ? parseInt(styleIdxStr, 10) : -1;
+
+        let cellValue = '';
+        if (cellType === 'inlineStr') {
+          const tRegex = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g;
+          let tMatch: RegExpExecArray | null;
+          while ((tMatch = tRegex.exec(cInner)) !== null) {
+            cellValue += decodeXmlEntities(tMatch[1]);
+          }
+        } else {
+          const vMatch = /<v\b[^>]*>([\s\S]*?)<\/v>/.exec(cInner);
+          const rawVal = vMatch ? decodeXmlEntities(vMatch[1]).trim() : '';
+          if (cellType === 's') {
+            const sIdx = parseInt(rawVal, 10);
+            cellValue =
+              !Number.isNaN(sIdx) && sharedStrings[sIdx] !== undefined
+                ? sharedStrings[sIdx]
+                : rawVal;
+          } else if (cellType === 'b') {
+            cellValue = rawVal === '1' ? 'TRUE' : 'FALSE';
+          } else if (
+            cellType === '' &&
+            styleIdx >= 0 &&
+            dateStyleIndices.has(styleIdx) &&
+            /^\d+(\.\d+)?$/.test(rawVal)
+          ) {
+            const num = parseFloat(rawVal);
+            cellValue =
+              num > 1000 && num < 100000
+                ? formatExcelSerialDate(num)
+                : rawVal;
+          } else {
+            cellValue = rawVal;
+          }
+        }
+
+        while (rowCells.length <= colIdx) {
+          rowCells.push('');
+        }
+        rowCells[colIdx] = cellValue
+          .replace(/\s+/g, ' ')
+          .trim()
+          .replace(/\|/g, '\\|');
+      }
+
+      if (rowCells.some((c) => c.length > 0)) {
+        rows.push(rowCells);
+      }
+    }
+
+    if (rows.length > 0) {
+      tableCount++;
+      totalRowsAcrossSheets += Math.max(0, rows.length - 1);
+      const colCount = Math.max(...rows.map((r) => r.length));
+      const normalized = rows.slice(0, 501).map((r) => {
+        const padded = [...r];
+        while (padded.length < colCount) padded.push('');
+        return padded;
+      });
+      const headerLine = `| ${normalized[0].join(' | ')} |`;
+      const dividerLine = `| ${normalized[0].map(() => '---').join(' | ')} |`;
+      const bodyLines = normalized.slice(1).map((r) => `| ${r.join(' | ')} |`);
+      blocks.push(`## Sheet: ${sheet.name}\n\n${[headerLine, dividerLine, ...bodyLines].join('\n')}`);
+    }
+  }
+
+  const content = blocks.join('\n\n').trim();
+  const sheetNames = sheets.map((s) => s.name).join(', ');
+  const summary = `Excel workbook (${tableCount} sheet${tableCount === 1 ? '' : 's'}: ${sheetNames}; ${totalRowsAcrossSheets} data rows)`.slice(
+    0,
+    160
+  );
+
+  return {
+    fileName: path.basename(originalFileName),
+    suggestedTitle: baseName,
+    content,
+    pageCount: Math.max(1, Math.ceil(content.length / 1800)),
+    summary,
+    trackedChanges: [],
+    comments: [],
+    stats: {
+      headingCount: blocks.length,
+      numberedParagraphCount: totalRowsAcrossSheets,
+      tableCount,
+      footnoteCount: 0,
+      trackedChangeCount: 0,
+      commentCount: 0,
+    },
+  };
+}
+
+export function parseRtfBuffer(
+  buffer: Buffer,
+  originalFileName = 'Document.rtf'
+): ParsedDocxResult {
+  const raw = buffer.toString('latin1');
+  const skipDestinations = new Set([
+    'fonttbl',
+    'colortbl',
+    'stylesheet',
+    'info',
+    'pict',
+    'object',
+    'header',
+    'footer',
+    'headerl',
+    'headerr',
+    'footerl',
+    'footerr',
+    'footnote',
+    'xmlnstbl',
+    'rsidtbl',
+    'generator',
+    'mmathPr',
+    'fldinst',
+  ]);
+
+  interface RtfGroupState {
+    skip: boolean;
+    ucSkip: number;
+  }
+
+  const stack: RtfGroupState[] = [{ skip: false, ucSkip: 1 }];
+  let out = '';
+  let i = 0;
+
+  while (i < raw.length) {
+    const ch = raw[i];
+    const current = stack[stack.length - 1] || { skip: false, ucSkip: 1 };
+
+    if (ch === '{') {
+      stack.push({ ...current });
+      i++;
+      if (raw[i] === '\\' && raw[i + 1] === '*') {
+        stack[stack.length - 1].skip = true;
+        i += 2;
+      }
+      continue;
+    }
+
+    if (ch === '}') {
+      if (stack.length > 1) stack.pop();
+      i++;
+      continue;
+    }
+
+    if (ch === '\\') {
+      i++;
+      if (i >= raw.length) break;
+      const next = raw[i];
+
+      if (next === '\\' || next === '{' || next === '}') {
+        if (!current.skip) out += next;
+        i++;
+        continue;
+      }
+      if (next === '~') {
+        if (!current.skip) out += ' ';
+        i++;
+        continue;
+      }
+      if (next === '-') {
+        i++;
+        continue;
+      }
+      if (next === '_') {
+        if (!current.skip) out += '-';
+        i++;
+        continue;
+      }
+      if (next === '\n' || next === '\r') {
+        if (!current.skip) out += '\n';
+        i++;
+        continue;
+      }
+      if (next === "'") {
+        const hex = raw.slice(i + 1, i + 3);
+        if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+          if (!current.skip) {
+            out += String.fromCharCode(parseInt(hex, 16));
+          }
+          i += 3;
+          continue;
+        }
+      }
+
+      // Parse control word and optional numeric parameter
+      const cwMatch = /^([a-zA-Z]+)(-?\d+)?(?:\s)?/.exec(raw.slice(i));
+      if (cwMatch) {
+        const word = cwMatch[1];
+        const paramStr = cwMatch[2];
+        i += cwMatch[0].length;
+
+        if (skipDestinations.has(word)) {
+          current.skip = true;
+          continue;
+        }
+
+        if (word === 'uc' && paramStr !== undefined) {
+          current.ucSkip = Math.max(0, parseInt(paramStr, 10));
+          continue;
+        }
+
+        if (word === 'u' && paramStr !== undefined) {
+          let codePoint = parseInt(paramStr, 10);
+          if (codePoint < 0) codePoint += 65536;
+          if (!current.skip) {
+            out += String.fromCodePoint(codePoint);
+          }
+          // Skip fallback ANSI characters
+          let skipCount = current.ucSkip;
+          while (skipCount > 0 && i < raw.length) {
+            if (raw[i] === '\\' && raw[i + 1] === "'") {
+              i += 4;
+            } else {
+              i++;
+            }
+            skipCount--;
+          }
+          continue;
+        }
+
+        if (!current.skip) {
+          if (word === 'par' || word === 'sect' || word === 'line' || word === 'row') {
+            out += '\n';
+          } else if (word === 'tab' || word === 'cell') {
+            out += '\t';
+          } else if (word === 'emdash') {
+            out += '—';
+          } else if (word === 'endash') {
+            out += '–';
+          } else if (word === 'lquote') {
+            out += '‘';
+          } else if (word === 'rquote') {
+            out += '’';
+          } else if (word === 'ldblquote') {
+            out += '“';
+          } else if (word === 'rdblquote') {
+            out += '”';
+          } else if (word === 'bullet') {
+            out += '• ';
+          }
+        }
+        continue;
+      }
+      i++;
+      continue;
+    }
+
+    if (ch !== '\r' && ch !== '\n') {
+      if (!current.skip) out += ch;
+    }
+    i++;
+  }
+
+  const paragraphs = out
+    .split(/\n+/)
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean);
+
+  const content = paragraphs.join('\n\n').trim();
+  const baseName =
+    path
+      .basename(originalFileName, path.extname(originalFileName))
+      .replace(/[_-]+/g, ' ')
+      .trim() || 'Imported RTF Document';
+
+  const firstLine = paragraphs[0] || '';
+  const suggestedTitle =
+    firstLine.length >= 4 && firstLine.length <= 90 ? firstLine : baseName;
+
+  const summary = (paragraphs.slice(0, 2).join(' ') || content).slice(0, 160);
+
+  return {
+    fileName: path.basename(originalFileName),
+    suggestedTitle,
+    content,
+    pageCount: Math.max(1, Math.ceil(content.length / 1800)),
+    summary,
+    trackedChanges: [],
+    comments: [],
+    stats: {
+      headingCount: 0,
+      numberedParagraphCount: paragraphs.filter((p) => /^\d+\./.test(p)).length,
+      tableCount: 0,
+      footnoteCount: 0,
+      trackedChangeCount: 0,
+      commentCount: 0,
+    },
+  };
+}
+
+function decodePdfLiteralString(literal: string): string {
+  let out = '';
+  let i = 0;
+  while (i < literal.length) {
+    const ch = literal[i];
+    if (ch === '\\') {
+      i++;
+      if (i >= literal.length) break;
+      const esc = literal[i];
+      if (esc === 'n') {
+        out += '\n';
+        i++;
+      } else if (esc === 'r') {
+        out += '\r';
+        i++;
+      } else if (esc === 't') {
+        out += '\t';
+        i++;
+      } else if (esc === 'b') {
+        out += '\b';
+        i++;
+      } else if (esc === 'f') {
+        out += '\f';
+        i++;
+      } else if (esc === '(' || esc === ')' || esc === '\\') {
+        out += esc;
+        i++;
+      } else if (esc === '\r' || esc === '\n') {
+        if (esc === '\r' && literal[i + 1] === '\n') i++;
+        i++;
+      } else if (/[0-7]/.test(esc)) {
+        const oct = literal.slice(i, i + 3).match(/^[0-7]{1,3}/)?.[0] || esc;
+        out += String.fromCharCode(parseInt(oct, 8));
+        i += oct.length;
+      } else {
+        out += esc;
+        i++;
+      }
+    } else {
+      out += ch;
+      i++;
+    }
+  }
+  return out;
+}
+
+function extractTextFromPdfContentStream(
+  streamText: string,
+  cMap: Map<string, string>
+): string {
+  const decodeHexToken = (hexRaw: string): string => {
+    const clean = hexRaw.replace(/\s+/g, '').toUpperCase();
+    if (!clean) return '';
+    if (cMap.size > 0) {
+      let decoded = '';
+      let ptr = 0;
+      while (ptr < clean.length) {
+        const four = clean.slice(ptr, ptr + 4);
+        const two = clean.slice(ptr, ptr + 2);
+        if (four.length === 4 && cMap.has(four)) {
+          decoded += cMap.get(four)!;
+          ptr += 4;
+        } else if (two.length === 2 && cMap.has(two)) {
+          decoded += cMap.get(two)!;
+          ptr += 2;
+        } else if (two.length === 2) {
+          const code = parseInt(two, 16);
+          if (code >= 32 && code <= 126) decoded += String.fromCharCode(code);
+          ptr += 2;
+        } else {
+          break;
+        }
+      }
+      if (decoded) return decoded;
+    }
+    // Check UTF-16BE BOM
+    if (clean.startsWith('FEFF')) {
+      let u16 = '';
+      for (let i = 4; i + 3 < clean.length; i += 4) {
+        u16 += String.fromCharCode(parseInt(clean.slice(i, i + 4), 16));
+      }
+      return u16;
+    }
+    let ascii = '';
+    for (let i = 0; i + 1 < clean.length; i += 2) {
+      const code = parseInt(clean.slice(i, i + 2), 16);
+      if (code >= 32 && code <= 255) ascii += String.fromCharCode(code);
+    }
+    return ascii;
+  };
+
+  const lines: string[] = [];
+  const btEtRegex = /\bBT\b([\s\S]*?)\bET\b/g;
+  let btMatch: RegExpExecArray | null;
+
+  const processBlock = (block: string) => {
+    let currentLine = '';
+    const opRegex =
+      /\[([\s\S]*?)\]\s*TJ|\((?:\\.|[^\\)])*\)\s*(?:Tj|'|")|<([0-9A-Fa-f\s]+)>\s*Tj|\b(?:T\*|TD|Td|newline)\b/g;
+    let opMatch: RegExpExecArray | null;
+
+    while ((opMatch = opRegex.exec(block)) !== null) {
+      const token = opMatch[0];
+      if (opMatch[1] !== undefined) {
+        // TJ array
+        const arrInner = opMatch[1];
+        const elemRegex = /\((?:\\.|[^\\)])*\)|<([0-9A-Fa-f\s]+)>|(-?\d+(?:\.\d+)?)/g;
+        let elemMatch: RegExpExecArray | null;
+        while ((elemMatch = elemRegex.exec(arrInner)) !== null) {
+          const el = elemMatch[0];
+          if (el.startsWith('(')) {
+            currentLine += decodePdfLiteralString(el.slice(1, -1));
+          } else if (elemMatch[1] !== undefined) {
+            currentLine += decodeHexToken(elemMatch[1]);
+          } else if (elemMatch[2] !== undefined) {
+            const kerning = parseFloat(elemMatch[2]);
+            if (kerning < -180 && !currentLine.endsWith(' ')) {
+              currentLine += ' ';
+            }
+          }
+        }
+      } else if (opMatch[2] !== undefined) {
+        currentLine += decodeHexToken(opMatch[2]);
+      } else if (token.startsWith('(')) {
+        const endParen = token.lastIndexOf(')');
+        const lit = token.slice(1, endParen);
+        if (token.endsWith("'") || token.endsWith('"')) {
+          if (currentLine.trim()) lines.push(currentLine.trim());
+          currentLine = decodePdfLiteralString(lit);
+        } else {
+          currentLine += decodePdfLiteralString(lit);
+        }
+      } else if (/\b(?:T\*|TD|Td)\b/.test(token)) {
+        if (currentLine.trim()) {
+          lines.push(currentLine.trim());
+          currentLine = '';
+        }
+      }
+    }
+    if (currentLine.trim()) {
+      lines.push(currentLine.trim());
+    }
+  };
+
+  let foundBt = false;
+  while ((btMatch = btEtRegex.exec(streamText)) !== null) {
+    foundBt = true;
+    processBlock(btMatch[1]);
+  }
+  if (!foundBt) {
+    processBlock(streamText);
+  }
+
+  return lines.join('\n');
+}
+
+export function parsePdfBuffer(
+  buffer: Buffer,
+  originalFileName = 'Document.pdf'
+): ParsedDocxResult {
+  const header = buffer.subarray(0, 1024).toString('latin1');
+  if (!header.includes('%PDF-')) {
+    throw new Error('Invalid .pdf file: missing %PDF- header signature.');
+  }
+
+  const rawLatin = buffer.toString('latin1');
+
+  // Count pages via /Type /Page (excluding /Type /Pages)
+  const pageMatches = rawLatin.match(/\/Type\s*\/Page\b(?!s)/g);
+  const detectedPageCount = pageMatches ? pageMatches.length : 0;
+
+  // Decompress all PDF streams first so we can extract ToUnicode CMaps and page text
+  const decodedStreams: string[] = [];
+  const streamRegex = /<<([\s\S]*?)>>\s*stream\r?\n/g;
+  let sMatch: RegExpExecArray | null;
+
+  while ((sMatch = streamRegex.exec(rawLatin)) !== null) {
+    const dict = sMatch[1];
+    // Skip binary images or font binaries
+    if (/\/Subtype\s*\/Image\b/.test(dict) || /\/Length1\b/.test(dict)) {
+      continue;
+    }
+    const startOffset = sMatch.index + sMatch[0].length;
+    const endIdx = rawLatin.indexOf('endstream', startOffset);
+    if (endIdx === -1) continue;
+
+    let streamEnd = endIdx;
+    if (rawLatin[streamEnd - 1] === '\n') streamEnd--;
+    if (rawLatin[streamEnd - 1] === '\r') streamEnd--;
+
+    const slice = buffer.subarray(startOffset, streamEnd);
+    const isFlate = /\/FlateDecode\b/.test(dict);
+
+    if (isFlate) {
+      try {
+        const inflated = zlib.inflateSync(slice);
+        decodedStreams.push(inflated.toString('latin1'));
+      } catch {
+        try {
+          const inflatedRaw = zlib.inflateRawSync(slice);
+          decodedStreams.push(inflatedRaw.toString('latin1'));
+        } catch {
+          // Ignore undecodable binary stream
+        }
+      }
+    } else if (!/\/Filter\b/.test(dict)) {
+      decodedStreams.push(slice.toString('latin1'));
+    }
+  }
+
+  // Build ToUnicode CMap from any CMap streams
+  const cMap = new Map<string, string>();
+  const parseHexTarget = (hex: string): string => {
+    const clean = hex.replace(/\s+/g, '');
+    let res = '';
+    for (let i = 0; i < clean.length; i += 4) {
+      const chunk = clean.slice(i, i + 4);
+      if (chunk.length === 4) {
+        res += String.fromCodePoint(parseInt(chunk, 16));
+      } else if (chunk.length === 2) {
+        res += String.fromCharCode(parseInt(chunk, 16));
+      }
+    }
+    return res;
+  };
+
+  for (const st of decodedStreams) {
+    if (!st.includes('beginbfchar') && !st.includes('beginbfrange')) continue;
+
+    const bfCharRegex = /beginbfchar([\s\S]*?)endbfchar/g;
+    let charBlock: RegExpExecArray | null;
+    while ((charBlock = bfCharRegex.exec(st)) !== null) {
+      const pairRegex = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
+      let pair: RegExpExecArray | null;
+      while ((pair = pairRegex.exec(charBlock[1])) !== null) {
+        cMap.set(pair[1].toUpperCase(), parseHexTarget(pair[2]));
+      }
+    }
+
+    const bfRangeRegex = /beginbfrange([\s\S]*?)endbfrange/g;
+    let rangeBlock: RegExpExecArray | null;
+    while ((rangeBlock = bfRangeRegex.exec(st)) !== null) {
+      const rangeRegex = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
+      let rPair: RegExpExecArray | null;
+      while ((rPair = rangeRegex.exec(rangeBlock[1])) !== null) {
+        const startCode = parseInt(rPair[1], 16);
+        const endCode = parseInt(rPair[2], 16);
+        const targetStart = parseInt(rPair[3], 16);
+        const keyLen = rPair[1].length;
+        for (
+          let code = startCode;
+          code <= endCode && code - startCode <= 512;
+          code++
+        ) {
+          const key = code.toString(16).toUpperCase().padStart(keyLen, '0');
+          cMap.set(
+            key,
+            String.fromCodePoint(targetStart + (code - startCode))
+          );
+        }
+      }
+    }
+  }
+
+  // Extract text from content streams
+  const extractedChunks: string[] = [];
+  for (const st of decodedStreams) {
+    if (st.includes('beginbfchar') || st.includes('beginbfrange')) continue;
+    const text = extractTextFromPdfContentStream(st, cMap).trim();
+    if (text) {
+      extractedChunks.push(text);
+    }
+  }
+
+  const baseName =
+    path
+      .basename(originalFileName, path.extname(originalFileName))
+      .replace(/[_-]+/g, ' ')
+      .trim() || 'Imported PDF Document';
+
+  const rawBody = extractedChunks.join('\n\n').trim();
+  const content =
+    rawBody.length > 0
+      ? rawBody
+      : `# ${baseName}\n\n[Note: This PDF appears to be a scanned image without an embedded text layer.]`;
+
+  const lines = rawBody
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const firstLine = lines[0] || '';
+  const suggestedTitle =
+    firstLine.length >= 4 && firstLine.length <= 90 ? firstLine : baseName;
+
+  const pageCount =
+    detectedPageCount > 0
+      ? detectedPageCount
+      : Math.max(1, Math.ceil(content.length / 1800));
+  const summary =
+    rawBody.length > 0
+      ? rawBody.replace(/\s+/g, ' ').slice(0, 160)
+      : `Scanned PDF document (${pageCount} page${pageCount === 1 ? '' : 's'}).`;
+
+  return {
+    fileName: path.basename(originalFileName),
+    suggestedTitle,
+    content,
+    pageCount,
+    summary,
+    trackedChanges: [],
+    comments: [],
+    stats: {
+      headingCount: lines.filter((l) => l === l.toUpperCase() && l.length > 4 && l.length < 80).length,
+      numberedParagraphCount: lines.filter((l) => /^\d+\./.test(l)).length,
+      tableCount: 0,
+      footnoteCount: 0,
+      trackedChangeCount: 0,
+      commentCount: 0,
+    },
+  };
+}
+
+export function parseTxtBuffer(
+  buffer: Buffer,
+  originalFileName = 'Document.txt'
+): ParsedDocxResult {
+  let raw = buffer.toString('utf8');
+  if (raw.charCodeAt(0) === 0xfeff) {
+    raw = raw.slice(1);
+  }
+  const content = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const baseName =
+    path
+      .basename(originalFileName, path.extname(originalFileName))
+      .replace(/[_-]+/g, ' ')
+      .trim() || 'Imported Text Document';
+
+  const lines = content
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const firstHeading = lines
+    .find((l) => l.startsWith('#'))
+    ?.replace(/^#+\s*/, '')
+    .trim();
+  const suggestedTitle =
+    firstHeading && firstHeading.length <= 90 ? firstHeading : baseName;
+
+  const pageCount = Math.max(1, Math.ceil(content.length / 1800));
+  const summarySource =
+    lines.find((l) => !l.startsWith('#')) || content.replace(/\s+/g, ' ');
+  const summary = summarySource.replace(/\s+/g, ' ').slice(0, 160);
+
+  return {
+    fileName: path.basename(originalFileName),
+    suggestedTitle,
+    content,
+    pageCount,
+    summary,
+    trackedChanges: [],
+    comments: [],
+    stats: {
+      headingCount: lines.filter((l) => l.startsWith('#')).length,
+      numberedParagraphCount: lines.filter((l) => /^\d+\./.test(l)).length,
+      tableCount: 0,
+      footnoteCount: 0,
+      trackedChangeCount: 0,
+      commentCount: 0,
+    },
+  };
+}
+
+/**
+ * Unified multi-format legal document & exhibit parser.
+ * Supports Word (.docx), PDF (.pdf), Excel (.xlsx), CSV (.csv), Rich Text (.rtf), and Text/Markdown (.txt, .md).
+ */
+export function parseDocumentBuffer(
+  buffer: Buffer,
+  originalFileName = 'Document.docx'
+): ParsedDocxResult {
+  const ext = path.extname(originalFileName).toLowerCase().replace(/^\./, '');
+  switch (ext) {
+    case 'docx':
+      return parseDocxBuffer(buffer, originalFileName);
+    case 'pdf':
+      return parsePdfBuffer(buffer, originalFileName);
+    case 'xlsx':
+      return parseXlsxBuffer(buffer, originalFileName);
+    case 'csv':
+      return parseCsvBuffer(buffer, originalFileName);
+    case 'rtf':
+      return parseRtfBuffer(buffer, originalFileName);
+    case 'txt':
+    case 'md':
+      return parseTxtBuffer(buffer, originalFileName);
+    default:
+      throw new Error(
+        `Unsupported file format ".${ext || 'unknown'}". Supported formats: .docx, .pdf, .txt, .md, .rtf, .csv, .xlsx`
+      );
+  }
+}
+
 // ============================================================================
 // Native Word (.docx) Exporter with Tracked Changes (<w:ins>/<w:del>) & Comments
 // ============================================================================

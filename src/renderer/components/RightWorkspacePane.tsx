@@ -105,7 +105,22 @@ const formatPracticeAreaLabel = (practiceArea?: string): string => {
   }
 };
 
-function inferCategoryFromFileName(name: string): DocumentCategory {
+const ALLOWED_EXTENSIONS = [
+  '.docx',
+  '.pdf',
+  '.txt',
+  '.md',
+  '.rtf',
+  '.csv',
+  '.xlsx',
+];
+
+function isSupportedFileName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+export function inferCategoryFromFileName(name: string): DocumentCategory {
   const lower = name.toLowerCase();
   if (
     lower.includes('contract') ||
@@ -239,8 +254,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   };
 
   const handleUploadDocxFileObject = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.docx')) {
-      setDocxError('Please select a Word (.docx) file.');
+    if (!isSupportedFileName(file.name)) {
+      setDocxError(
+        'Please select a supported file (.docx, .pdf, .txt, .md, .rtf, .csv, .xlsx).'
+      );
       return;
     }
     setIsParsingDocx(true);
@@ -255,7 +272,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
       await saveParsedDocxDirectly(parsed);
     } catch (err) {
       setDocxError(
-        err instanceof Error ? err.message : 'Failed to parse .docx file.'
+        err instanceof Error ? err.message : 'Failed to parse document.'
       );
     } finally {
       setIsParsingDocx(false);
@@ -273,7 +290,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
         }
       } catch (err) {
         setDocxError(
-          err instanceof Error ? err.message : 'Failed to open .docx file.'
+          err instanceof Error ? err.message : 'Failed to import document.'
         );
       } finally {
         setIsParsingDocx(false);
@@ -390,7 +407,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
 
             <div className="border-t border-white/[0.06] my-1" />
 
-            {/* Row 3: Quick Add Exhibit or Upload Word (.docx) Filing */}
+            {/* Row 3: Quick Add Exhibit or Upload Document/Filing */}
             <div className="flex items-center justify-between gap-2">
               <button
                 onClick={() => {
@@ -406,7 +423,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               <button
                 onClick={handlePickDocxClick}
                 disabled={isParsingDocx}
-                title="Upload a Word (.docx) document with headings, numbered paragraphs, tables & footnotes"
+                title="Import document or exhibit (.docx, .pdf, .txt, .rtf, .csv, .xlsx)"
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-[10.5px] text-zinc-200 transition cursor-pointer shrink-0 disabled:opacity-50"
               >
                 {isParsingDocx ? (
@@ -414,7 +431,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 ) : (
                   <FileUp className="w-3 h-3 text-zinc-400" />
                 )}
-                <span>Upload .docx</span>
+                <span>Import File</span>
               </button>
             </div>
 
@@ -761,7 +778,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    accept=".docx,.pdf,.txt,.md,.rtf,.csv,.xlsx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf,text/rtf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     className="hidden"
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
@@ -772,7 +789,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                     }}
                   />
 
-                  {/* Quick Corpus Action Bar: Upload Word (.docx) or Add Text */}
+                  {/* Quick Corpus Action Bar: Import File or Add Text */}
                   <div
                     className={`p-2.5 rounded-xl border border-dashed transition ${
                       isDraggingDocx
@@ -785,8 +802,8 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                         <Upload className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                         <span className="text-[11px] truncate">
                           {isDraggingDocx
-                            ? 'Drop Word (.docx) file to import...'
-                            : 'Drop a Word (.docx) draft or upload'}
+                            ? 'Drop file (.docx, .pdf, .xlsx, .csv, .rtf, .txt) to import...'
+                            : 'Drop a file (.docx, .pdf, .xlsx, .csv, .rtf, .txt) or upload'}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -794,6 +811,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                           type="button"
                           disabled={isParsingDocx}
                           onClick={handlePickDocxClick}
+                          title="Import document or exhibit (.docx, .pdf, .txt, .rtf, .csv, .xlsx)"
                           className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-[11px] transition cursor-pointer disabled:opacity-50"
                         >
                           {isParsingDocx ? (
@@ -801,7 +819,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                           ) : (
                             <FileUp className="w-3 h-3" />
                           )}
-                          <span>Upload .docx</span>
+                          <span>Import File</span>
                         </button>
                         {!showAddDocForm && (
                           <button
@@ -855,7 +873,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-xs font-medium text-zinc-200">
                           {docxPreviewMeta
-                            ? `Import Word Document (${docxPreviewMeta.fileName})`
+                            ? `Import Document (${docxPreviewMeta.fileName})`
                             : 'Add Document to Corpus'}
                         </div>
                         <button
@@ -863,13 +881,13 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                           onClick={() => fileInputRef.current?.click()}
                           className="text-[10.5px] text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
                         >
-                          Choose .docx file
+                          Choose file (.docx, .pdf, .xlsx, .csv, .rtf, .txt)
                         </button>
                       </div>
 
                       {docxPreviewMeta && (
                         <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-emerald-300/90 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg">
-                          <span>Parsed .docx:</span>
+                          <span>Parsed file:</span>
                           <span>{docxPreviewMeta.stats.headingCount} headings</span>
                           <span>•</span>
                           <span>
