@@ -8,6 +8,9 @@ import { PromptAssembler } from '../agent/PromptAssembler';
 import { LegalAgentLoop } from '../agent/LegalAgentLoop';
 import { MultiLLMClient } from '../agent/providers/MultiLLMClient';
 import { CliAgentDriverManager } from '../agent/providers/CliAgentDriverManager';
+import { MatterFolderWatcher } from '../tools/MatterFolderWatcher';
+import { exportDocxBuffer } from '../tools/DocxParser';
+import { TOUR_STEPS } from '../../renderer/components/TutorialOverlay';
 import { CustomLegalMcpServer } from '../../shared/types';
 
 describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets & Multi-LLM Loop', () => {
@@ -513,12 +516,17 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     const curedVer = versions.find((v) => v.versionNumber === 2);
     expect(curedVer?.rationaleSummary).toContain('Cured 2 critical objections');
 
-    // 4. Verify thread messages and adversarial reviews
+    // 4. Verify thread messages, Case Issues, and adversarial reviews
     const msgs = db.listMessages('matter-1794160132556');
     expect(msgs.length).toBe(2);
     const assistantMsg = msgs.find((m) => m.role === 'assistant');
     expect(assistantMsg?.adversarialReviews.length).toBe(2);
     expect(assistantMsg?.toolCalls.length).toBeGreaterThanOrEqual(4);
+
+    const sampleIssues = db.listIssues('matter-1794160132556');
+    expect(sampleIssues.length).toBeGreaterThanOrEqual(1);
+    expect(sampleIssues[0].title).toBe('Trooper Keller BWC Impeachment Matrix');
+    expect(db.getActiveIssueId('matter-1794160132556')).toBeNull();
 
     // 5. Test running a live turn inside the John Doe tutorial sample casework
     const loop = new LegalAgentLoop(db);
@@ -601,5 +609,309 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(
       MultiLLMClient.isInformationalInquiry('Draft a complete Motion to Suppress under Article 11')
     ).toBe(false);
+  });
+
+  it('auto-syncs and watches a Matter folderPath for newly dropped discovery files (§11.2)', async () => {
+    const matterFolder = path.join(tmpDir, 'matter-discovery-folder');
+    fs.mkdirSync(matterFolder, { recursive: true });
+
+    // Point active matter to the local folder
+    db.updateMatter({
+      matterId: 'matter-vt-state-v-thorne',
+      name: 'State of Vermont v. Marcus Thorne',
+      clientName: 'Marcus Thorne (Defendant)',
+      matterNumber: '26-CR-04118 (Chittenden Unit)',
+      practiceArea: 'vt_suppression_art11',
+      jurisdiction: 'Vermont Superior Court, Criminal Division',
+      citationStyle: 'Vermont Supreme Court Public Domain / Bluebook',
+      folderPath: matterFolder,
+    });
+
+    // Drop two new files into the linked folder
+    fs.writeFileSync(
+      path.join(matterFolder, '06_Supplemental_Dispatch_Log.txt'),
+      '# SUPPLEMENTAL CAD DISPATCH LOG\n\n02:11:04 - Unit 44 initiated stop on I-89 Southbound.',
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(matterFolder, '07_Trooper_Shift_Schedule.csv'),
+      'Officer,Unit,ShiftStart,ShiftEnd\nTrooper Keller,44,22:00,06:00',
+      'utf8'
+    );
+    // Also place a temporary Office lock file that must be ignored
+    fs.writeFileSync(
+      path.join(matterFolder, '~$06_Supplemental_Dispatch_Log.docx'),
+      'lockfile',
+      'utf8'
+    );
+
+    const watcher = new MatterFolderWatcher(db, { debounceMs: 50 });
+    try {
+      const firstSync = watcher.syncMatterFolder('matter-vt-state-v-thorne');
+      expect(firstSync.folderExists).toBe(true);
+      expect(firstSync.syncedCount).toBe(2);
+      expect(firstSync.newDocuments.map((d) => d.fileName)).toEqual([
+        '06_Supplemental_Dispatch_Log.txt',
+        '07_Trooper_Shift_Schedule.csv',
+      ]);
+
+      // Re-running sync without new files should not duplicate
+      const secondSync = watcher.syncMatterFolder('matter-vt-state-v-thorne');
+      expect(secondSync.syncedCount).toBe(0);
+
+      // Verify live fs.watch auto-sync when a supplemental deposition file is saved to disk
+      const autoSyncPromise = new Promise<number>((resolve) => {
+        watcher.watchMatter('matter-vt-state-v-thorne', (res) => {
+          resolve(res.syncedCount);
+        });
+      });
+
+      fs.writeFileSync(
+        path.join(matterFolder, '08_Supplemental_Deposition_Transcript.txt'),
+        'Q. Did you activate your cruiser dashcam prior to the exit order?\nA. Yes.',
+        'utf8'
+      );
+
+      const syncedFromWatch = await Promise.race([
+        autoSyncPromise,
+        new Promise<number>((resolve) =>
+          setTimeout(() => {
+            const manual = watcher.syncMatterFolder('matter-vt-state-v-thorne');
+            resolve(manual.syncedCount);
+          }, 400)
+        ),
+      ]);
+      expect(syncedFromWatch).toBe(1);
+
+      const allDocs = db.listDocuments('matter-vt-state-v-thorne');
+      const depDoc = allDocs.find(
+        (d) => d.fileName === '08_Supplemental_Deposition_Transcript.txt'
+      );
+      expect(depDoc).toBeDefined();
+      expect(depDoc?.category).toBe('DEPOSITION');
+    } finally {
+      watcher.stopWatching();
+    }
+  });
+
+  it('supports isolated Case Issues, Focused Counsel Inquiries, and Master Brief Synthesis (§10.1–§10.3)', async () => {
+    const loop = new LegalAgentLoop(db);
+
+    // 1. Create two Case Issues within the same Matter
+    const issueA = db.insertIssue({
+      id: 'issue-exit-order',
+      matterId: 'matter-vt-state-v-thorne',
+      title: 'Art. 11 Exit Order Suppression',
+      practiceArea: 'vt_suppression_art11',
+      specialistRole: 'Suppression & Constitutional Counsel',
+      description: 'Challenge unlawful exit order under State v. Sprague.',
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const issueB = db.insertIssue({
+      id: 'issue-bwc-impeachment',
+      matterId: 'matter-vt-state-v-thorne',
+      title: 'Trooper Keller BWC Impeachment Matrix',
+      practiceArea: 'vt_discovery_impeachment',
+      specialistRole: 'Discovery & Deposition Impeachment Analyst',
+      parentIssueId: issueA.id,
+      description: 'Cross-reference Paragraph 5 of Affidavit against BWC timestamps.',
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(db.listIssues('matter-vt-state-v-thorne').length).toBe(2);
+
+    // 2. Run isolated turns inside Issue A and Issue B
+    const turnA = await loop.runTurn({
+      matterId: 'matter-vt-state-v-thorne',
+      issueId: issueA.id,
+      userPrompt: 'Draft the Article 11 exit order suppression argument under State v. Sprague.',
+    });
+    expect(turnA.assistantMessage.issueId).toBe(issueA.id);
+    expect(turnA.assistantMessage.assembledSystemPromptSnapshot).toContain(
+      'FOCUSED CASE ISSUE: Art. 11 Exit Order Suppression'
+    );
+
+    const turnB = await loop.runTurn({
+      matterId: 'matter-vt-state-v-thorne',
+      issueId: issueB.id,
+      userPrompt: 'Prepare the impeachment table comparing Trooper Keller Affidavit and BWC.',
+    });
+    expect(turnB.assistantMessage.issueId).toBe(issueB.id);
+
+    // Verify per-issue message isolation while matter-wide listMessages retains everything
+    const msgsA = db.listMessages('matter-vt-state-v-thorne', issueA.id);
+    const msgsB = db.listMessages('matter-vt-state-v-thorne', issueB.id);
+    const allMsgs = db.listMessages('matter-vt-state-v-thorne');
+    expect(msgsA.length).toBe(2);
+    expect(msgsB.length).toBe(2);
+    expect(allMsgs.length).toBeGreaterThanOrEqual(6);
+
+    // 3. Synthesize Master Brief across both Case Issues (§10.3)
+    const versionsBefore = db.listDocumentVersions('matter-vt-state-v-thorne').length;
+    const synthesis = await loop.synthesizeMasterBrief({
+      matterId: 'matter-vt-state-v-thorne',
+      briefTitle: 'State v. Marcus Thorne — Consolidated Master Suppression Brief',
+    });
+
+    expect(synthesis.includedIssueCount).toBe(2);
+    expect(synthesis.synthesizedContent).toContain('SECTION I: ART. 11 EXIT ORDER SUPPRESSION');
+    expect(synthesis.synthesizedContent).toContain(
+      'SECTION II: TROOPER KELLER BWC IMPEACHMENT MATRIX'
+    );
+    expect(synthesis.synthesizedContent).toContain(
+      'CONSOLIDATED STATEMENT OF THE RECORD & MATERIAL FACTS'
+    );
+
+    // Verify a new DocumentVersion redline was created and issues were marked synthesized
+    const versionsAfter = db.listDocumentVersions('matter-vt-state-v-thorne');
+    expect(versionsAfter.length).toBe(versionsBefore + 1);
+    expect(versionsAfter[0].title).toBe(
+      'State v. Marcus Thorne — Consolidated Master Suppression Brief'
+    );
+
+    const updatedIssues = db.listIssues('matter-vt-state-v-thorne');
+    expect(updatedIssues.every((i) => i.status === 'synthesized')).toBe(true);
+
+    // 4. Test T3-style checkpoint forking (forkIssue) and incorporating back (mergeBackIssue)
+    const forkedIssue = db.forkIssue({
+      matterId: 'matter-vt-state-v-thorne',
+      sourceIssueId: issueA.id,
+      upToMessageId: turnA.assistantMessage.id,
+      title: 'Bauder Exigent Circumstances Fork',
+      practiceArea: 'vt_suppression_art11',
+      specialistRole: 'Appellate Preservation Auditor',
+      relationshipToParent: 'fork',
+    });
+
+    expect(forkedIssue.parentIssueId).toBe(issueA.id);
+    expect(forkedIssue.relationshipToParent).toBe('fork');
+    expect(forkedIssue.forkedFromMessageId).toBe(turnA.assistantMessage.id);
+
+    const forkedMsgs = db.listMessages('matter-vt-state-v-thorne', forkedIssue.id);
+    expect(forkedMsgs.length).toBe(2);
+
+    await loop.runTurn({
+      matterId: 'matter-vt-state-v-thorne',
+      issueId: forkedIssue.id,
+      userPrompt: 'Draft the warrantless console search challenge under State v. Bauder.',
+    });
+
+    const mergedRes = await loop.mergeBackIssue({
+      issueId: forkedIssue.id,
+      targetIssueId: issueA.id,
+    });
+    expect(mergedRes.targetIssueId).toBe(issueA.id);
+    expect(mergedRes.mergedMessage.content).toContain(
+      'INCORPORATED ISSUE ANALYSIS: BAUDER EXIGENT CIRCUMSTANCES FORK'
+    );
+    expect(db.getIssue(forkedIssue.id)?.settled).toBe(true);
+    expect(db.getIssue(forkedIssue.id)?.status).toBe('synthesized');
+
+    // 5. Verify Case Issue settling, reopening, deletion, and listAllIssues
+    db.setIssueSettled(issueA.id, false);
+    expect(db.getIssue(issueA.id)?.settled).toBe(false);
+    db.setIssueSettled(issueA.id, true);
+    expect(db.getIssue(issueA.id)?.settled).toBe(true);
+    expect(db.getIssue(issueA.id)?.settledAt).toBeDefined();
+
+    const allIssuesInDb = db.listAllIssues();
+    expect(allIssuesInDb.length).toBe(3);
+
+    db.setActiveIssueId('matter-vt-state-v-thorne', issueB.id);
+    expect(db.getActiveIssueId('matter-vt-state-v-thorne')).toBe(issueB.id);
+    db.deleteIssue(issueB.id);
+    expect(db.getIssue(issueB.id)).toBeNull();
+    expect(db.listMessages('matter-vt-state-v-thorne', issueB.id).length).toBe(0);
+    expect(db.getActiveIssueId('matter-vt-state-v-thorne')).toBeNull();
+  });
+
+  it('auto-syncs .docx and .rtf files from a Matter folder while ignoring unsupported extensions', () => {
+    const matterFolder = path.join(tmpDir, 'matter-docx-rtf-sync');
+    fs.mkdirSync(matterFolder, { recursive: true });
+
+    db.updateMatter({
+      matterId: 'matter-apex-meridian',
+      name: 'Apex Biometrics v. Meridian Cloud Systems',
+      clientName: 'Apex Biometrics, Inc.',
+      matterNumber: '2026-CV-04192-DEL',
+      practiceArea: 'general_litigation',
+      jurisdiction: 'Delaware Court of Chancery',
+      citationStyle: 'The Bluebook (21st Ed.)',
+      folderPath: matterFolder,
+    });
+
+    // Write a real .docx file into the matter folder
+    const docxBuf = exportDocxBuffer({
+      title: 'Supplemental Breach Notice',
+      content: '# SUPPLEMENTAL BREACH NOTICE\n\n1. Meridian failed to cure SLA outage.',
+    });
+    fs.writeFileSync(
+      path.join(matterFolder, '09_Supplemental_Contract_Amendment.docx'),
+      docxBuf
+    );
+
+    // Write an .rtf file into the matter folder
+    fs.writeFileSync(
+      path.join(matterFolder, '10_Court_Scheduling_Order.rtf'),
+      '{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0 Times New Roman;}}\\f0\\fs24 SCHEDULING ORDER: Discovery closes December 15.\\par}',
+      'utf8'
+    );
+
+    // Write unsupported and hidden files that must be ignored
+    fs.writeFileSync(path.join(matterFolder, 'photo.png'), 'binary', 'utf8');
+    fs.writeFileSync(path.join(matterFolder, '.DS_Store'), 'meta', 'utf8');
+
+    const watcher = new MatterFolderWatcher(db);
+    const res = watcher.syncMatterFolder('matter-apex-meridian');
+    expect(res.folderExists).toBe(true);
+    expect(res.syncedCount).toBe(2);
+
+    const contractDoc = res.newDocuments.find(
+      (d) => d.fileName === '09_Supplemental_Contract_Amendment.docx'
+    );
+    expect(contractDoc?.category).toBe('CONTRACT');
+    expect(contractDoc?.content).toContain('Meridian failed to cure SLA outage');
+
+    const rtfDoc = res.newDocuments.find(
+      (d) => d.fileName === '10_Court_Scheduling_Order.rtf'
+    );
+    expect(rtfDoc?.content).toContain('SCHEDULING ORDER: Discovery closes December 15.');
+  });
+
+  it('verifies the Interactive Guided Tour (TOUR_STEPS) has up-to-date coverage of all current features', () => {
+    expect(TOUR_STEPS.length).toBe(6);
+    const selectors = TOUR_STEPS.map((s) => s.targetSelector);
+    expect(selectors).toEqual([
+      '#tour-matter-overview',
+      '#tour-corpus-tab',
+      '#tour-composer',
+      '#tour-review-gate',
+      '#tour-redline-pane',
+      '#tour-settings-button',
+    ]);
+
+    const combinedText = TOUR_STEPS.map(
+      (s) => `${s.title} ${s.subtitle} ${s.content.join(' ')} ${s.keyHighlight || ''}`
+    ).join('\n');
+
+    // Verify all major features are covered in the tutorial steps
+    expect(combinedText).toContain('Case Issues');
+    expect(combinedText).toContain('Settled');
+    expect(combinedText).toContain('.docx');
+    expect(combinedText).toContain('.pdf');
+    expect(combinedText).toContain('.xlsx');
+    expect(combinedText).toContain('Sync Folder');
+    expect(combinedText).toContain('Privileged PII Shield');
+    expect(combinedText).toContain('Citation & Record Auditor');
+    expect(combinedText).toContain('Opposing Counsel');
+    expect(combinedText).toContain('Spin Off Issue');
+    expect(combinedText).toContain('Synthesize Master Brief');
+    expect(combinedText).toContain('Export .docx');
+    expect(combinedText).toContain('Tracked Changes');
   });
 });

@@ -33,6 +33,7 @@ export class LegalAgentLoop {
 
   async runTurn(params: {
     matterId: string;
+    issueId?: string;
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
@@ -45,6 +46,7 @@ export class LegalAgentLoop {
   }> {
     const {
       matterId,
+      issueId,
       userPrompt,
       overrideReviewMode,
       overridePracticeAreaId,
@@ -62,10 +64,14 @@ export class LegalAgentLoop {
       throw new Error(`Matter not found: ${matterId}`);
     }
 
+    const activeIssue = issueId ? this.db.getIssue(issueId) : null;
+    const effectiveIssueId = activeIssue ? activeIssue.id : undefined;
+
     // 1. Record User Prompt
     const userMessage: LegalMessage = {
       id: `msg-user-${Date.now()}`,
       matterId,
+      issueId: effectiveIssueId,
       role: 'user',
       content: userPrompt,
       toolCalls: [],
@@ -88,8 +94,15 @@ export class LegalAgentLoop {
     const assembled = PromptAssembler.assembleForMatter(
       promptSettings,
       matter,
-      overridePracticeAreaId
+      overridePracticeAreaId || activeIssue?.practiceArea
     );
+
+    const issueScopeHeader = activeIssue
+      ? `\n\nFOCUSED CASE ISSUE: ${activeIssue.title}${
+          activeIssue.specialistRole ? ` (Counsel Focus: ${activeIssue.specialistRole})` : ''
+        }${activeIssue.description ? `\nIssue Scope: ${activeIssue.description}` : ''}`
+      : '';
+    assembled.primarySystemPrompt = `${assembled.primarySystemPrompt}${issueScopeHeader}`;
 
     emit({
       phase: 'assembling_prompt',
@@ -390,6 +403,7 @@ export class LegalAgentLoop {
     const assistantMessage: LegalMessage = {
       id: assistantMessageId,
       matterId,
+      issueId: effectiveIssueId,
       role: 'assistant',
       content: candidateDraft,
       initialDraftBeforeReview: finalInitialDraft,
@@ -416,6 +430,305 @@ export class LegalAgentLoop {
     return {
       userMessage,
       assistantMessage,
+    };
+  }
+
+  /**
+   * Synthesizes findings and drafted sections across multiple Case Issues (or matter drafts)
+   * into a unified Master Brief work-product document and redline version (§10.3).
+   */
+  async synthesizeMasterBrief(params: {
+    matterId: string;
+    issueIds?: string[];
+    briefTitle?: string;
+    onProgress?: (event: AgentProgressEvent) => void;
+  }): Promise<{
+    assistantMessage: LegalMessage;
+    synthesizedContent: string;
+    includedIssueCount: number;
+  }> {
+    const { matterId, issueIds, briefTitle, onProgress } = params;
+    const emit = (event: Omit<AgentProgressEvent, 'matterId'>) => {
+      onProgress?.({ matterId, ...event });
+    };
+
+    const matter = this.db.getMatter(matterId);
+    if (!matter) {
+      throw new Error(`Matter not found: ${matterId}`);
+    }
+
+    const allIssues = this.db.listIssues(matterId);
+    const targetIssues =
+      issueIds && issueIds.length > 0
+        ? allIssues.filter((i) => issueIds.includes(i.id))
+        : allIssues;
+
+    const docs = this.db.listDocuments(matterId);
+    const facts = this.db.listChronologyFacts(matterId);
+    const allMessages = this.db.listMessages(matterId);
+
+    emit({
+      phase: 'assembling_prompt',
+      statusText: 'Synthesizing Case Issues into Master Brief...',
+      detailText: `Combining ${targetIssues.length || 1} issue workstreams across ${docs.length} matter exhibits`,
+    });
+
+    const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+    const issueSections: { title: string; role?: string; body: string; issueId?: string }[] = [];
+
+    for (const issue of targetIssues) {
+      const issueMsgs = allMessages.filter(
+        (m) => m.issueId === issue.id && m.role === 'assistant' && m.category !== 'ADVISORY'
+      );
+      const latestDraft = issueMsgs[issueMsgs.length - 1];
+      const cleanedBody = latestDraft
+        ? latestDraft.content
+            .replace(/^>\s*\[!NOTE\][\s\S]*?\n\n/, '')
+            .trim()
+        : `### ${issue.title}\n\n- **Issue Focus**: ${issue.description || issue.title}\n- **Governing Record**: Grounded in ${
+            docs
+              .filter((d) => d.category !== 'WORK_PRODUCT')
+              .slice(0, 3)
+              .map((d) => `${d.title} (${d.batesRange})`)
+              .join('; ') || matter.jurisdiction
+          }.`;
+      issueSections.push({
+        title: issue.title,
+        role: issue.specialistRole,
+        body: cleanedBody,
+        issueId: issue.id,
+      });
+    }
+
+    // Fallback if no issue-specific drafts exist yet: include top-level work product drafts
+    if (issueSections.length === 0) {
+      const generalDrafts = allMessages.filter(
+        (m) => !m.issueId && m.role === 'assistant' && m.category !== 'ADVISORY'
+      );
+      for (let idx = 0; idx < generalDrafts.length; idx++) {
+        issueSections.push({
+          title: `Principal Legal Argument ${idx + 1}`,
+          body: generalDrafts[idx].content
+            .replace(/^>\s*\[!NOTE\][\s\S]*?\n\n/, '')
+            .trim(),
+        });
+      }
+    }
+
+    const effectiveTitle =
+      briefTitle?.trim() ||
+      `${matter.name} — Consolidated Master Brief (${matter.matterNumber})`;
+
+    const exhibitListMd = docs
+      .filter((d) => d.category !== 'WORK_PRODUCT')
+      .map((d) => `- **${d.title}** (\`${d.batesRange}\`): ${d.summary}`)
+      .join('\n');
+
+    const chronologyMd =
+      facts.length > 0
+        ? facts
+            .map(
+              (f) =>
+                `- **${f.factDate}**: ${f.eventDescription} *(${f.sourceCitation})* [${f.status}]`
+            )
+            .join('\n')
+        : exhibitListMd || `- Record grounded in ${matter.jurisdiction} filings.`;
+
+    const synthesizedSectionsMd = issueSections
+      .map((sec, idx) => {
+        const roman = romanNumerals[idx] || String(idx + 1);
+        const roleTag = sec.role ? ` *(${sec.role})*` : '';
+        return `## SECTION ${roman}: ${sec.title.toUpperCase()}${roleTag}\n\n${sec.body}`;
+      })
+      .join('\n\n---\n\n');
+
+    const masterBriefContent = [
+      `# ${effectiveTitle.toUpperCase()}`,
+      ``,
+      `**Governing Forum**: ${matter.jurisdiction}`,
+      `**Docket / Matter No.**: ${matter.matterNumber}`,
+      `**Client / Party**: ${matter.clientName}`,
+      `**Citation Style**: ${matter.citationStyle}`,
+      `**Synthesized Case Issues**: ${
+        targetIssues.map((i) => i.title).join(' • ') || 'Consolidated Matter Workstreams'
+      }`,
+      ``,
+      `---`,
+      ``,
+      `## CONSOLIDATED STATEMENT OF THE RECORD & MATERIAL FACTS`,
+      ``,
+      chronologyMd,
+      ``,
+      `---`,
+      ``,
+      synthesizedSectionsMd ||
+        `## SECTION I: CONSOLIDATED LEGAL ANALYSIS\n\nAll arguments grounded in the ${matter.name} evidentiary record (${matter.matterNumber}).`,
+      ``,
+      `---`,
+      ``,
+      `## CONCLUSION & CONSOLIDATED PRAYER FOR RELIEF`,
+      ``,
+      `WHEREFORE, based upon the foregoing synthesized issue analyses, verified record pinpoints, and controlling authorities in ${matter.jurisdiction}, Counsel for ${matter.clientName} respectfully requests that the Court grant the relief set forth across Sections ${
+        issueSections.map((_, i) => romanNumerals[i] || String(i + 1)).join(', ') || 'I'
+      } above.`,
+    ].join('\n');
+
+    const advConfig = this.db.getAdversarialConfig();
+    const redlineCall = await this.toolExecutor.executeTool(
+      matterId,
+      'propose_document_redline',
+      {
+        newContent: masterBriefContent,
+        rationaleSummary: `Synthesized Master Brief combining ${
+          targetIssues.length || issueSections.length || 1
+        } Case Issue workstream(s) into a unified pleading.`,
+        title: effectiveTitle,
+      },
+      `${advConfig.primaryModel} (Master Brief Synthesis)`
+    );
+
+    for (const issue of targetIssues) {
+      this.db.updateIssueStatus(issue.id, 'synthesized', false);
+    }
+
+    const assistantMessage: LegalMessage = {
+      id: `msg-master-brief-${Date.now()}`,
+      matterId,
+      role: 'assistant',
+      category: 'WORK_PRODUCT',
+      content: masterBriefContent,
+      primaryProvider: advConfig.primaryProvider,
+      primaryModel: advConfig.primaryModel,
+      reviewModeUsed: advConfig.mode,
+      toolCalls: [redlineCall],
+      adversarialReviews: [],
+      revisionRoundsCompleted: 0,
+      createdAt: new Date().toISOString(),
+    };
+    this.db.insertMessage(assistantMessage);
+
+    emit({
+      phase: 'completed',
+      statusText: `Synthesized Master Brief across ${targetIssues.length || issueSections.length || 1} Case Issue(s).`,
+    });
+
+    return {
+      assistantMessage,
+      synthesizedContent: masterBriefContent,
+      includedIssueCount: targetIssues.length || issueSections.length || 1,
+    };
+  }
+
+  /**
+   * Merges findings and drafted work product from a forked or specialized Case Issue
+   * back into its parent Case Issue (or the Matter's primary workstream) and updates
+   * the Matter's Master Brief redline, modeled on T3 Code's `merge_back` transfer.
+   */
+  async mergeBackIssue(params: {
+    issueId: string;
+    targetIssueId?: string | null;
+    onProgress?: (event: AgentProgressEvent) => void;
+  }): Promise<{
+    mergedMessage: LegalMessage;
+    targetIssueId: string | null;
+  }> {
+    const sourceIssue = this.db.getIssue(params.issueId);
+    if (!sourceIssue) {
+      throw new Error(`Case Issue not found: ${params.issueId}`);
+    }
+
+    const matterId = sourceIssue.matterId;
+    const matter = this.db.getMatter(matterId);
+    if (!matter) {
+      throw new Error(`Matter not found: ${matterId}`);
+    }
+
+    const resolvedTargetIssueId =
+      params.targetIssueId !== undefined
+        ? params.targetIssueId
+        : sourceIssue.parentIssueId &&
+          sourceIssue.parentIssueId !== 'primary' &&
+          this.db.getIssue(sourceIssue.parentIssueId)
+        ? sourceIssue.parentIssueId
+        : null;
+
+    const targetIssue = resolvedTargetIssueId
+      ? this.db.getIssue(resolvedTargetIssueId)
+      : null;
+
+    const sourceMessages = this.db.listMessages(matterId, sourceIssue.id);
+    const assistantTurns = sourceMessages.filter(
+      (m) => m.role === 'assistant' && !m.id.startsWith('msg-fork-')
+    );
+    const latestAssistant =
+      assistantTurns[assistantTurns.length - 1] ??
+      sourceMessages.filter((m) => m.role === 'assistant').slice(-1)[0];
+
+    const findingsBody = latestAssistant
+      ? latestAssistant.content.replace(/^>\s*\[!NOTE\][\s\S]*?\n\n/, '').trim()
+      : `Completed analysis for **${sourceIssue.title}** (${
+          sourceIssue.description || matter.jurisdiction
+        }).`;
+
+    const mergedContent = [
+      `# INCORPORATED ISSUE ANALYSIS: ${sourceIssue.title.toUpperCase()}`,
+      ``,
+      `**Merged From Case Issue**: ${sourceIssue.title}${
+        sourceIssue.specialistRole ? ` • *${sourceIssue.specialistRole}*` : ''
+      }`,
+      `**Target Workstream**: ${targetIssue ? targetIssue.title : `${matter.name} (Primary Matter Record)`}`,
+      `**Docket / Forum**: ${matter.matterNumber} • ${matter.jurisdiction}`,
+      ``,
+      `---`,
+      ``,
+      findingsBody,
+    ].join('\n');
+
+    const advConfig = this.db.getAdversarialConfig();
+    const redlineCall = await this.toolExecutor.executeTool(
+      matterId,
+      'propose_document_redline',
+      {
+        newContent: mergedContent,
+        rationaleSummary: `Incorporated findings from "${sourceIssue.title}" into ${
+          targetIssue ? targetIssue.title : matter.name
+        }.`,
+        title: `${matter.name} — Incorporated ${sourceIssue.title}`,
+      },
+      `${advConfig.primaryModel} (Issue Synthesis)`
+    );
+
+    this.db.updateIssueStatus(sourceIssue.id, 'synthesized', false);
+    this.db.setActiveIssueId(matterId, resolvedTargetIssueId, false);
+
+    const mergedMessage: LegalMessage = {
+      id: `msg-merge-back-${Date.now()}`,
+      matterId,
+      issueId: resolvedTargetIssueId || undefined,
+      role: 'assistant',
+      category: 'WORK_PRODUCT',
+      content: mergedContent,
+      primaryProvider: advConfig.primaryProvider,
+      primaryModel: advConfig.primaryModel,
+      reviewModeUsed: advConfig.mode,
+      toolCalls: [redlineCall],
+      adversarialReviews: latestAssistant?.adversarialReviews ?? [],
+      revisionRoundsCompleted: latestAssistant?.revisionRoundsCompleted ?? 0,
+      createdAt: new Date().toISOString(),
+    };
+    this.db.insertMessage(mergedMessage, true);
+
+    params.onProgress?.({
+      matterId,
+      phase: 'completed',
+      statusText: `Merged "${sourceIssue.title}" back into ${
+        targetIssue ? targetIssue.title : 'Primary Case Workstream'
+      }.`,
+    });
+
+    return {
+      mergedMessage,
+      targetIssueId: resolvedTargetIssueId,
     };
   }
 }

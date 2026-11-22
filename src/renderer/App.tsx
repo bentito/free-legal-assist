@@ -294,6 +294,23 @@ export const App: React.FC = () => {
     useState<PracticeAreaId>('vt_suppression_art11');
   const [editFolderPath, setEditFolderPath] = useState('');
 
+  // Case Issues, Master Brief Synthesis & Folder Auto-Sync state
+  const [showNewIssueModal, setShowNewIssueModal] = useState(false);
+  const [newIssueTargetMatterId, setNewIssueTargetMatterId] = useState<string>('');
+  const [newIssueForkFromMessageId, setNewIssueForkFromMessageId] = useState<
+    string | undefined
+  >(undefined);
+  const [newIssueSourceIssueId, setNewIssueSourceIssueId] = useState<
+    string | null | undefined
+  >(undefined);
+  const [newIssueTitle, setNewIssueTitle] = useState('');
+  const [newIssuePracticeArea, setNewIssuePracticeArea] =
+    useState<PracticeAreaId>('vt_suppression_art11');
+  const [newIssueSpecialistRole, setNewIssueSpecialistRole] = useState('');
+  const [newIssueDescription, setNewIssueDescription] = useState('');
+  const [newIssueInitialPrompt, setNewIssueInitialPrompt] = useState('');
+  const [folderSyncNotice, setFolderSyncNotice] = useState<string | null>(null);
+
   const openEditMatterDialog = (matter: Matter) => {
     setEditingMatter(matter);
     setEditMatterName(matter.name);
@@ -505,7 +522,20 @@ export const App: React.FC = () => {
       setLiveProgress(evt);
     });
 
-    return () => unsubscribe();
+    const unsubscribeFolderSync = ipcBridge.onMatterFolderSynced((evt) => {
+      setState(evt.state);
+      if (evt.result.syncedCount > 0) {
+        setFolderSyncNotice(
+          `Auto-indexed ${evt.result.syncedCount} new discovery file(s) from matter folder`
+        );
+        setTimeout(() => setFolderSyncNotice(null), 5000);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeFolderSync();
+    };
   }, []);
 
   useEffect(() => {
@@ -680,6 +710,7 @@ export const App: React.FC = () => {
     try {
       const updated = await ipcBridge.runTurn({
         matterId: activeMatter.id,
+        issueId: state.activeIssueId || undefined,
         userPrompt: text,
         overrideReviewMode: turnReviewMode,
         overridePracticeAreaId: turnPracticeArea,
@@ -694,6 +725,112 @@ export const App: React.FC = () => {
       setLiveProgress(null);
     }
   };
+
+  const handleSyncMatterFolder = async () => {
+    if (!activeMatter) return;
+    try {
+      const res = await ipcBridge.syncMatterFolder(activeMatter.id);
+      if (!res.result.folderExists) {
+        const picked = await ipcBridge.pickMatterFolder(activeMatter.id);
+        setState(picked.state);
+        if (picked.chosenPath) {
+          const count = picked.result?.syncedCount ?? 0;
+          setFolderSyncNotice(
+            count > 0
+              ? `Linked matter folder & indexed ${count} discovery file(s)`
+              : `Linked matter folder for auto-sync`
+          );
+          setTimeout(() => setFolderSyncNotice(null), 5000);
+        }
+        return;
+      }
+      setState(res.state);
+      setFolderSyncNotice(
+        res.result.syncedCount > 0
+          ? `Indexed ${res.result.syncedCount} new discovery file(s) from matter folder`
+          : `Matter folder is up to date`
+      );
+      setTimeout(() => setFolderSyncNotice(null), 4000);
+    } catch (err) {
+      setFolderSyncNotice(
+        err instanceof Error ? err.message : 'Failed to sync matter folder'
+      );
+      setTimeout(() => setFolderSyncNotice(null), 4000);
+    }
+  };
+
+  const handleSynthesizeMasterBrief = async () => {
+    if (!activeMatter || isRunningTurn) return;
+    setIsRunningTurn(true);
+    setLiveProgress({
+      matterId: activeMatter.id,
+      phase: 'assembling_prompt',
+      statusText: 'Synthesizing Case Issues into Consolidated Master Brief...',
+    });
+    try {
+      const updated = await ipcBridge.synthesizeMasterBrief({
+        matterId: activeMatter.id,
+      });
+      setState(updated);
+      setRightPaneTab('redline');
+      setIsRightPaneVisible(true);
+    } catch (err) {
+      alert(`Synthesis Error: ${(err as Error).message}`);
+    } finally {
+      setIsRunningTurn(false);
+      setLiveProgress(null);
+    }
+  };
+
+  const handleMergeBackIssue = async (issueId: string) => {
+    if (!activeMatter || isRunningTurn) return;
+    setIsRunningTurn(true);
+    setLiveProgress({
+      matterId: activeMatter.id,
+      phase: 'assembling_prompt',
+      statusText: 'Incorporating Case Issue findings into primary workstream & redline...',
+    });
+    try {
+      const updated = await ipcBridge.mergeBackIssue({ issueId });
+      setState(updated);
+      setRightPaneTab('redline');
+      setIsRightPaneVisible(true);
+    } catch (err) {
+      alert(`Incorporate Error: ${(err as Error).message}`);
+    } finally {
+      setIsRunningTurn(false);
+      setLiveProgress(null);
+    }
+  };
+
+  const openNewIssueDialog = (opts?: {
+    matter?: Matter;
+    forkFromMessageId?: string;
+    sourceIssueId?: string | null;
+  }) => {
+    const targetMatter = opts?.matter ?? activeMatter;
+    if (!targetMatter) return;
+    setNewIssueTargetMatterId(targetMatter.id);
+    setNewIssueForkFromMessageId(opts?.forkFromMessageId);
+    setNewIssueSourceIssueId(opts?.sourceIssueId);
+    setNewIssueTitle('');
+    setNewIssuePracticeArea(
+      targetMatter.practiceArea || 'vt_suppression_art11'
+    );
+    setNewIssueSpecialistRole('');
+    setNewIssueDescription('');
+    setNewIssueInitialPrompt('');
+    setMatterContextMenu(null);
+    setShowNewIssueModal(true);
+  };
+
+  const matterIssues = state.issues ?? [];
+  const allWorkspaceIssues = state.allIssues ?? matterIssues;
+  const activeIssue =
+    matterIssues.find((i) => i.id === state.activeIssueId) ?? null;
+  const visibleMessages = state.activeIssueId
+    ? state.messages.filter((m) => m.issueId === state.activeIssueId)
+    : state.messages.filter((m) => !m.issueId);
 
   // Filter active and settled matters by search query
   const q = matterSearchQuery.trim().toLowerCase();
@@ -717,11 +854,32 @@ export const App: React.FC = () => {
     );
   });
 
-  const totalSettledCount = userSettledMatters.length;
+  const settledIssuesList = allWorkspaceIssues.filter((iss) => {
+    if (!iss.settled) return false;
+    const parentMatter = state.matters.find((m) => m.id === iss.matterId);
+    if (!parentMatter || parentMatter.settled) return false;
+    if (!q) return true;
+    return (
+      iss.title.toLowerCase().includes(q) ||
+      parentMatter.name.toLowerCase().includes(q) ||
+      parentMatter.clientName.toLowerCase().includes(q)
+    );
+  });
+
+  const totalSettledCount = userSettledMatters.length + settledIssuesList.length;
   const visibleSettledMatters = userSettledMatters.slice(0, settledVisibleCount);
+  const remainingSlotsForIssues = Math.max(
+    0,
+    settledVisibleCount - visibleSettledMatters.length
+  );
+  const visibleSettledIssues = settledIssuesList.slice(
+    0,
+    remainingSlotsForIssues
+  );
   const remainingSettledCount = Math.max(
     0,
-    totalSettledCount - visibleSettledMatters.length
+    totalSettledCount -
+      (visibleSettledMatters.length + visibleSettledIssues.length)
   );
 
   const readyAgentsCount = (state.agentOnboarding?.agentInstances || []).filter(
@@ -783,21 +941,16 @@ export const App: React.FC = () => {
             </button>
 
             <button
-              onClick={() => {
-                setPromptInput('');
-                const composerEl = document.getElementById('tour-composer');
-                const textarea = composerEl?.querySelector('textarea');
-                textarea?.focus();
-              }}
+              onClick={() => openNewIssueDialog()}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05] transition cursor-pointer"
-              title="New Prompt / Work Product Instruction"
+              title="New Case Issue in Active Matter"
             >
               <SquarePen className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* UPPER PANE: Active Matters List */}
+        {/* UPPER PANE: Active Matters & Case Issues List (T3 Code Style) */}
         <div
           id="tour-matter-overview"
           className="flex-1 overflow-y-auto px-2 py-1 space-y-1 min-h-[140px]"
@@ -820,84 +973,243 @@ export const App: React.FC = () => {
             </div>
           ) : (
             activeMattersList.map((m) => {
-              const isSelected = m.id === activeMatter?.id;
+              const isPrimarySelected =
+                m.id === activeMatter?.id && !state.activeIssueId;
               const monogram = getMonogram(m.clientName, m.name);
               const timeLabel = formatRelativeTime(m.updatedAt || m.createdAt);
               const practicePreset = state.promptSettings.practiceAreaPresets.find(
                 (p) => p.id === m.practiceArea
               );
               const practiceShort = practicePreset?.shortLabel || 'Legal Matter';
+              const activeIssuesForMatter = allWorkspaceIssues.filter(
+                (iss) => iss.matterId === m.id && !iss.settled
+              );
+              const topLevelIssues = activeIssuesForMatter.filter(
+                (iss) => !iss.parentIssueId || iss.parentIssueId === 'primary'
+              );
 
               return (
-                <div
-                  key={m.id}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setMatterContextMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      matter: m,
-                    });
-                  }}
-                  onClick={async () => {
-                    const updated = await ipcBridge.selectMatter(m.id);
-                    setState(updated);
-                    setTurnPracticeArea(m.practiceArea);
-                  }}
-                  className={`group relative w-full px-3 py-2.5 rounded-xl text-left transition cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#18181d] text-zinc-100 shadow-sm'
-                      : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
-                  }`}
-                >
-                  {/* Row 1: Monogram Badge + Client Name + Relative Time / Quick Actions */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
-                      >
-                        {monogram.code}
-                      </span>
-                      <span className="text-[11px] text-zinc-400 truncate">
-                        {m.clientName}
-                      </span>
-                    </div>
-
-                    <span className="text-[11px] text-zinc-500 shrink-0 group-hover:hidden">
-                      {timeLabel}
-                    </span>
-
-                    <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleMatterSettled(m, true);
-                        }}
-                        title="Settle matter to lower pane"
-                        className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-emerald-300 transition"
-                      >
-                        <Archive className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Row 2: Matter Title */}
+                <div key={m.id} className="space-y-0.5">
                   <div
-                    className={`text-[13px] font-medium truncate mt-1 ${
-                      isSelected ? 'text-zinc-100' : 'text-zinc-200'
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMatterContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        matter: m,
+                      });
+                    }}
+                    onClick={async () => {
+                      const updated = await ipcBridge.selectIssue(m.id, null);
+                      setState(updated);
+                      setTurnPracticeArea(m.practiceArea);
+                    }}
+                    className={`group relative w-full px-3 py-2.5 rounded-xl text-left transition cursor-pointer ${
+                      isPrimarySelected
+                        ? 'bg-[#18181d] text-zinc-100 shadow-sm'
+                        : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
                     }`}
                   >
-                    {m.name}
+                    {/* Row 1: Monogram Badge + Client Name + Relative Time / Quick Actions */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
+                        >
+                          {monogram.code}
+                        </span>
+                        <span className="text-[11px] text-zinc-400 truncate">
+                          {m.clientName}
+                        </span>
+                      </div>
+
+                      <span className="text-[11px] text-zinc-500 shrink-0 group-hover:hidden">
+                        {timeLabel}
+                      </span>
+
+                      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openNewIssueDialog({ matter: m });
+                          }}
+                          title="New Case Issue in this matter"
+                          className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-zinc-200 transition"
+                        >
+                          <SquarePen className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleMatterSettled(m, true);
+                          }}
+                          title="Settle matter to lower pane"
+                          className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-emerald-300 transition"
+                        >
+                          <Archive className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Matter Title */}
+                    <div
+                      className={`text-[13px] font-medium truncate mt-1 ${
+                        isPrimarySelected ? 'text-zinc-100' : 'text-zinc-200'
+                      }`}
+                    >
+                      {m.name}
+                    </div>
+
+                    {/* Row 3: Practice Area & Docket Metadata */}
+                    <div className="flex items-center justify-between gap-2 mt-1 text-[11px] text-zinc-500">
+                      <span className="truncate">{practiceShort}</span>
+                      <span className="shrink-0 font-mono text-[10px] text-zinc-500">
+                        {m.matterNumber.split(' ')[0]}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Row 3: Practice Area & Docket Metadata */}
-                  <div className="flex items-center justify-between gap-2 mt-1 text-[11px] text-zinc-500">
-                    <span className="truncate">{practiceShort}</span>
-                    <span className="shrink-0 font-mono text-[10px] text-zinc-500">
-                      {m.matterNumber.split(' ')[0]}
-                    </span>
-                  </div>
+                  {/* Nested & Peer Case Issues for this Matter (T3 Code Thread Sidebar Style) */}
+                  {topLevelIssues.map((iss) => {
+                    const isIssueSelected =
+                      m.id === activeMatter?.id && state.activeIssueId === iss.id;
+                    const issPreset = state.promptSettings.practiceAreaPresets.find(
+                      (p) => p.id === iss.practiceArea
+                    );
+                    const issPracticeShort =
+                      iss.specialistRole || issPreset?.shortLabel || practiceShort;
+                    const childSubIssues = activeIssuesForMatter.filter(
+                      (child) => child.parentIssueId === iss.id
+                    );
+
+                    return (
+                      <div key={iss.id} className="space-y-0.5">
+                        <div
+                          onClick={async () => {
+                            const updated = await ipcBridge.selectIssue(
+                              m.id,
+                              iss.id
+                            );
+                            setState(updated);
+                            setTurnPracticeArea(iss.practiceArea);
+                          }}
+                          className={`group relative ml-3 pl-2.5 pr-2.5 py-2 rounded-xl border-l border-white/[0.08] text-left transition cursor-pointer ${
+                            isIssueSelected
+                              ? 'bg-[#18181d] text-zinc-100 shadow-sm border-l-amber-400/60'
+                              : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span
+                                className={`w-3.5 h-3.5 rounded text-[8px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
+                              >
+                                {monogram.code}
+                              </span>
+                              <span className="text-[10.5px] text-zinc-500 truncate">
+                                {m.name}
+                              </span>
+                            </div>
+
+                            <span className="text-[10.5px] text-zinc-600 shrink-0 group-hover:hidden">
+                              {formatRelativeTime(iss.updatedAt || iss.createdAt)}
+                            </span>
+
+                            <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openNewIssueDialog({
+                                    matter: m,
+                                    sourceIssueId: iss.id,
+                                  });
+                                }}
+                                title="Spin off sub-issue"
+                                className="p-0.5 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-zinc-200 transition"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const updated = await ipcBridge.settleIssue(
+                                    iss.id,
+                                    true
+                                  );
+                                  setState(updated);
+                                }}
+                                title="Settle Case Issue to lower pane"
+                                className="p-0.5 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-emerald-300 transition"
+                              >
+                                <Archive className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div
+                            className={`text-[12.5px] font-medium truncate mt-0.5 ${
+                              isIssueSelected ? 'text-zinc-100' : 'text-zinc-200'
+                            }`}
+                          >
+                            {iss.title}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 mt-0.5 text-[10.5px] text-zinc-500">
+                            <span className="truncate">{issPracticeShort}</span>
+                            <span className="shrink-0 font-mono text-[9.5px] text-zinc-600">
+                              {m.matterNumber.split(' ')[0]}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Second-level child inquiries nested under this Case Issue */}
+                        {childSubIssues.map((child) => {
+                          const isChildSelected =
+                            m.id === activeMatter?.id &&
+                            state.activeIssueId === child.id;
+                          return (
+                            <div
+                              key={child.id}
+                              onClick={async () => {
+                                const updated = await ipcBridge.selectIssue(
+                                  m.id,
+                                  child.id
+                                );
+                                setState(updated);
+                                setTurnPracticeArea(child.practiceArea);
+                              }}
+                              className={`group relative ml-6 pl-2.5 pr-2.5 py-1.5 rounded-lg border-l border-white/[0.07] text-left transition cursor-pointer ${
+                                isChildSelected
+                                  ? 'bg-[#18181d] text-zinc-100 border-l-amber-400/60'
+                                  : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[12px] font-medium truncate">
+                                  {child.title}
+                                </span>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const updated = await ipcBridge.settleIssue(
+                                      child.id,
+                                      true
+                                    );
+                                    setState(updated);
+                                  }}
+                                  title="Settle sub-issue"
+                                  className="hidden group-hover:inline-flex p-0.5 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-emerald-300"
+                                >
+                                  <Archive className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })
@@ -923,63 +1235,127 @@ export const App: React.FC = () => {
 
           {isSettledOpen && (
             <div className="flex-1 overflow-y-auto px-2 pb-1.5 space-y-0.5">
-              {/* User-Settled SQLite Matters */}
-              {visibleSettledMatters.length === 0 ? (
+              {/* User-Settled SQLite Matters & Settled Case Issues */}
+              {visibleSettledMatters.length === 0 &&
+              visibleSettledIssues.length === 0 ? (
                 <div className="px-2 py-2 text-[11px] text-zinc-600">
                   No settled matters yet.
                 </div>
               ) : (
-                visibleSettledMatters.map((m) => {
-                  const monogram = getMonogram(m.clientName, m.name);
-                  const isSelected = m.id === activeMatter?.id;
-                  return (
-                    <div
-                      key={m.id}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setMatterContextMenu({
-                          x: e.clientX,
-                          y: e.clientY,
-                          matter: m,
-                        });
-                      }}
-                      onClick={async () => {
-                        const updated = await ipcBridge.selectMatter(m.id);
-                        setState(updated);
-                        setTurnPracticeArea(m.practiceArea);
-                      }}
-                      className={`group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left transition cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#18181d] text-zinc-100'
-                          : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span
-                          className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
-                        >
-                          {monogram.code}
-                        </span>
-                        <span className="text-[12px] truncate">{m.name}</span>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleMatterSettled(m, false);
+                <>
+                  {visibleSettledIssues.map((iss) => {
+                    const parentMatter = state.matters.find(
+                      (m) => m.id === iss.matterId
+                    );
+                    const monogram = parentMatter
+                      ? getMonogram(parentMatter.clientName, parentMatter.name)
+                      : { code: 'CI', colorClass: BADGE_PALETTE[0] };
+                    const isSelected =
+                      parentMatter?.id === activeMatter?.id &&
+                      state.activeIssueId === iss.id;
+                    return (
+                      <div
+                        key={iss.id}
+                        onClick={async () => {
+                          if (!parentMatter) return;
+                          const updated = await ipcBridge.selectIssue(
+                            parentMatter.id,
+                            iss.id
+                          );
+                          setState(updated);
+                          setTurnPracticeArea(iss.practiceArea);
                         }}
-                        title="Move back to Active matters"
-                        className="hidden group-hover:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-zinc-300 shrink-0"
+                        className={`group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#18181d] text-zinc-100'
+                            : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                        }`}
                       >
-                        <ArchiveRestore className="w-2.5 h-2.5" />
-                        <span>Reopen</span>
-                      </button>
-                      <span className="text-[11px] text-zinc-600 shrink-0 group-hover:hidden">
-                        {formatRelativeTime(m.settledAt || m.updatedAt)}
-                      </span>
-                    </div>
-                  );
-                })
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span
+                            className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
+                          >
+                            {monogram.code}
+                          </span>
+                          <span className="text-[12px] truncate">
+                            {iss.title}
+                          </span>
+                        </div>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const updated = await ipcBridge.settleIssue(
+                              iss.id,
+                              false
+                            );
+                            setState(updated);
+                          }}
+                          title="Reopen Case Issue to Active"
+                          className="hidden group-hover:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-zinc-300 shrink-0"
+                        >
+                          <ArchiveRestore className="w-2.5 h-2.5" />
+                          <span>Reopen</span>
+                        </button>
+                        <span className="text-[11px] text-zinc-600 shrink-0 group-hover:hidden">
+                          {formatRelativeTime(iss.settledAt || iss.updatedAt)}
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {visibleSettledMatters.map((m) => {
+                    const monogram = getMonogram(m.clientName, m.name);
+                    const isSelected =
+                      m.id === activeMatter?.id && !state.activeIssueId;
+                    return (
+                      <div
+                        key={m.id}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMatterContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            matter: m,
+                          });
+                        }}
+                        onClick={async () => {
+                          const updated = await ipcBridge.selectIssue(m.id, null);
+                          setState(updated);
+                          setTurnPracticeArea(m.practiceArea);
+                        }}
+                        className={`group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#18181d] text-zinc-100'
+                            : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span
+                            className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
+                          >
+                            {monogram.code}
+                          </span>
+                          <span className="text-[12px] truncate">{m.name}</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleMatterSettled(m, false);
+                          }}
+                          title="Move back to Active matters"
+                          className="hidden group-hover:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-zinc-300 shrink-0"
+                        >
+                          <ArchiveRestore className="w-2.5 h-2.5" />
+                          <span>Reopen</span>
+                        </button>
+                        <span className="text-[11px] text-zinc-600 shrink-0 group-hover:hidden">
+                          {formatRelativeTime(m.settledAt || m.updatedAt)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </>
               )}
 
               {/* Show 25 more button */}
@@ -1066,7 +1442,7 @@ export const App: React.FC = () => {
 
       {/* CENTER WORK VIEW: Minimal Header, Calm Conversation Stream & Floating Composer */}
       <main className="flex-1 flex flex-col min-w-0 bg-[#0b0b0e]">
-        {/* Top Minimal Breadcrumb Bar */}
+        {/* Top Minimal Breadcrumb Bar (T3 Code Style: [Badge] Matter / Case Issue) */}
         <header className="h-11 px-6 border-b border-white/[0.06] flex items-center justify-between shrink-0 app-drag-region">
           <div className="flex items-center gap-2.5 min-w-0 app-no-drag">
             {activeMatter ? (
@@ -1076,18 +1452,48 @@ export const App: React.FC = () => {
                 >
                   {activeMonogram.code}
                 </span>
-                <span className="text-xs text-zinc-400 truncate max-w-[180px]">
-                  {activeMatter.clientName}
-                </span>
-                <span className="text-zinc-700">/</span>
-                <button
-                  onClick={() => openEditMatterDialog(activeMatter)}
-                  className="text-[13px] font-medium text-zinc-100 hover:text-white truncate cursor-pointer"
-                  title="Click to edit matter caption, docket number, or forum"
-                >
-                  {activeMatter.name}
-                </button>
-                {activeMatter.settled && (
+                {activeIssue ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        const updated = await ipcBridge.selectIssue(
+                          activeMatter.id,
+                          null
+                        );
+                        setState(updated);
+                        setTurnPracticeArea(activeMatter.practiceArea);
+                      }}
+                      className="text-xs text-zinc-400 hover:text-zinc-200 truncate max-w-[200px] cursor-pointer"
+                      title="Return to primary matter workstream"
+                    >
+                      {activeMatter.name}
+                    </button>
+                    <span className="text-zinc-700">/</span>
+                    <span className="text-[13px] font-medium text-zinc-100 truncate">
+                      {activeIssue.title}
+                    </span>
+                    {activeIssue.specialistRole && (
+                      <span className="px-2 py-0.5 rounded-full bg-white/[0.05] text-[10px] text-zinc-400 font-medium shrink-0">
+                        {activeIssue.specialistRole}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs text-zinc-400 truncate max-w-[180px]">
+                      {activeMatter.clientName}
+                    </span>
+                    <span className="text-zinc-700">/</span>
+                    <button
+                      onClick={() => openEditMatterDialog(activeMatter)}
+                      className="text-[13px] font-medium text-zinc-100 hover:text-white truncate cursor-pointer"
+                      title="Click to edit matter caption, docket number, or forum"
+                    >
+                      {activeMatter.name}
+                    </button>
+                  </>
+                )}
+                {(activeMatter.settled || activeIssue?.settled) && (
                   <span className="px-2 py-0.5 rounded-full bg-white/[0.06] text-[10px] text-zinc-400 font-medium">
                     Settled
                   </span>
@@ -1099,6 +1505,18 @@ export const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5 app-no-drag">
+            {activeIssue && activeIssue.status !== 'synthesized' && (
+              <button
+                disabled={isRunningTurn}
+                onClick={() => handleMergeBackIssue(activeIssue.id)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-[11px] text-zinc-200 transition cursor-pointer disabled:opacity-50"
+                title="Incorporate findings from this Case Issue back into the parent/primary workstream and update the Master Brief"
+              >
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Incorporate into Brief</span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsRightPaneVisible((prev) => !prev)}
               className={`p-1.5 rounded-lg transition cursor-pointer ${
@@ -1189,8 +1607,23 @@ export const App: React.FC = () => {
               </div>
             )}
 
+            {folderSyncNotice && (
+              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-2 text-xs text-emerald-300">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{folderSyncNotice}</span>
+                </div>
+                <button
+                  onClick={() => setFolderSyncNotice(null)}
+                  className="text-emerald-400/70 hover:text-emerald-200 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {activeMatter &&
-              state.messages.map((msg: ThreadMessage) => {
+              visibleMessages.map((msg: ThreadMessage) => {
                 if (msg.role === 'user') {
                   return (
                     <div key={msg.id} className="flex justify-end">
@@ -1289,6 +1722,20 @@ export const App: React.FC = () => {
                             Edited
                           </span>
                         )}
+                        <button
+                          onClick={() =>
+                            openNewIssueDialog({
+                              matter: activeMatter,
+                              forkFromMessageId: msg.id,
+                              sourceIssueId: state.activeIssueId,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.03] hover:bg-white/[0.08] text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                          title="Spin off a new Case Issue starting from this checkpoint"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Spin Off Issue</span>
+                        </button>
                         <button
                           onClick={() => {
                             if (isEditingThisMsg) {
@@ -1892,6 +2339,20 @@ export const App: React.FC = () => {
               const updated = await ipcBridge.addChronologyFact(payload);
               setState(updated);
             }}
+            onSyncMatterFolder={handleSyncMatterFolder}
+            issues={matterIssues}
+            activeIssueId={state.activeIssueId}
+            onSelectIssue={async (issueId) => {
+              if (!activeMatter) return;
+              const updated = await ipcBridge.selectIssue(
+                activeMatter.id,
+                issueId
+              );
+              setState(updated);
+            }}
+            onNewIssue={() => openNewIssueDialog({ matter: activeMatter })}
+            onMergeBackIssue={handleMergeBackIssue}
+            onSynthesizeMasterBrief={handleSynthesizeMasterBrief}
           />
         </>
       )}
@@ -1956,6 +2417,15 @@ export const App: React.FC = () => {
           <div className="px-3 py-1.5 border-b border-white/[0.06] text-[10px] font-mono text-zinc-500 truncate">
             {matterContextMenu.matter.name}
           </div>
+          <button
+            onClick={() =>
+              openNewIssueDialog({ matter: matterContextMenu.matter })
+            }
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-zinc-200 hover:bg-white/[0.06] transition"
+          >
+            <SquarePen className="w-3.5 h-3.5 text-amber-400" />
+            <span>New Case Issue in Matter...</span>
+          </button>
           <button
             onClick={() =>
               handleToggleMatterSettled(matterContextMenu.matter)
@@ -2092,14 +2562,31 @@ export const App: React.FC = () => {
 
               <div>
                 <label className="block text-zinc-400 mb-1">
-                  Local Matter Workspace Folder Path
+                  Local Matter Workspace Folder Path (Auto-Syncs Discovery Files)
                 </label>
-                <input
-                  type="text"
-                  value={editFolderPath}
-                  onChange={(e) => setEditFolderPath(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 font-mono focus:outline-none focus:border-white/[0.25]"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editFolderPath}
+                    onChange={(e) => setEditFolderPath(e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 font-mono focus:outline-none focus:border-white/[0.25]"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const picked = await ipcBridge.pickMatterFolder(
+                        editingMatter.id
+                      );
+                      if (picked.chosenPath) {
+                        setEditFolderPath(picked.chosenPath);
+                        setState(picked.state);
+                      }
+                    }}
+                    className="px-3 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.1] text-xs text-zinc-200 transition cursor-pointer shrink-0"
+                  >
+                    Browse...
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2428,6 +2915,217 @@ export const App: React.FC = () => {
                 className="px-4 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition"
               >
                 Create Matter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Case Issue / Focused Counsel Inquiry Modal */}
+      {showNewIssueModal && activeMatter && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#121216] border border-white/[0.1] p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-100">
+                  New Case Issue / Focused Counsel Inquiry
+                </h3>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Isolates a motion or legal issue while sharing all exhibits and authorities in{' '}
+                  <span className="text-zinc-200 font-medium">{activeMatter.name}</span>.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-zinc-400 mb-1.5">
+                  Quick Issue Templates
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    {
+                      title: 'Motion to Suppress / Rule 12 Challenge',
+                      role: 'Suppression & Constitutional Counsel',
+                      desc: 'Evaluate search, seizure, and threshold suppression arguments grounded in discovery exhibits.',
+                    },
+                    {
+                      title: 'Witness Impeachment Matrix',
+                      role: 'Discovery & Deposition Impeachment Analyst',
+                      desc: 'Cross-reference affidavits, transcripts, and exhibits to surface contradictions.',
+                    },
+                    {
+                      title: 'Sentencing & Mitigation Memorandum',
+                      role: 'Sentencing Mitigation Researcher',
+                      desc: 'Analyze statutory factors, mitigation authorities, and collateral consequences.',
+                    },
+                    {
+                      title: 'Appellate Preservation & Standard of Review',
+                      role: 'Appellate Preservation Auditor',
+                      desc: 'Audit procedural objections, standards of review, and controlling precedent.',
+                    },
+                  ].map((tpl) => (
+                    <button
+                      key={tpl.title}
+                      type="button"
+                      onClick={() => {
+                        setNewIssueTitle(tpl.title);
+                        setNewIssueSpecialistRole(tpl.role);
+                        setNewIssueDescription(tpl.desc);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] border border-white/[0.08] text-[11px] text-zinc-300 transition cursor-pointer"
+                    >
+                      {tpl.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 mb-1">
+                  Case Issue / Motion Title
+                </label>
+                <input
+                  type="text"
+                  value={newIssueTitle}
+                  onChange={(e) => setNewIssueTitle(e.target.value)}
+                  placeholder="e.g., Art. 11 Exit Order Suppression or Damages Calculation"
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-zinc-400 mb-1">
+                    Practice Area Focus
+                  </label>
+                  <select
+                    value={newIssuePracticeArea}
+                    onChange={(e) =>
+                      setNewIssuePracticeArea(e.target.value as PracticeAreaId)
+                    }
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
+                  >
+                    {state.promptSettings.practiceAreaPresets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.shortLabel}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-zinc-400 mb-1">
+                    Specialized Counsel Role (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newIssueSpecialistRole}
+                    onChange={(e) => setNewIssueSpecialistRole(e.target.value)}
+                    placeholder="e.g., Appellate Preservation Counsel"
+                    className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 mb-1">
+                  Issue Scope & Instructions (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={newIssueDescription}
+                  onChange={(e) => setNewIssueDescription(e.target.value)}
+                  placeholder="Brief note on the factual or procedural focus of this issue"
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-zinc-400 mb-1">
+                  Initial Drafting or Research Instruction (Optional — runs immediately)
+                </label>
+                <textarea
+                  rows={2}
+                  value={newIssueInitialPrompt}
+                  onChange={(e) => setNewIssueInitialPrompt(e.target.value)}
+                  placeholder="Leave blank to open the empty Case Issue workspace, or enter an instruction to draft right away..."
+                  className="w-full px-3 py-2 rounded-lg bg-[#09090b] border border-white/[0.1] text-zinc-100 focus:outline-none focus:border-white/[0.25]"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.07]">
+              <button
+                onClick={() => setShowNewIssueModal(false)}
+                className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!newIssueTitle.trim()) return;
+                  const targetMatterId =
+                    newIssueTargetMatterId || activeMatter.id;
+                  const initialInstruction = newIssueInitialPrompt.trim();
+                  const updated =
+                    newIssueForkFromMessageId !== undefined ||
+                    newIssueSourceIssueId !== undefined
+                      ? await ipcBridge.forkIssue({
+                          matterId: targetMatterId,
+                          sourceIssueId: newIssueSourceIssueId,
+                          upToMessageId: newIssueForkFromMessageId,
+                          title: newIssueTitle.trim(),
+                          practiceArea: newIssuePracticeArea,
+                          specialistRole:
+                            newIssueSpecialistRole.trim() || undefined,
+                          description: newIssueDescription.trim() || undefined,
+                          relationshipToParent: newIssueSpecialistRole.trim()
+                            ? 'specialist'
+                            : 'fork',
+                        })
+                      : await ipcBridge.createIssue({
+                          matterId: targetMatterId,
+                          title: newIssueTitle.trim(),
+                          practiceArea: newIssuePracticeArea,
+                          specialistRole:
+                            newIssueSpecialistRole.trim() || undefined,
+                          description: newIssueDescription.trim() || undefined,
+                        });
+                  setState(updated);
+                  setTurnPracticeArea(newIssuePracticeArea);
+                  setShowNewIssueModal(false);
+
+                  if (initialInstruction && updated.activeIssueId) {
+                    setIsRunningTurn(true);
+                    setLiveProgress({
+                      matterId: targetMatterId,
+                      phase: 'assembling_prompt',
+                      statusText: `Drafting Case Issue "${newIssueTitle.trim()}"...`,
+                    });
+                    try {
+                      const afterTurn = await ipcBridge.runTurn({
+                        matterId: targetMatterId,
+                        issueId: updated.activeIssueId,
+                        userPrompt: initialInstruction,
+                        overrideReviewMode: turnReviewMode,
+                        overridePracticeAreaId: newIssuePracticeArea,
+                        overridePrimaryProvider: turnProvider,
+                        overridePrimaryModel: turnModel,
+                      });
+                      setState(afterTurn);
+                    } finally {
+                      setIsRunningTurn(false);
+                      setLiveProgress(null);
+                    }
+                  }
+                }}
+                className="px-4 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition"
+              >
+                {newIssueInitialPrompt.trim()
+                  ? 'Create Issue & Run Draft'
+                  : newIssueForkFromMessageId
+                  ? 'Spin Off Case Issue'
+                  : 'Create Case Issue'}
               </button>
             </div>
           </div>

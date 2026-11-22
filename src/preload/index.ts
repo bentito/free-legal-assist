@@ -11,6 +11,7 @@ import {
   CustomLegalMcpServer,
   DocumentCategory,
   ExportDocxPayload,
+  FolderSyncResult,
   LLMProviderId,
   ParsedDocxPreview,
   PracticeAreaId,
@@ -50,11 +51,57 @@ export interface LexHarnessBridge {
   ): Promise<AppBootstrapState>;
   runTurn(payload: {
     matterId: string;
+    issueId?: string;
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
     overridePrimaryProvider?: LLMProviderId;
     overridePrimaryModel?: string;
+  }): Promise<AppBootstrapState>;
+  syncMatterFolder(payload: { matterId: string }): Promise<{
+    result: FolderSyncResult;
+    state: AppBootstrapState;
+  }>;
+  pickMatterFolder(payload: { matterId: string }): Promise<{
+    chosenPath: string | null;
+    result?: FolderSyncResult;
+    state: AppBootstrapState;
+  }>;
+  createIssue(payload: {
+    matterId: string;
+    title: string;
+    practiceArea?: PracticeAreaId;
+    description?: string;
+    specialistRole?: string;
+    parentIssueId?: string;
+  }): Promise<AppBootstrapState>;
+  selectIssue(payload: {
+    matterId: string;
+    issueId: string | null;
+  }): Promise<AppBootstrapState>;
+  forkIssue(payload: {
+    matterId: string;
+    sourceIssueId?: string | null;
+    upToMessageId?: string;
+    title: string;
+    practiceArea?: PracticeAreaId;
+    specialistRole?: string;
+    description?: string;
+    relationshipToParent?: 'fork' | 'specialist';
+  }): Promise<AppBootstrapState>;
+  settleIssue(payload: {
+    issueId: string;
+    settled: boolean;
+  }): Promise<AppBootstrapState>;
+  mergeBackIssue(payload: {
+    issueId: string;
+    targetIssueId?: string | null;
+  }): Promise<AppBootstrapState>;
+  deleteIssue(payload: { issueId: string }): Promise<AppBootstrapState>;
+  synthesizeMasterBrief(payload: {
+    matterId: string;
+    issueIds?: string[];
+    briefTitle?: string;
   }): Promise<AppBootstrapState>;
   savePromptSettings(
     updated: Partial<SystemPromptSettings>
@@ -154,6 +201,9 @@ export interface LexHarnessBridge {
   }): Promise<AppBootstrapState>;
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
   onAgentSetupTerminal(callback: (event: AgentSetupTerminalEvent) => void): () => void;
+  onMatterFolderSynced(
+    callback: (event: { result: FolderSyncResult; state: AppBootstrapState }) => void
+  ): () => void;
 }
 
 const bridge: LexHarnessBridge = {
@@ -170,6 +220,19 @@ const bridge: LexHarnessBridge = {
   selectPractitionerProfile: (profileId) =>
     ipcRenderer.invoke('legal:select-practitioner-profile', profileId),
   runTurn: (payload) => ipcRenderer.invoke('legal:run-turn', payload),
+  syncMatterFolder: (payload) =>
+    ipcRenderer.invoke('legal:sync-matter-folder', payload),
+  pickMatterFolder: (payload) =>
+    ipcRenderer.invoke('legal:pick-matter-folder', payload),
+  createIssue: (payload) => ipcRenderer.invoke('legal:create-issue', payload),
+  selectIssue: (payload) => ipcRenderer.invoke('legal:select-issue', payload),
+  forkIssue: (payload) => ipcRenderer.invoke('legal:fork-issue', payload),
+  settleIssue: (payload) => ipcRenderer.invoke('legal:settle-issue', payload),
+  mergeBackIssue: (payload) =>
+    ipcRenderer.invoke('legal:merge-back-issue', payload),
+  deleteIssue: (payload) => ipcRenderer.invoke('legal:delete-issue', payload),
+  synthesizeMasterBrief: (payload) =>
+    ipcRenderer.invoke('legal:synthesize-master-brief', payload),
   savePromptSettings: (updated) =>
     ipcRenderer.invoke('legal:save-prompt-settings', updated),
   resetPromptSettings: () => ipcRenderer.invoke('legal:reset-prompt-settings'),
@@ -237,6 +300,16 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.on('legal:agent-setup-terminal', listener);
     return () => {
       ipcRenderer.removeListener('legal:agent-setup-terminal', listener);
+    };
+  },
+  onMatterFolderSynced: (callback) => {
+    const listener = (
+      _event: unknown,
+      data: { result: FolderSyncResult; state: AppBootstrapState }
+    ) => callback(data);
+    ipcRenderer.on('legal:matter-folder-synced', listener);
+    return () => {
+      ipcRenderer.removeListener('legal:matter-folder-synced', listener);
     };
   },
 };

@@ -6,6 +6,7 @@ import {
   DocumentVersion,
   Matter,
   MatterDocument,
+  MatterIssue,
   ParsedDocxPreview,
 } from '../../shared/types';
 import { ipcBridge } from '../lib/bridge';
@@ -23,6 +24,7 @@ import {
   FileCheck2,
   FileText,
   FileUp,
+  FolderSync,
   Gavel,
   Loader2,
   Plus,
@@ -77,6 +79,13 @@ interface RightWorkspacePaneProps {
   }) => Promise<void>;
   currentTab?: RightTab;
   onTabChange?: (tab: RightTab) => void;
+  onSyncMatterFolder?: () => Promise<void>;
+  issues?: MatterIssue[];
+  activeIssueId?: string | null;
+  onSelectIssue?: (issueId: string | null) => void;
+  onNewIssue?: () => void;
+  onMergeBackIssue?: (issueId: string) => void;
+  onSynthesizeMasterBrief?: () => void;
 }
 
 export type RightTab = 'redline' | 'corpus' | 'chronology';
@@ -184,6 +193,13 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
   onAddChronologyFact,
   currentTab,
   onTabChange,
+  onSyncMatterFolder,
+  issues = [],
+  activeIssueId = null,
+  onSelectIssue,
+  onNewIssue,
+  onMergeBackIssue,
+  onSynthesizeMasterBrief,
 }) => {
   const [internalTab, setInternalTab] = useState<RightTab>('redline');
   const activeTab = currentTab ?? internalTab;
@@ -302,6 +318,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
 
   // Collapsible inspector sections
   const [isReviewPanelExpanded, setIsReviewPanelExpanded] = useState(false);
+  const [isIssuesLineageExpanded, setIsIssuesLineageExpanded] = useState(false);
   const [isInspectorDetailOpen, setIsInspectorDetailOpen] = useState(true);
 
   // In-line document edit state
@@ -420,19 +437,31 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 <Plus className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                 <span>Add discovery exhibit or authority</span>
               </button>
-              <button
-                onClick={handlePickDocxClick}
-                disabled={isParsingDocx}
-                title="Import document or exhibit (.docx, .pdf, .txt, .rtf, .csv, .xlsx)"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-[10.5px] text-zinc-200 transition cursor-pointer shrink-0 disabled:opacity-50"
-              >
-                {isParsingDocx ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <FileUp className="w-3 h-3 text-zinc-400" />
+              <div className="flex items-center gap-1 shrink-0">
+                {onSyncMatterFolder && (
+                  <button
+                    onClick={onSyncMatterFolder}
+                    title={`Sync discovery files from local matter folder (${activeMatter?.folderPath || 'choose folder'})`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.1] text-[10.5px] text-zinc-300 transition cursor-pointer shrink-0"
+                  >
+                    <FolderSync className="w-3 h-3 text-zinc-400" />
+                    <span>Sync Folder</span>
+                  </button>
                 )}
-                <span>Import File</span>
-              </button>
+                <button
+                  onClick={handlePickDocxClick}
+                  disabled={isParsingDocx}
+                  title="Import document or exhibit (.docx, .pdf, .txt, .rtf, .csv, .xlsx)"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-[10.5px] text-zinc-200 transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {isParsingDocx ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <FileUp className="w-3 h-3 text-zinc-400" />
+                  )}
+                  <span>Import File</span>
+                </button>
+              </div>
             </div>
 
             {/* Row 4: Current Work Product Draft Status */}
@@ -508,6 +537,116 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Row 6: T3-Style Case Issue Lineage & Workstreams */}
+            {(issues.length > 0 || onNewIssue) && (
+              <>
+                <div className="border-t border-white/[0.06] my-1" />
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 py-0.5">
+                    <button
+                      onClick={() => setIsIssuesLineageExpanded((v) => !v)}
+                      className="flex items-center gap-2 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                      <span>Case Issues</span>
+                    </button>
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      {onNewIssue && (
+                        <button
+                          onClick={onNewIssue}
+                          className="px-1.5 py-0.5 rounded bg-white/[0.04] hover:bg-white/[0.1] text-[10.5px] text-zinc-300 transition cursor-pointer"
+                          title="Spin off a new Case Issue or Focused Counsel Inquiry"
+                        >
+                          + Issue
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setIsIssuesLineageExpanded((v) => !v)}
+                        className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 cursor-pointer"
+                      >
+                        <span>{issues.length + 1}</span>
+                        {isIssuesLineageExpanded ? (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isIssuesLineageExpanded && (
+                    <div className="pt-1 pl-2 space-y-1.5 text-[11px] border-l border-white/[0.06] ml-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => onSelectIssue?.(null)}
+                          className={`truncate text-left cursor-pointer ${
+                            !activeIssueId
+                              ? 'text-zinc-100 font-medium'
+                              : 'text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          Primary Case Workstream
+                        </button>
+                        {!activeIssueId && (
+                          <span className="text-[10px] text-emerald-400/90 shrink-0">
+                            Active
+                          </span>
+                        )}
+                      </div>
+
+                      {issues.map((issue) => {
+                        const isCurrent = activeIssueId === issue.id;
+                        return (
+                          <div
+                            key={issue.id}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <button
+                              onClick={() => onSelectIssue?.(issue.id)}
+                              className={`truncate text-left cursor-pointer ${
+                                isCurrent
+                                  ? 'text-amber-200 font-medium'
+                                  : 'text-zinc-400 hover:text-zinc-200'
+                              }`}
+                              title={issue.title}
+                            >
+                              {issue.parentIssueId ? '└ ' : ''}
+                              {issue.title}
+                            </button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {issue.status !== 'synthesized' && onMergeBackIssue && (
+                                <button
+                                  onClick={() => onMergeBackIssue(issue.id)}
+                                  className="px-1.5 py-0.5 rounded bg-white/[0.05] hover:bg-white/[0.12] text-[10px] text-zinc-300 transition cursor-pointer"
+                                  title="Incorporate findings back into parent/primary workstream"
+                                >
+                                  Incorporate
+                                </button>
+                              )}
+                              {issue.status === 'synthesized' && (
+                                <span className="text-[10px] text-zinc-500">
+                                  Incorporated
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {issues.length > 0 && onSynthesizeMasterBrief && (
+                        <button
+                          onClick={onSynthesizeMasterBrief}
+                          className="w-full mt-1 px-2 py-1 rounded-md bg-white/[0.05] hover:bg-white/[0.1] text-zinc-200 text-[10.5px] font-medium text-center transition cursor-pointer"
+                        >
+                          Synthesize Master Brief →
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Quiet Segmented Tab Bar for Detail Inspector */}

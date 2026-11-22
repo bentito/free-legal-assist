@@ -10,6 +10,7 @@ import {
   CustomLegalMcpServer,
   DocumentCategory,
   ExportDocxPayload,
+  FolderSyncResult,
   LLMProviderId,
   ParsedDocxPreview,
   PracticeAreaId,
@@ -51,11 +52,57 @@ declare global {
       ): Promise<AppBootstrapState>;
       runTurn(payload: {
         matterId: string;
+        issueId?: string;
         userPrompt: string;
         overrideReviewMode?: AdversarialReviewMode;
         overridePracticeAreaId?: PracticeAreaId;
         overridePrimaryProvider?: LLMProviderId;
         overridePrimaryModel?: string;
+      }): Promise<AppBootstrapState>;
+      syncMatterFolder(payload: { matterId: string }): Promise<{
+        result: FolderSyncResult;
+        state: AppBootstrapState;
+      }>;
+      pickMatterFolder(payload: { matterId: string }): Promise<{
+        chosenPath: string | null;
+        result?: FolderSyncResult;
+        state: AppBootstrapState;
+      }>;
+      createIssue(payload: {
+        matterId: string;
+        title: string;
+        practiceArea?: PracticeAreaId;
+        description?: string;
+        specialistRole?: string;
+        parentIssueId?: string;
+      }): Promise<AppBootstrapState>;
+      selectIssue(payload: {
+        matterId: string;
+        issueId: string | null;
+      }): Promise<AppBootstrapState>;
+      forkIssue(payload: {
+        matterId: string;
+        sourceIssueId?: string | null;
+        upToMessageId?: string;
+        title: string;
+        practiceArea?: PracticeAreaId;
+        specialistRole?: string;
+        description?: string;
+        relationshipToParent?: 'fork' | 'specialist';
+      }): Promise<AppBootstrapState>;
+      settleIssue(payload: {
+        issueId: string;
+        settled: boolean;
+      }): Promise<AppBootstrapState>;
+      mergeBackIssue(payload: {
+        issueId: string;
+        targetIssueId?: string | null;
+      }): Promise<AppBootstrapState>;
+      deleteIssue(payload: { issueId: string }): Promise<AppBootstrapState>;
+      synthesizeMasterBrief(payload: {
+        matterId: string;
+        issueIds?: string[];
+        briefTitle?: string;
       }): Promise<AppBootstrapState>;
       savePromptSettings(
         updated: Partial<SystemPromptSettings>
@@ -166,6 +213,9 @@ declare global {
       onAgentSetupTerminal(
         callback: (event: AgentSetupTerminalEvent) => void
       ): () => void;
+      onMatterFolderSynced(
+        callback: (event: { result: FolderSyncResult; state: AppBootstrapState }) => void
+      ): () => void;
     };
   }
 }
@@ -233,6 +283,7 @@ export const ipcBridge = {
 
   async runTurn(payload: {
     matterId: string;
+    issueId?: string;
     userPrompt: string;
     overrideReviewMode?: AdversarialReviewMode;
     overridePracticeAreaId?: PracticeAreaId;
@@ -240,6 +291,78 @@ export const ipcBridge = {
     overridePrimaryModel?: string;
   }): Promise<AppBootstrapState> {
     return window.lexharness!.runTurn(payload);
+  },
+
+  async syncMatterFolder(matterId: string): Promise<{
+    result: FolderSyncResult;
+    state: AppBootstrapState;
+  }> {
+    return window.lexharness!.syncMatterFolder({ matterId });
+  },
+
+  async pickMatterFolder(matterId: string): Promise<{
+    chosenPath: string | null;
+    result?: FolderSyncResult;
+    state: AppBootstrapState;
+  }> {
+    return window.lexharness!.pickMatterFolder({ matterId });
+  },
+
+  async createIssue(payload: {
+    matterId: string;
+    title: string;
+    practiceArea?: PracticeAreaId;
+    description?: string;
+    specialistRole?: string;
+    parentIssueId?: string;
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.createIssue(payload);
+  },
+
+  async selectIssue(
+    matterId: string,
+    issueId: string | null
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.selectIssue({ matterId, issueId });
+  },
+
+  async forkIssue(payload: {
+    matterId: string;
+    sourceIssueId?: string | null;
+    upToMessageId?: string;
+    title: string;
+    practiceArea?: PracticeAreaId;
+    specialistRole?: string;
+    description?: string;
+    relationshipToParent?: 'fork' | 'specialist';
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.forkIssue(payload);
+  },
+
+  async settleIssue(
+    issueId: string,
+    settled: boolean
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.settleIssue({ issueId, settled });
+  },
+
+  async mergeBackIssue(payload: {
+    issueId: string;
+    targetIssueId?: string | null;
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.mergeBackIssue(payload);
+  },
+
+  async deleteIssue(issueId: string): Promise<AppBootstrapState> {
+    return window.lexharness!.deleteIssue({ issueId });
+  },
+
+  async synthesizeMasterBrief(payload: {
+    matterId: string;
+    issueIds?: string[];
+    briefTitle?: string;
+  }): Promise<AppBootstrapState> {
+    return window.lexharness!.synthesizeMasterBrief(payload);
   },
 
   async savePromptSettings(
@@ -451,6 +574,15 @@ export const ipcBridge = {
   ): () => void {
     if (window.lexharness) {
       return window.lexharness.onAgentSetupTerminal(callback);
+    }
+    return () => {};
+  },
+
+  onMatterFolderSynced(
+    callback: (event: { result: FolderSyncResult; state: AppBootstrapState }) => void
+  ): () => void {
+    if (window.lexharness?.onMatterFolderSynced) {
+      return window.lexharness.onMatterFolderSynced(callback);
     }
     return () => {};
   },

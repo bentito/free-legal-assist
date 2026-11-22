@@ -135,6 +135,31 @@ export interface UpdateMatterPayload {
   settled?: boolean;
 }
 
+export interface MatterIssue {
+  id: string;
+  matterId: string;
+  title: string;
+  practiceArea: PracticeAreaId;
+  description?: string;
+  specialistRole?: string;
+  parentIssueId?: string;
+  relationshipToParent?: 'fork' | 'specialist';
+  forkedFromMessageId?: string;
+  settled?: boolean;
+  settledAt?: string;
+  status: 'open' | 'synthesized';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FolderSyncResult {
+  matterId: string;
+  resolvedPath: string;
+  folderExists: boolean;
+  syncedCount: number;
+  newDocuments: MatterDocument[];
+}
+
 export type DocumentCategory =
   | 'PLEADING'
   | 'CONTRACT'
@@ -226,6 +251,7 @@ export interface AdversarialReviewRecord {
 export interface LegalMessage {
   id: string;
   matterId: string;
+  issueId?: string;
   role: 'user' | 'assistant';
   content: string;
   category?: 'WORK_PRODUCT' | 'ADVISORY' | 'FEEDBACK';
@@ -449,6 +475,9 @@ export interface PrivacyRoutingSettings {
 export interface AppBootstrapState {
   matters: Matter[];
   activeMatterId: string;
+  issues?: MatterIssue[];
+  allIssues?: MatterIssue[];
+  activeIssueId?: string | null;
   messages: LegalMessage[];
   documents: MatterDocument[];
   documentVersions: DocumentVersion[];

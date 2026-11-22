@@ -447,33 +447,32 @@ free-legal-assist/
 
 ---
 
-## 10. Future Ideas: Specialized Issue Analysis Threads
+## 10. Specialized Case Issues, Focused Counsel Inquiries & Master Brief Synthesis (`MatterIssue`) [IMPLEMENTED & VERIFIED]
 
-While LexHarness currently intentionally unifies each Matter into a single direct workspace—grounding all messages, evidence discovery files, redlines, and factual chronologies directly in the active matter file—multi-threading can be revisited in future releases as matters grow in procedural complexity:
-1. **Procedural & Motion Branching**:
-   - Allowing attorneys to spin off isolated analysis threads within a single matter (e.g., Thread A: *V.R.Cr.P. 12(b)(3) Exit Order Suppression*; Thread B: *Bader Exigent Circumstances Challenge*; Thread C: *State's Witness Impeachment Matrix*).
-   - Each thread would maintain its own conversation context and adversarial review records while referencing the unified matter evidence corpus (`~/Matters/<Docket>`).
-2. **Specialized Counsel & Subagent Threads**:
-   - Forking specific legal inquiries to specialized subagents (e.g., sentencing mitigation researcher, appellate preservation auditor, client interview intake).
-3. **Thread Merging & Master Brief Synthesis**:
-   - Synthesizing findings and draft sections from multiple exploratory threads into the matter's primary pleading or appellate brief.
+While LexHarness unifies each Matter's exhibit corpus, redlines, and factual chronologies directly in the active matter file, attorneys can also isolate complex procedural or legal issues within a Matter:
+1. **Case Issues & Motion Workstreams (`matter_issues` & `messages.issue_id`)**:
+   - Allows attorneys to spin off isolated **Case Issues** within a single matter (e.g., Issue A: *V.R.Cr.P. 12(b)(3) Exit Order Suppression*; Issue B: *Bauder Exigent Circumstances Challenge*; Issue C: *State's Witness Impeachment Matrix*).
+   - Each Case Issue maintains its own conversation history and adversarial review records while referencing the unified matter evidence corpus (`~/Matters/<Docket>`).
+2. **Focused Counsel Inquiries (`specialistRole` & `parentIssueId`)**:
+   - Allows spinning off focused legal inquiries (e.g., sentencing mitigation researcher, appellate preservation auditor, discovery impeachment analyst) with dedicated counsel role instructions.
+3. **Master Brief Synthesis (`LegalAgentLoop.synthesizeMasterBrief`)**:
+   - Synthesizes verified findings and drafted sections across a matter's Case Issues into a unified **Master Brief / Consolidated Pleading** in the matter's Draft & Redlines viewer (`DocumentVersion`).
 
 ---
 
-## 11. Future Work: Lean Discovery Document Ingestion & Folder Sync
+## 11. Lean Discovery Document Ingestion, `.docx` Redline Export & Folder Auto-Sync (`DocxParser` & `MatterFolderWatcher`) [IMPLEMENTED & VERIFIED]
 
-To support day-to-day casework document intake without manual copy-pasting, the following lean document intake features are planned:
+To support day-to-day casework document intake and filing preparation without manual copy-pasting:
 
-1. **Native File Import & Drag-and-Drop (Documents Tab)**:
-   - **Supported Formats**: Plain text (`.txt`, `.md`), transcript files, Word documents (`.docx`), and searchable text PDFs (`.pdf`).
-   - **No OCR Scope Creep**: Exclude OCR / image scanning engines to keep the application lightweight, fast, and dependency-free.
-   - **Intake Flow**: Dragging files into the Documents tab (or clicking an "Import Files..." button) prompts a quick confirmation for title, category (*Discovery, Transcript, Pleading, Authority*), and Bates range, then indexes the text directly into the matter's SQLite record.
+1. **Native Multi-Format File Import, Drag-and-Drop & Word (`.docx`) Redline Export**:
+   - **Supported Formats**: Word documents (`.docx` including headings, multi-level legal numbering, tables, footnotes, tracked changes, and margin comments), searchable PDFs (`.pdf`), spreadsheets (`.xlsx`, `.csv`), Rich Text (`.rtf`), and plain text/Markdown (`.txt`, `.md`).
+   - **Native `.docx` Export**: Exports peer-reviewed drafts and redlines directly back to `.docx` with native Word Tracked Changes (`<w:ins>`/`<w:del>`) and margin comments.
+   - **No OCR Scope Creep**: Excludes heavy OCR / external binary dependencies to keep cross-platform builds fast and self-contained.
 
-2. **Matter Folder Watcher & Auto-Sync**:
-   - Activate the existing `folderPath` setting on Matters with a lightweight filesystem scanner.
-   - When new files (such as supplemental disclosures from opposing counsel) are saved into the linked folder, LexHarness automatically indexes them into the active matter's documents.
+2. **Matter Folder Watcher & Auto-Sync (`MatterFolderWatcher`)**:
+   - Activates the `folderPath` setting on Matters with a lightweight filesystem scanner and `fs.watch` listener (`src/main/tools/MatterFolderWatcher.ts`).
+   - When new files (such as supplemental disclosures from opposing counsel) are saved into the linked folder, LexHarness automatically indexes them into the active matter's documents with `EX-xxxx` Bates ranges and inferred document categories.
 
-3. **In-Composer Document Attachments**:
-   - Allow dragging a document directly into the prompt composer during active drafting (e.g., *"Here is the supplemental affidavit received today; audit it against our motion"*).
-   - Ingests the file into the matter record and immediately includes it in the prompt context.
+3. **Unified In-Composer & Exhibits Pane Document Intake**:
+   - Both the bottom composer import button and the right-pane Exhibits & Authorities dropzone ingest supported files directly into the matter's SQLite corpus so subsequent drafts and peer reviews are immediately grounded in the uploaded record.
 
