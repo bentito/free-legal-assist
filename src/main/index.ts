@@ -147,15 +147,31 @@ function registerIpcHandlers(): void {
       }
     ) => {
       const now = new Date().toISOString();
+      const rawNumber = (payload.matterNumber || '').trim();
+      const existingCollide = rawNumber
+        ? db
+            .listMatters()
+            .some(
+              (m) =>
+                m.matterNumber.trim().toLowerCase() === rawNumber.toLowerCase() &&
+                (rawNumber === '26-CR-00001' ||
+                  rawNumber.startsWith('26-CR-05512'))
+            )
+        : false;
+      const effectiveMatterNumber =
+        !rawNumber || existingCollide
+          ? db.generateNextMatterNumber(payload.practiceArea)
+          : rawNumber;
+
       const newMatter: Matter = {
         id: `matter-${Date.now()}`,
         name: payload.name,
         clientName: payload.clientName,
-        matterNumber: payload.matterNumber,
+        matterNumber: effectiveMatterNumber,
         practiceArea: payload.practiceArea,
         jurisdiction: payload.jurisdiction,
         citationStyle: payload.citationStyle,
-        folderPath: `~/Matters/${payload.matterNumber.replace(/[^a-zA-Z0-9-_]/g, '_')}`,
+        folderPath: `~/Matters/${effectiveMatterNumber.replace(/[^a-zA-Z0-9-_]/g, '_')}`,
         createdAt: now,
         updatedAt: now,
       };

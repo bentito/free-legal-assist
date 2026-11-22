@@ -237,11 +237,29 @@ export class AncillaryModelManager {
       options.push({
         providerId: 'anthropic',
         providerName: 'Anthropic Direct API',
-        modelId: 'claude-3-5-haiku',
+        modelId: 'claude-3-5-haiku-latest',
         modelLabel: 'Claude 3.5 Haiku (Direct API)',
         tier: 'FAST_ECONOMY',
         isAvailable: true,
         costPer1kTokensUSD: 0.002,
+      });
+      options.push({
+        providerId: 'anthropic',
+        providerName: 'Anthropic Direct API',
+        modelId: 'claude-3-7-sonnet-latest',
+        modelLabel: 'Claude 3.7 Sonnet (Direct API)',
+        tier: 'FRONTIER_REASONING',
+        isAvailable: true,
+        costPer1kTokensUSD: 0.015,
+      });
+      options.push({
+        providerId: 'anthropic',
+        providerName: 'Anthropic Direct API',
+        modelId: 'claude-3-5-sonnet-latest',
+        modelLabel: 'Claude 3.5 Sonnet (Direct API)',
+        tier: 'FRONTIER_REASONING',
+        isAvailable: true,
+        costPer1kTokensUSD: 0.015,
       });
     }
 
@@ -279,6 +297,15 @@ export class AncillaryModelManager {
     // --- Role 1: Low-Cost Economy Checker ---
     let configuredEconomyProv = privacySettings.economyModelProvider;
     let configuredEconomyModel = privacySettings.economyModel;
+
+    // Migrate legacy unversioned 'claude-3-5-haiku' slug to 'claude-3-5-haiku-latest'
+    if (configuredEconomyProv === 'anthropic' && configuredEconomyModel === 'claude-3-5-haiku') {
+      configuredEconomyModel = 'claude-3-5-haiku-latest';
+      this.db.savePrivacyRoutingSettings({
+        economyModelProvider: configuredEconomyProv,
+        economyModel: configuredEconomyModel,
+      });
+    }
 
     // Default initial assignment if unset
     if (!configuredEconomyProv || !configuredEconomyModel) {
@@ -351,7 +378,7 @@ export class AncillaryModelManager {
         message: `${auditorModel} seems unavailable on ${auditorProv}. You should choose an available auditor model for adversarial verification.`,
         suggestedAlternatives: [
           ...workingEconomyModels,
-          ...workingFrontierModels.filter((m) => m.providerId === 'agy-acp' || m.providerId === 'gemini'),
+          ...workingFrontierModels,
         ],
         detectedAt: new Date().toISOString(),
       });

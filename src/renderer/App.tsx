@@ -58,18 +58,6 @@ import {
   X,
 } from 'lucide-react';
 
-interface ArchivedSettledItem {
-  id: string;
-  badge: string;
-  badgeColor: string;
-  title: string;
-  clientName: string;
-  matterNumber: string;
-  jurisdiction: string;
-  practiceArea: PracticeAreaId;
-  relativeTime: string;
-}
-
 const BADGE_PALETTE = [
   'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   'bg-amber-500/20 text-amber-300 border-amber-500/30',
@@ -79,6 +67,21 @@ const BADGE_PALETTE = [
   'bg-rose-500/20 text-rose-300 border-rose-500/30',
   'bg-teal-500/20 text-teal-300 border-teal-500/30',
 ];
+
+const formatRelativeTime = (isoDate?: string): string => {
+  if (!isoDate) return 'now';
+  const ts = new Date(isoDate).getTime();
+  if (Number.isNaN(ts)) return 'now';
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return 'now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h`;
+  const diffDays = Math.floor(diffHr / 24);
+  if (diffDays < 7) return `${diffDays}d`;
+  return `${Math.floor(diffDays / 7)}w`;
+};
 
 const getMonogram = (clientName: string, matterName: string): { code: string; colorClass: string } => {
   const source = (clientName || matterName || 'LX').trim();
@@ -96,59 +99,11 @@ const getMonogram = (clientName: string, matterName: string): { code: string; co
   return { code, colorClass: BADGE_PALETTE[Math.abs(hash) % BADGE_PALETTE.length] };
 };
 
-const CURATED_SETTLED_SEEDS: Array<{
-  badge: string;
-  title: string;
-  client: string;
-  docket: string;
-  time: string;
-  practiceArea: PracticeAreaId;
-}> = [
-  { badge: 'RE', title: 'Suppress Exit Order — State v. Vance', client: 'Ronald Vance', docket: '26-CR-03912', time: 'now', practiceArea: 'vt_suppression_art11' },
-  { badge: 'ES', title: 'Summarize BWC Timestamp Discrepancies', client: 'Elena Sterling', docket: '26-CR-03844', time: 'now', practiceArea: 'vt_discovery_impeachment' },
-  { badge: 'CS', title: 'Review Rule 12(b)(3) Suppression Memo', client: 'Caleb Sutton', docket: '26-CR-03719', time: 'now', practiceArea: 'vt_suppression_art11' },
-  { badge: 'RR', title: 'Review Bail Conditions 13 V.S.A. § 7554', client: 'Rachel Reyes', docket: '26-CR-03690', time: 'now', practiceArea: 'vt_bail_conditions' },
-  { badge: 'SP', title: 'Sync Rule 15 Deposition Impeachment Table', client: 'Samuel Porter', docket: '26-CR-03511', time: 'now', practiceArea: 'vt_discovery_impeachment' },
-  { badge: 'ES', title: 'Article 11 Dog Sniff Curtilage Objection', client: 'Evan Shaw', docket: '26-CR-03488', time: 'now', practiceArea: 'vt_suppression_art11' },
-  { badge: 'SP', title: 'Find Trooper Keller Prior Testimony Citations', client: 'Sonia Patel', docket: '26-CR-03302', time: '1m', practiceArea: 'vt_discovery_impeachment' },
-  { badge: 'CO', title: 'Trace Chain of Custody Lab Packet DEF-014', client: 'Connor O’Neill', docket: '26-CR-03217', time: '1m', practiceArea: 'vt_discovery_impeachment' },
-  { badge: 'PR', title: 'Deferred Sentence Stipulation 13 V.S.A. § 7041', client: 'Paulina Reed', docket: '26-CR-03185', time: '1m', practiceArea: 'vt_plea_sentencing' },
-  { badge: 'CO', title: 'Review Commercial Lease Indemnification Rider', client: 'Cobalt Logistics', docket: '26-CV-01904', time: '1m', practiceArea: 'general_transactional' },
-  { badge: 'MK', title: 'Motion to Strike Surplusage — Count II', client: 'Marcus Klein', docket: '26-CR-03091', time: '4m', practiceArea: 'vt_suppression_art11' },
-  { badge: 'DL', title: 'Bauder Warrantless Vehicle Search Brief', client: 'Devon Laurent', docket: '26-CR-02994', time: '9m', practiceArea: 'vt_suppression_art11' },
-  { badge: 'HN', title: 'Hearsay Exception Audit V.R.E. 803(8)', client: 'Hannah Nolan', docket: '26-CR-02881', time: '14m', practiceArea: 'vt_discovery_impeachment' },
-  { badge: 'TW', title: 'Emergency Bail Appeal to Single Justice', client: 'Trevor Walsh', docket: '26-CR-02810', time: '22m', practiceArea: 'vt_bail_conditions' },
-  { badge: 'LB', title: 'Miranda Custody Analysis — Roadside Interrogation', client: 'Liam Brooks', docket: '26-CR-02745', time: '35m', practiceArea: 'vt_suppression_art11' },
-  { badge: 'AV', title: 'SaaS Master Services Liability Cap Redline', client: 'Aegis Ventures', docket: '26-CV-01742', time: '1h', practiceArea: 'general_transactional' },
-  { badge: 'JC', title: 'Brady / V.R.Cr.P. 16 Supplemental Demand', client: 'Julian Cross', docket: '26-CR-02699', time: '1h', practiceArea: 'vt_discovery_impeachment' },
-  { badge: 'NM', title: 'Franks Hearing Preliminary Showing Memo', client: 'Nadia Mercer', docket: '26-CR-02612', time: '2h', practiceArea: 'vt_suppression_art11' },
-  { badge: 'GF', title: 'Conditions of Release Curfew Modification', client: 'Gavin Foster', docket: '26-CR-02550', time: '3h', practiceArea: 'vt_bail_conditions' },
-  { badge: 'KP', title: 'Mitigation Packet & PSI Objections', client: 'Kendra Price', docket: '26-CR-02498', time: '4h', practiceArea: 'vt_plea_sentencing' },
-];
-
-const ARCHIVED_SETTLED_MATTERS: ArchivedSettledItem[] = Array.from({ length: 123 }, (_, idx) => {
-  const template = CURATED_SETTLED_SEEDS[idx % CURATED_SETTLED_SEEDS.length];
-  const cycle = Math.floor(idx / CURATED_SETTLED_SEEDS.length);
-  const timeLabels = ['now', '1m', '5m', '18m', '1h', '3h', '1d', '2d', '4d', '1w'];
-  const relativeTime = cycle === 0 ? template.time : timeLabels[Math.min(cycle + 3, timeLabels.length - 1)];
-  return {
-    id: `settled-archive-${idx + 1}`,
-    badge: template.badge,
-    badgeColor: BADGE_PALETTE[idx % BADGE_PALETTE.length],
-    title: cycle === 0 ? template.title : `${template.title} (#${idx + 1})`,
-    clientName: template.client,
-    matterNumber: cycle === 0 ? template.docket : `25-CR-${String(4900 - idx).padStart(5, '0')}`,
-    jurisdiction: 'Vermont Superior Court, Chittenden Criminal Division (Vt. Const. ch. I, art. 11; 13 V.S.A.; V.R.Cr.P.)',
-    practiceArea: template.practiceArea,
-    relativeTime,
-  };
-});
-
 /**
  * Highlights inline legal citations, statutes, and Bates ranges as subtle T3-style monospace pills
  */
 const highlightInlineCitations = (text: string): React.ReactNode[] => {
-  const citationRegex = /(\b(?:DEF-\d{3,4}(?:–DEF-\d{3,4})?|STATE-[A-Z0-9-]+|\d{4}\s+VT\s+\d+|13\s+V\.S\.A\.\s+§\s*\d+[a-z0-9()]*|V\.R\.Cr\.P\.\s+\d+[a-z0-9()]*|V\.R\.E\.\s+\d+[a-z0-9()]*|Article\s+11)\b)/g;
+  const citationRegex = /(\b(?:(?:DEF|STATE|EX|DOC|WP|AUTH|APEX)-[A-Z0-9-]+(?:–[A-Z0-9-]+)?|\d{4}\s+VT\s+\d+|\d+\s+V\.S\.A\.\s+§\s*\d+[a-z0-9()]*|T\.C\.A\.\s+§\s*[\d-]+|V\.R\.Cr\.P\.\s+\d+[a-z0-9()]*|V\.R\.E\.\s+\d+[a-z0-9()]*|Article\s+11)\b)/g;
   const parts = text.split(citationRegex);
   return parts.map((part, i) => {
     if (citationRegex.test(part)) {
@@ -458,33 +413,12 @@ export const App: React.FC = () => {
     setMatterContextMenu(null);
   };
 
-  const handleOpenArchivedSettled = async (item: ArchivedSettledItem) => {
-    if (!state) return;
-    const existing = state.matters.find(
-      (m) => m.matterNumber === item.matterNumber || m.name === item.title
-    );
-    if (existing) {
-      const next = await ipcBridge.selectMatter(existing.id);
-      setState(next);
-      setTurnPracticeArea(existing.practiceArea);
-      return;
-    }
-    const created = await ipcBridge.createMatter({
-      name: item.title,
-      clientName: item.clientName,
-      matterNumber: item.matterNumber,
-      practiceArea: item.practiceArea,
-      jurisdiction: item.jurisdiction,
-      citationStyle:
-        'Vermont Supreme Court / Bluebook (e.g., 2007 VT 16, ¶ 14; 13 V.S.A. § ...; V.R.Cr.P. 12)',
-    });
-    setState(created);
-    setTurnPracticeArea(item.practiceArea);
-  };
-
   const detectWorkProductBadge = (msg: ThreadMessage): string => {
     if (msg.category === 'ADVISORY') return 'Case Advisory';
     const content = (msg.content || '').slice(0, 350).toLowerCase();
+    if (content.includes('complaint') || content.includes('causes of action') || content.includes('prayer for relief')) {
+      return 'Complaint';
+    }
     if (content.includes('motion to suppress') || content.includes('motion to dismiss')) {
       return 'Motion to Suppress';
     }
@@ -622,6 +556,37 @@ export const App: React.FC = () => {
   const currentProviderConfig =
     state.providers.find((p) => p.id === turnProvider) ?? state.providers[0];
 
+  const computeNextMatterNumber = (
+    mattersList: Matter[],
+    practiceArea?: PracticeAreaId
+  ): string => {
+    const existing = new Set(
+      mattersList.map((m) => m.matterNumber.split(' ')[0].trim().toUpperCase())
+    );
+    const yearPrefix = String(new Date().getFullYear()).slice(-2);
+    const isCriminal = !practiceArea || practiceArea.startsWith('vt_');
+    const typeCode = isCriminal ? 'CR' : 'CV';
+    let seq = 1;
+    while (seq < 99999) {
+      const candidate = `${yearPrefix}-${typeCode}-${String(seq).padStart(5, '0')}`;
+      if (!existing.has(candidate)) {
+        return candidate;
+      }
+      seq++;
+    }
+    return `${yearPrefix}-${typeCode}-${Date.now().toString().slice(-5)}`;
+  };
+
+  const openNewMatterModal = () => {
+    const defaultArea =
+      activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11';
+    setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
+    setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
+    setNewMatterPracticeArea(defaultArea);
+    setNewMatterNumber(computeNextMatterNumber(state.matters, defaultArea));
+    setShowNewMatterModal(true);
+  };
+
   const formatAgentLabel = (p?: ProviderConfig) => {
     if (!p) return 'Agent';
     if (p.id === 'agy-acp') return 'Antigravity';
@@ -749,21 +714,11 @@ export const App: React.FC = () => {
     );
   });
 
-  const filteredArchivedSettled = ARCHIVED_SETTLED_MATTERS.filter((item) => {
-    if (!q) return true;
-    return (
-      item.title.toLowerCase().includes(q) ||
-      item.clientName.toLowerCase().includes(q) ||
-      item.matterNumber.toLowerCase().includes(q)
-    );
-  });
-
-  const totalSettledCount = userSettledMatters.length + filteredArchivedSettled.length;
-  const visibleArchivedCount = Math.max(0, settledVisibleCount - userSettledMatters.length);
-  const visibleArchivedSettled = filteredArchivedSettled.slice(0, visibleArchivedCount);
+  const totalSettledCount = userSettledMatters.length;
+  const visibleSettledMatters = userSettledMatters.slice(0, settledVisibleCount);
   const remainingSettledCount = Math.max(
     0,
-    totalSettledCount - (userSettledMatters.length + visibleArchivedSettled.length)
+    totalSettledCount - visibleSettledMatters.length
   );
 
   const readyAgentsCount = (state.agentOnboarding?.agentInstances || []).filter(
@@ -817,12 +772,7 @@ export const App: React.FC = () => {
             </div>
 
             <button
-              onClick={() => {
-                setNewMatterJurisdiction(activeProfile.defaultJurisdiction);
-                setNewMatterCitation(activeProfile.defaultCitationStyle);
-                setNewMatterPracticeArea(activeProfile.activePracticeAreaId);
-                setShowNewMatterModal(true);
-              }}
+              onClick={openNewMatterModal}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05] transition cursor-pointer"
               title="Create New Matter"
             >
@@ -858,14 +808,7 @@ export const App: React.FC = () => {
                 Create a new matter or reopen one from Settled below.
               </p>
               <button
-                onClick={() => {
-                  setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
-                  setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
-                  setNewMatterPracticeArea(
-                    activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11'
-                  );
-                  setShowNewMatterModal(true);
-                }}
+                onClick={openNewMatterModal}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 text-[11px] font-medium transition cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
@@ -873,11 +816,10 @@ export const App: React.FC = () => {
               </button>
             </div>
           ) : (
-            activeMattersList.map((m, idx) => {
+            activeMattersList.map((m) => {
               const isSelected = m.id === activeMatter?.id;
               const monogram = getMonogram(m.clientName, m.name);
-              const relativeLabels = ['4m', '22h', '2d', '3d', '5d'];
-              const timeLabel = relativeLabels[idx % relativeLabels.length];
+              const timeLabel = formatRelativeTime(m.updatedAt || m.createdAt);
               const practicePreset = state.promptSettings.practiceAreaPresets.find(
                 (p) => p.id === m.practiceArea
               );
@@ -979,79 +921,63 @@ export const App: React.FC = () => {
           {isSettledOpen && (
             <div className="flex-1 overflow-y-auto px-2 pb-1.5 space-y-0.5">
               {/* User-Settled SQLite Matters */}
-              {userSettledMatters.map((m) => {
-                const monogram = getMonogram(m.clientName, m.name);
-                const isSelected = m.id === activeMatter?.id;
-                return (
-                  <div
-                    key={m.id}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMatterContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        matter: m,
-                      });
-                    }}
-                    onClick={async () => {
-                      const updated = await ipcBridge.selectMatter(m.id);
-                      setState(updated);
-                      setTurnPracticeArea(m.practiceArea);
-                    }}
-                    className={`group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left transition cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#18181d] text-zinc-100'
-                        : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span
-                        className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
-                      >
-                        {monogram.code}
-                      </span>
-                      <span className="text-[12px] truncate">{m.name}</span>
-                    </div>
-                    <button
-                      onClick={(e) => {
+              {visibleSettledMatters.length === 0 ? (
+                <div className="px-2 py-2 text-[11px] text-zinc-600">
+                  No settled matters yet.
+                </div>
+              ) : (
+                visibleSettledMatters.map((m) => {
+                  const monogram = getMonogram(m.clientName, m.name);
+                  const isSelected = m.id === activeMatter?.id;
+                  return (
+                    <div
+                      key={m.id}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
-                        handleToggleMatterSettled(m, false);
+                        setMatterContextMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          matter: m,
+                        });
                       }}
-                      title="Move back to Active matters"
-                      className="hidden group-hover:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-zinc-300 shrink-0"
+                      onClick={async () => {
+                        const updated = await ipcBridge.selectMatter(m.id);
+                        setState(updated);
+                        setTurnPracticeArea(m.practiceArea);
+                      }}
+                      className={`group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#18181d] text-zinc-100'
+                          : 'text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200'
+                      }`}
                     >
-                      <ArchiveRestore className="w-2.5 h-2.5" />
-                      <span>Reopen</span>
-                    </button>
-                    <span className="text-[11px] text-zinc-600 shrink-0 group-hover:hidden">
-                      now
-                    </span>
-                  </div>
-                );
-              })}
-
-              {/* Historical Settled Dockets */}
-              {visibleArchivedSettled.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleOpenArchivedSettled(item)}
-                  className="w-full group flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left text-zinc-400 hover:bg-white/[0.03] hover:text-zinc-200 transition cursor-pointer"
-                  title={`${item.title} (${item.clientName} • ${item.matterNumber}) — Click to open matter`}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span
-                      className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${item.badgeColor}`}
-                    >
-                      {item.badge}
-                    </span>
-                    <span className="text-[12px] truncate">{item.title}</span>
-                  </div>
-                  <span className="text-[11px] text-zinc-600 group-hover:text-zinc-400 shrink-0">
-                    {item.relativeTime}
-                  </span>
-                </button>
-              ))}
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span
+                          className={`w-4 h-4 rounded text-[9px] font-bold border flex items-center justify-center shrink-0 ${monogram.colorClass}`}
+                        >
+                          {monogram.code}
+                        </span>
+                        <span className="text-[12px] truncate">{m.name}</span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleMatterSettled(m, false);
+                        }}
+                        title="Move back to Active matters"
+                        className="hidden group-hover:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-zinc-300 shrink-0"
+                      >
+                        <ArchiveRestore className="w-2.5 h-2.5" />
+                        <span>Reopen</span>
+                      </button>
+                      <span className="text-[11px] text-zinc-600 shrink-0 group-hover:hidden">
+                        {formatRelativeTime(m.settledAt || m.updatedAt)}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
 
               {/* Show 25 more button */}
               {remainingSettledCount > 0 && (
@@ -1202,14 +1128,7 @@ export const App: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-center gap-2 pt-1">
                   <button
-                    onClick={() => {
-                      setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
-                      setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
-                      setNewMatterPracticeArea(
-                        activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11'
-                      );
-                      setShowNewMatterModal(true);
-                    }}
+                    onClick={openNewMatterModal}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-medium text-xs transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -2480,10 +2399,14 @@ export const App: React.FC = () => {
               <button
                 onClick={async () => {
                   if (!newMatterName.trim()) return;
+                  const fallbackNumber = computeNextMatterNumber(
+                    state.matters,
+                    newMatterPracticeArea
+                  );
                   const updated = await ipcBridge.createMatter({
                     name: newMatterName.trim(),
                     clientName: newClientName.trim() || 'Client',
-                    matterNumber: newMatterNumber.trim() || '26-CR-00001',
+                    matterNumber: newMatterNumber.trim() || fallbackNumber,
                     practiceArea: newMatterPracticeArea,
                     jurisdiction: newMatterJurisdiction.trim(),
                     citationStyle: newMatterCitation.trim(),
@@ -2491,6 +2414,12 @@ export const App: React.FC = () => {
                   setState(updated);
                   setNewMatterName('');
                   setNewClientName('');
+                  setNewMatterNumber(
+                    computeNextMatterNumber(
+                      updated.matters,
+                      newMatterPracticeArea
+                    )
+                  );
                   setShowNewMatterModal(false);
                 }}
                 className="px-4 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs transition"
@@ -2543,14 +2472,7 @@ export const App: React.FC = () => {
             const next = await ipcBridge.selectMatter(matterId);
             setState(next);
           }}
-          onOpenNewMatterModal={() => {
-            setNewMatterJurisdiction(activeProfile?.defaultJurisdiction ?? '');
-            setNewMatterCitation(activeProfile?.defaultCitationStyle ?? '');
-            setNewMatterPracticeArea(
-              activeProfile?.activePracticeAreaId ?? 'vt_suppression_art11'
-            );
-            setShowNewMatterModal(true);
-          }}
+          onOpenNewMatterModal={openNewMatterModal}
         />
       )}
 

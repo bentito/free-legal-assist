@@ -371,5 +371,122 @@ describe('Phase 2 Item 7: LocalPrivacyModelRouter, PiiScrubberVault & RoutingDeb
       expect(persistedAssistant?.routingLogId).toBe(result.assistantMessage.routingLogId);
       expect(persistedAssistant?.piiAudit?.entitiesDetectedCount).toBeGreaterThanOrEqual(1);
     });
+
+    it('Issue #6 regression: routes short Complaint drafting prompts to FRONTIER_REASONING (preserving user model) and grounds fallback in uploaded exhibits instead of Apex sample data', async () => {
+      // 1. Create a new matter with auto-generated unique case number
+      const nextNum1 = db.generateNextMatterNumber('general_litigation');
+      const tnMatter: Matter = {
+        id: 'matter-tn-circuit-1',
+        name: 'Smith v. Cumberland Contractors LLC',
+        clientName: 'Evelyn Smith',
+        matterNumber: nextNum1,
+        practiceArea: 'general_litigation',
+        jurisdiction: 'Tennessee Circuit Court, Davidson County',
+        citationStyle: 'The Bluebook (21st Ed.)',
+        folderPath: `~/Matters/${nextNum1}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      db.insertMatter(tnMatter);
+
+      // Verify a second matter gets a distinct case number
+      const nextNum2 = db.generateNextMatterNumber('general_litigation');
+      expect(nextNum2).not.toBe(nextNum1);
+
+      // 2. Upload a demand letter exhibit to the new matter
+      db.insertDocument({
+        id: 'doc-tn-demand-letter',
+        matterId: tnMatter.id,
+        title: 'Pre-Suit Demand Letter to Cumberland Contractors LLC',
+        fileName: 'Demand_Letter_Cumberland.docx',
+        category: 'EXHIBIT',
+        batesRange: 'EX-0001',
+        pageCount: 2,
+        summary: 'Formal pre-suit demand letter regarding $85,000 breach of roof reconstruction contract in Nashville, TN.',
+        content:
+          '# FORMAL DEMAND NOTICE\n\nOn August 12, 2026, Cumberland Contractors LLC abandoned the commercial roof replacement project at 410 Broadway, Nashville, Tennessee after receiving $85,000 in progress payments.\n\nEvelyn Smith demands full reimbursement of $85,000 plus $22,400 in water damage remediation costs within fourteen (14) days prior to filing a Complaint in Tennessee Circuit Court.',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // 3. Ask the exact Issue #6 prompt with Claude 3.7 Sonnet selected
+      const loop = new LegalAgentLoop(db);
+      const turnRes = await loop.runTurn({
+        matterId: tnMatter.id,
+        userPrompt: 'Please draft a Complaint for TN Circuit Court using the attached demand letter.',
+        overridePrimaryProvider: 'anthropic',
+        overridePrimaryModel: 'claude-3-7-sonnet-latest',
+      });
+
+      // Must route to FRONTIER_REASONING and preserve Claude 3.7 Sonnet (NOT downgrade to claude-3-5-haiku / Fast Economy)
+      expect(turnRes.assistantMessage.routeTier).toBe('FRONTIER_REASONING');
+      expect(turnRes.assistantMessage.primaryModel).toBe('claude-3-7-sonnet-latest');
+      expect(turnRes.assistantMessage.primaryProvider).toBe('anthropic');
+
+      // Output and peer-review notes must use the uploaded demand letter and TN Circuit Court matter, NEVER Apex / Abry Partners / MSA 8.2
+      expect(turnRes.assistantMessage.content).toContain('Cumberland Contractors LLC');
+      expect(turnRes.assistantMessage.content).toContain('EX-0001');
+      expect(turnRes.assistantMessage.content).not.toContain('Abry Partners');
+      expect(turnRes.assistantMessage.content).not.toContain('MSA § 8.2');
+      expect(turnRes.assistantMessage.content).not.toContain('APEX-');
+
+      for (const review of turnRes.assistantMessage.adversarialReviews) {
+        const serialized = JSON.stringify(review);
+        expect(serialized).not.toContain('Abry Partners');
+        expect(serialized).not.toContain('APEX-');
+        expect(serialized).toContain('EX-0001');
+      }
+    });
+
+    it('Custom Vermont criminal matter does not leak State v. Thorne / Trooper Keller sample facts into drafts or critic reviews', async () => {
+      const vtCustomNum = db.generateNextMatterNumber('vt_suppression_art11');
+      const vtCustomMatter: Matter = {
+        id: 'matter-vt-custom-mercier',
+        name: 'State of Vermont v. Jordan Mercier',
+        clientName: 'Jordan Mercier',
+        matterNumber: vtCustomNum,
+        practiceArea: 'vt_suppression_art11',
+        jurisdiction: 'Vermont Superior Court, Rutland Criminal Division',
+        citationStyle: 'Vermont Supreme Court / Bluebook',
+        folderPath: `~/Matters/${vtCustomNum}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      db.insertMatter(vtCustomMatter);
+
+      db.insertDocument({
+        id: 'doc-vt-mercier-affidavit',
+        matterId: vtCustomMatter.id,
+        title: 'Affidavit of Officer S. Morales (Rutland City Police)',
+        fileName: 'Affidavit_Morales.docx',
+        category: 'PLEADING',
+        batesRange: 'EX-0001',
+        pageCount: 2,
+        summary: 'Stop on Route 7 in Rutland City and warrantless backpack search.',
+        content:
+          'On November 3, 2026, Officer S. Morales stopped Jordan Mercier on Route 7 in Rutland City for a cracked windshield and searched a zippered canvas backpack on the back seat without consent or a warrant.',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const loop = new LegalAgentLoop(db);
+      const res = await loop.runTurn({
+        matterId: vtCustomMatter.id,
+        userPrompt: 'Please draft a Motion to Suppress the backpack search.',
+      });
+
+      expect(res.assistantMessage.content).toContain('Jordan Mercier');
+      expect(res.assistantMessage.content).toContain('EX-0001');
+      expect(res.assistantMessage.content).not.toContain('Marcus Thorne');
+      expect(res.assistantMessage.content).not.toContain('Trooper Keller');
+      expect(res.assistantMessage.content).not.toContain('STATE-BWC-0009');
+
+      for (const rev of res.assistantMessage.adversarialReviews) {
+        const str = JSON.stringify(rev);
+        expect(str).not.toContain('Trooper Keller');
+        expect(str).not.toContain('STATE-BWC-0009');
+        expect(str).toContain('EX-0001');
+      }
+    });
   });
 });

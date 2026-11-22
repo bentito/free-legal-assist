@@ -520,7 +520,18 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(assistantMsg?.adversarialReviews.length).toBe(2);
     expect(assistantMsg?.toolCalls.length).toBeGreaterThanOrEqual(4);
 
-    // 5. Test closeTutorialSampleCase with fallback
+    // 5. Test running a live turn inside the John Doe tutorial sample casework
+    const loop = new LegalAgentLoop(db);
+    const tutorialTurn = await loop.runTurn({
+      matterId: 'matter-1794160132556',
+      userPrompt:
+        'Draft the Article 11 exit order suppression argument for John Doe.',
+    });
+    expect(tutorialTurn.assistantMessage.content).toContain('State v. Sprague');
+    expect(tutorialTurn.assistantMessage.content).toContain('STATE-BWC-0009');
+    expect(tutorialTurn.assistantMessage.adversarialReviews.length).toBe(2);
+
+    // 6. Test closeTutorialSampleCase with fallback
     const closeRes = db.closeTutorialSampleCase(
       'matter-1794160132556',
       'matter-vt-state-v-thorne',

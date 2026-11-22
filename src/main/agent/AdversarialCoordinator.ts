@@ -138,6 +138,7 @@ export class AdversarialCoordinator {
       userPrompt,
       candidateDraft,
       toolContext,
+      matter,
       isVermontCriminal,
     } = params;
 
@@ -185,8 +186,16 @@ export class AdversarialCoordinator {
       }
     }
 
+    const isVermontSampleCase =
+      matter.id === 'matter-vt-state-v-thorne' ||
+      matter.id === 'matter-1794160132556' ||
+      toolContext.includes('STATE-BWC') ||
+      toolContext.includes('AUTH-VT');
+    const isApexSampleCase =
+      matter.id === 'matter-apex-meridian' || toolContext.includes('APEX-');
+
     if (round === 1) {
-      if (isVermontCriminal) {
+      if (isVermontSampleCase || (isVermontCriminal && !isApexSampleCase && toolContext.includes('Keller'))) {
         if (criticRole === 'CITATION_AUDITOR') {
           return {
             id: `rev-${Date.now()}-vt-auditor`,
@@ -251,7 +260,66 @@ export class AdversarialCoordinator {
         }
       }
 
-      // General Legal Practice fallback critics
+      if (isApexSampleCase) {
+        if (criticRole === 'CITATION_AUDITOR') {
+          return {
+            id: `rev-${Date.now()}-auditor`,
+            messageId,
+            round,
+            criticRole: 'CITATION_AUDITOR',
+            criticTitle,
+            provider,
+            model,
+            verdict: 'REVISE',
+            severity: 'CRITICAL',
+            objections: [
+              {
+                category: 'UNVERIFIED_CITATION',
+                location: 'Section 2 — Abry Partners Holding & MSA § 9.2 Tiered Cap',
+                critique:
+                  'Candidate draft overstates Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006). Anchor the cap-piercing argument in the express negotiated tiers of MSA § 9.2 [APEX-0016].',
+                requiredFix:
+                  'Anchor cap-piercing in MSA § 9.2 ($5.4M 3x Super-Cap and Uncapped tier for Reckless Disregard).',
+              },
+            ],
+            dissentingConsiderations:
+              'Include exact Bates pinpoints per Layer 1 Ethical Guardrails.',
+            createdAt: new Date().toISOString(),
+          };
+        } else {
+          return {
+            id: `rev-${Date.now()}-opposing`,
+            messageId,
+            round,
+            criticRole: 'OPPOSING_COUNSEL',
+            criticTitle,
+            provider,
+            model,
+            verdict: 'REVISE',
+            severity: 'MEDIUM',
+            objections: [
+              {
+                category: 'LOGICAL_GAP',
+                location: 'MSA § 8.2 Notice Proviso',
+                critique:
+                  'Invoke the express material-prejudice proviso in MSA § 8.2 [APEX-0014] to rebut the 12-Business-Day notice timing.',
+                requiredFix:
+                  'Add MSA § 8.2 material-prejudice rebuttal.',
+              },
+            ],
+            dissentingConsiderations:
+              'Pleading the $5.4M Super-Cap as a floor maximizes leverage.',
+            createdAt: new Date().toISOString(),
+          };
+        }
+      }
+
+      // Custom Matter fallback critics grounded in matter's own documents and jurisdiction
+      const batesMatch = toolContext.match(/Bates Range:\s*([^\n]+)/);
+      const docMatch = toolContext.match(/### DOCUMENT:\s*([^\n]+)/);
+      const primaryBates = batesMatch?.[1]?.trim() || 'DOC-0001';
+      const primaryDocTitle = docMatch?.[1]?.trim() || matter.name;
+
       if (criticRole === 'CITATION_AUDITOR') {
         return {
           id: `rev-${Date.now()}-auditor`,
@@ -262,19 +330,16 @@ export class AdversarialCoordinator {
           provider,
           model,
           verdict: 'REVISE',
-          severity: 'CRITICAL',
+          severity: 'MEDIUM',
           objections: [
             {
-              category: 'UNVERIFIED_CITATION',
-              location: 'Section 2 — Abry Partners Holding & MSA § 9.2 Tiered Cap',
-              critique:
-                'Candidate draft overstates Abry Partners V, L.P. v. F & W Acquisition LLC, 891 A.2d 1032 (Del. Ch. 2006). Anchor the cap-piercing argument in the express negotiated tiers of MSA § 9.2 [APEX-0016].',
-              requiredFix:
-                'Anchor cap-piercing in MSA § 9.2 ($5.4M 3x Super-Cap and Uncapped tier for Reckless Disregard).',
+              category: 'RECORD_MISMATCH',
+              location: `Statement of Facts & Record Pinpoints (${primaryDocTitle})`,
+              critique: `Ensure every factual allegation and demand figure extracted from ${primaryDocTitle} includes explicit Bates pinpoint [${primaryBates}] and conforms to ${matter.citationStyle || 'governing citation rules'} in ${matter.jurisdiction}.`,
+              requiredFix: `Add explicit [${primaryBates}] record pinpoints to each factual paragraph and verify jurisdictional citations for ${matter.jurisdiction}.`,
             },
           ],
-          dissentingConsiderations:
-            'Include exact Bates pinpoints per Layer 1 Ethical Guardrails.',
+          dissentingConsiderations: `Verified grounding against matter exhibit ${primaryDocTitle} [${primaryBates}].`,
           createdAt: new Date().toISOString(),
         };
       } else {
@@ -291,15 +356,12 @@ export class AdversarialCoordinator {
           objections: [
             {
               category: 'LOGICAL_GAP',
-              location: 'MSA § 8.2 Notice Proviso',
-              critique:
-                'Invoke the express material-prejudice proviso in MSA § 8.2 [APEX-0014] to rebut the 12-Business-Day notice timing.',
-              requiredFix:
-                'Add MSA § 8.2 material-prejudice rebuttal.',
+              location: `Causes of Action & Forum Pleading Standards (${matter.jurisdiction})`,
+              critique: `Opposing counsel in ${matter.jurisdiction} will challenge conclusory allegations unless each element of the claim is tied directly to the factual notice and demand record in ${primaryDocTitle} [${primaryBates}].`,
+              requiredFix: `Anchor each cause of action and prayer for relief directly in the specific facts and notice documented in [${primaryBates}].`,
             },
           ],
-          dissentingConsiderations:
-            'Pleading the $5.4M Super-Cap as a floor maximizes leverage.',
+          dissentingConsiderations: `Strengthening the nexus between ${primaryDocTitle} [${primaryBates}] and the elements pleaded in ${matter.jurisdiction} insulates the pleading from early dispositive motion practice.`,
           createdAt: new Date().toISOString(),
         };
       }

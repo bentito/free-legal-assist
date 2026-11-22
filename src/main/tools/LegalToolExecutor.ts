@@ -55,7 +55,17 @@ export class LegalToolExecutor {
             .filter((item) => item.score > 0 || terms.length === 0)
             .sort((a, b) => b.score - a.score);
 
-          const matched = scored.length > 0 ? scored.map((s) => s.doc) : docs;
+          const matched =
+            scored.length > 0
+              ? [
+                  ...scored.map((s) => s.doc),
+                  ...docs.filter(
+                    (d) =>
+                      d.batesRange !== 'WP-0001' &&
+                      !scored.some((s) => s.doc.id === d.id)
+                  ),
+                ]
+              : docs;
           resultSummary = `Found ${matched.length} relevant document(s) in matter corpus matching "${query || 'all'}".`;
           rawOutput = matched
             .map(
