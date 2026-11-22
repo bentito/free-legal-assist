@@ -13,6 +13,7 @@ import {
   LLMProviderId,
   Matter,
   MatterDocument,
+  MatterIssue,
   PracticeAreaId,
   PractitionerProfile,
   PractitionerProfileId,
@@ -38,6 +39,7 @@ import {
   TUTORIAL_SAMPLE_CHRONOLOGY_FACTS,
   TUTORIAL_SAMPLE_DOCUMENTS,
   TUTORIAL_SAMPLE_DOCUMENT_VERSIONS,
+  TUTORIAL_SAMPLE_ISSUES,
   TUTORIAL_SAMPLE_MATTER,
   TUTORIAL_SAMPLE_MATTER_ID,
   TUTORIAL_SAMPLE_MESSAGES,
@@ -270,9 +272,27 @@ export class LegalDatabase {
         created_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS matter_issues (
+        id TEXT PRIMARY KEY,
+        matter_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        practice_area TEXT NOT NULL,
+        description TEXT,
+        specialist_role TEXT,
+        parent_issue_id TEXT,
+        relationship_to_parent TEXT,
+        forked_from_message_id TEXT,
+        settled INTEGER DEFAULT 0,
+        settled_at TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         matter_id TEXT NOT NULL,
+        issue_id TEXT,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
         category TEXT,
@@ -413,6 +433,9 @@ export class LegalDatabase {
       if (!refreshedCols.includes('pii_audit_json')) {
         this.db.run('ALTER TABLE messages ADD COLUMN pii_audit_json TEXT;');
       }
+      if (!refreshedCols.includes('issue_id')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN issue_id TEXT;');
+      }
 
       const mattersInfo = this.db.exec('PRAGMA table_info(matters)');
       const mattersCols = mattersInfo[0]?.values?.map((row) => String(row[1])) || [];
@@ -421,6 +444,23 @@ export class LegalDatabase {
       }
       if (!mattersCols.includes('settled_at')) {
         this.db.run('ALTER TABLE matters ADD COLUMN settled_at TEXT;');
+      }
+
+      const issuesInfo = this.db.exec('PRAGMA table_info(matter_issues)');
+      const issuesCols = issuesInfo[0]?.values?.map((row) => String(row[1])) || [];
+      if (issuesCols.length > 0) {
+        if (!issuesCols.includes('relationship_to_parent')) {
+          this.db.run('ALTER TABLE matter_issues ADD COLUMN relationship_to_parent TEXT;');
+        }
+        if (!issuesCols.includes('forked_from_message_id')) {
+          this.db.run('ALTER TABLE matter_issues ADD COLUMN forked_from_message_id TEXT;');
+        }
+        if (!issuesCols.includes('settled')) {
+          this.db.run('ALTER TABLE matter_issues ADD COLUMN settled INTEGER DEFAULT 0;');
+        }
+        if (!issuesCols.includes('settled_at')) {
+          this.db.run('ALTER TABLE matter_issues ADD COLUMN settled_at TEXT;');
+        }
       }
     } catch (err) {
       console.error('Failed migrating messages table schema:', err);
@@ -641,6 +681,7 @@ export class LegalDatabase {
    */
   deleteMatter(matterId: string): { remainingMatters: Matter[]; nextActiveMatterId: string } {
     this.db.run('DELETE FROM messages WHERE matter_id = ?', [matterId]);
+    this.db.run('DELETE FROM matter_issues WHERE matter_id = ?', [matterId]);
     this.db.run('DELETE FROM document_versions WHERE matter_id = ?', [matterId]);
     this.db.run('DELETE FROM documents WHERE matter_id = ?', [matterId]);
     this.db.run('DELETE FROM chronology_facts WHERE matter_id = ?', [matterId]);
@@ -669,9 +710,13 @@ export class LegalDatabase {
     for (const fact of TUTORIAL_SAMPLE_CHRONOLOGY_FACTS) {
       this.insertChronologyFact(fact, false);
     }
+    for (const issue of TUTORIAL_SAMPLE_ISSUES) {
+      this.insertIssue(issue, false);
+    }
     for (const msg of TUTORIAL_SAMPLE_MESSAGES) {
       this.insertMessage(msg, false);
     }
+    this.setActiveIssueId(TUTORIAL_SAMPLE_MATTER_ID, null, false);
     this.persist();
     return TUTORIAL_SAMPLE_MATTER;
   }
@@ -872,18 +917,238 @@ export class LegalDatabase {
     return fact;
   }
 
-  // --- Matter Analysis Messages ---
-  listMessages(matterId: string): LegalMessage[] {
+  // --- Case Issues & Focused Counsel Inquiries ---
+  private mapRowToIssue(r: Record<string, unknown>): MatterIssue {
+    return {
+      id: String(r.id),
+      matterId: String(r.matter_id),
+      title: String(r.title),
+      practiceArea: String(r.practice_area) as PracticeAreaId,
+      description: r.description ? String(r.description) : undefined,
+      specialistRole: r.specialist_role ? String(r.specialist_role) : undefined,
+      parentIssueId: r.parent_issue_id ? String(r.parent_issue_id) : undefined,
+      relationshipToParent:
+        r.relationship_to_parent === 'fork' || r.relationship_to_parent === 'specialist'
+          ? r.relationship_to_parent
+          : undefined,
+      forkedFromMessageId: r.forked_from_message_id
+        ? String(r.forked_from_message_id)
+        : undefined,
+      settled: Boolean(r.settled),
+      settledAt: r.settled_at ? String(r.settled_at) : undefined,
+      status: (r.status === 'synthesized' ? 'synthesized' : 'open') as 'open' | 'synthesized',
+      createdAt: String(r.created_at),
+      updatedAt: String(r.updated_at),
+    };
+  }
+
+  listIssues(matterId: string): MatterIssue[] {
     const stmt = this.db.prepare(
-      'SELECT * FROM messages WHERE matter_id = ? ORDER BY created_at ASC'
+      'SELECT * FROM matter_issues WHERE matter_id = ? ORDER BY created_at ASC'
     );
     stmt.bind([matterId]);
+    const issues: MatterIssue[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject() as Record<string, unknown>;
+      issues.push(this.mapRowToIssue(r));
+    }
+    stmt.free();
+    return issues;
+  }
+
+  listAllIssues(): MatterIssue[] {
+    const stmt = this.db.prepare('SELECT * FROM matter_issues ORDER BY updated_at DESC');
+    const issues: MatterIssue[] = [];
+    while (stmt.step()) {
+      const r = stmt.getAsObject() as Record<string, unknown>;
+      issues.push(this.mapRowToIssue(r));
+    }
+    stmt.free();
+    return issues;
+  }
+
+  getIssue(issueId: string): MatterIssue | null {
+    const stmt = this.db.prepare('SELECT * FROM matter_issues WHERE id = ?');
+    stmt.bind([issueId]);
+    if (!stmt.step()) {
+      stmt.free();
+      return null;
+    }
+    const r = stmt.getAsObject() as Record<string, unknown>;
+    stmt.free();
+    return this.mapRowToIssue(r);
+  }
+
+  insertIssue(issue: MatterIssue, flush = true): MatterIssue {
+    this.db.run(
+      `INSERT OR REPLACE INTO matter_issues (
+        id, matter_id, title, practice_area, description, specialist_role,
+        parent_issue_id, relationship_to_parent, forked_from_message_id,
+        settled, settled_at, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        issue.id,
+        issue.matterId,
+        issue.title,
+        issue.practiceArea,
+        issue.description ?? null,
+        issue.specialistRole ?? null,
+        issue.parentIssueId ?? null,
+        issue.relationshipToParent ?? null,
+        issue.forkedFromMessageId ?? null,
+        issue.settled ? 1 : 0,
+        issue.settledAt ?? null,
+        issue.status ?? 'open',
+        issue.createdAt,
+        issue.updatedAt,
+      ]
+    );
+    if (flush) this.persist();
+    return issue;
+  }
+
+  setIssueSettled(
+    issueId: string,
+    settled: boolean,
+    flush = true
+  ): MatterIssue | null {
+    const existing = this.getIssue(issueId);
+    if (!existing) return null;
+    const now = new Date().toISOString();
+    const updated: MatterIssue = {
+      ...existing,
+      settled,
+      settledAt: settled ? now : undefined,
+      updatedAt: now,
+    };
+    return this.insertIssue(updated, flush);
+  }
+
+  /**
+   * Forks a new Case Issue from an existing conversation checkpoint (or from the matter's
+   * primary stream), copying the prior messages up to `upToMessageId` into the new Case Issue
+   * just like T3 Code's `t3_thread_transfer({ action: 'fork' })`.
+   */
+  forkIssue(payload: {
+    matterId: string;
+    sourceIssueId?: string | null;
+    upToMessageId?: string;
+    title: string;
+    practiceArea?: PracticeAreaId;
+    specialistRole?: string;
+    description?: string;
+    relationshipToParent?: 'fork' | 'specialist';
+  }): MatterIssue {
+    const matter = this.getMatter(payload.matterId);
+    const now = new Date().toISOString();
+    const newIssueId = `issue-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+    const allMatterMessages = this.listMessages(payload.matterId);
+    const sourceMessages = payload.sourceIssueId
+      ? allMatterMessages.filter((m) => m.issueId === payload.sourceIssueId)
+      : allMatterMessages.filter((m) => !m.issueId);
+
+    let messagesToCopy = sourceMessages;
+    if (payload.upToMessageId) {
+      const stopIdx = sourceMessages.findIndex((m) => m.id === payload.upToMessageId);
+      if (stopIdx >= 0) {
+        messagesToCopy = sourceMessages.slice(0, stopIdx + 1);
+      }
+    }
+
+    const newIssue: MatterIssue = {
+      id: newIssueId,
+      matterId: payload.matterId,
+      title: payload.title.trim() || 'Forked Case Issue',
+      practiceArea: payload.practiceArea || matter?.practiceArea || 'vt_suppression_art11',
+      description: payload.description?.trim() || undefined,
+      specialistRole: payload.specialistRole?.trim() || undefined,
+      parentIssueId: payload.sourceIssueId || 'primary',
+      relationshipToParent: payload.relationshipToParent || 'fork',
+      forkedFromMessageId: payload.upToMessageId,
+      settled: false,
+      status: 'open',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.insertIssue(newIssue, false);
+
+    messagesToCopy.forEach((msg, index) => {
+      const clonedMsg: LegalMessage = {
+        ...msg,
+        id: `msg-fork-${newIssueId}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+        matterId: payload.matterId,
+        issueId: newIssueId,
+      };
+      this.insertMessage(clonedMsg, false);
+    });
+
+    this.setActiveIssueId(payload.matterId, newIssueId, false);
+    this.persist();
+    return newIssue;
+  }
+
+  updateIssueStatus(
+    issueId: string,
+    status: 'open' | 'synthesized',
+    flush = true
+  ): MatterIssue | null {
+    const existing = this.getIssue(issueId);
+    if (!existing) return null;
+    const now = new Date().toISOString();
+    const updated: MatterIssue = {
+      ...existing,
+      status,
+      settled: status === 'synthesized' ? true : existing.settled,
+      settledAt: status === 'synthesized' ? existing.settledAt || now : existing.settledAt,
+      updatedAt: now,
+    };
+    return this.insertIssue(updated, flush);
+  }
+
+  deleteIssue(issueId: string, flush = true): void {
+    const existing = this.getIssue(issueId);
+    this.db.run('DELETE FROM messages WHERE issue_id = ?', [issueId]);
+    this.db.run('DELETE FROM matter_issues WHERE id = ?', [issueId]);
+    if (existing) {
+      const currentActive = this.getActiveIssueId(existing.matterId);
+      if (currentActive === issueId) {
+        this.setActiveIssueId(existing.matterId, null, false);
+      }
+    }
+    if (flush) this.persist();
+  }
+
+  getActiveIssueId(matterId: string): string | null {
+    if (!matterId) return null;
+    const val = this.getKeyValue<string | null>(`active_issue_${matterId}`);
+    if (!val) return null;
+    return this.getIssue(val) ? val : null;
+  }
+
+  setActiveIssueId(matterId: string, issueId: string | null, flush = true): void {
+    if (!matterId) return;
+    this.setKeyValue(`active_issue_${matterId}`, issueId, flush);
+  }
+
+  // --- Matter Analysis Messages ---
+  listMessages(matterId: string, issueId?: string | null): LegalMessage[] {
+    const stmt = issueId
+      ? this.db.prepare(
+          'SELECT * FROM messages WHERE matter_id = ? AND issue_id = ? ORDER BY created_at ASC'
+        )
+      : this.db.prepare(
+          'SELECT * FROM messages WHERE matter_id = ? ORDER BY created_at ASC'
+        );
+    stmt.bind(issueId ? [matterId, issueId] : [matterId]);
     const messages: LegalMessage[] = [];
     while (stmt.step()) {
       const r = stmt.getAsObject() as Record<string, unknown>;
       messages.push({
         id: String(r.id),
         matterId: String(r.matter_id),
+        issueId: r.issue_id ? String(r.issue_id) : undefined,
         role: r.role as 'user' | 'assistant',
         content: String(r.content),
         category: (r.category ? String(r.category) : undefined) as LegalMessage['category'],
@@ -917,14 +1182,15 @@ export class LegalDatabase {
   insertMessage(msg: LegalMessage, flush = true): LegalMessage {
     this.db.run(
       `INSERT OR REPLACE INTO messages (
-        id, matter_id, role, content, category, is_edited, initial_draft_before_review,
+        id, matter_id, issue_id, role, content, category, is_edited, initial_draft_before_review,
         primary_provider, primary_model, review_mode_used,
         assembled_system_prompt_snapshot, tool_calls_json, adversarial_reviews_json,
         revision_rounds_completed, route_tier, routing_log_id, pii_audit_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         msg.id,
         msg.matterId,
+        msg.issueId ?? null,
         msg.role,
         msg.content,
         msg.category ?? null,
@@ -970,6 +1236,7 @@ export class LegalDatabase {
     return {
       id: String(r.id),
       matterId: String(r.matter_id),
+      issueId: r.issue_id ? String(r.issue_id) : undefined,
       role: r.role as 'user' | 'assistant',
       content,
       category: (r.category ? String(r.category) : undefined) as LegalMessage['category'],

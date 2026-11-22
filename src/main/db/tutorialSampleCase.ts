@@ -4,6 +4,7 @@ import {
   LegalMessage,
   Matter,
   MatterDocument,
+  MatterIssue,
 } from "../../shared/types";
 import { SEEDED_CHRONOLOGY_FACTS, SEEDED_DOCUMENTS } from "./defaultLegalData";
 
@@ -134,6 +135,24 @@ export const TUTORIAL_SAMPLE_CHRONOLOGY_FACTS: ChronologyFact[] = SEEDED_CHRONOL
   id: `fact-sample-${idx + 1}`,
   matterId: TUTORIAL_SAMPLE_MATTER_ID,
 }));
+
+export const TUTORIAL_SAMPLE_ISSUES: MatterIssue[] = [
+  {
+    id: "issue-sample-bwc-impeachment",
+    matterId: TUTORIAL_SAMPLE_MATTER_ID,
+    title: "Trooper Keller BWC Impeachment Matrix",
+    practiceArea: "vt_discovery_impeachment",
+    specialistRole: "Discovery & Deposition Impeachment Analyst",
+    parentIssueId: "primary",
+    relationshipToParent: "fork",
+    description:
+      "Focused issue comparing Paragraph 5 of Trooper Keller's Affidavit [STATE-0003] against Body-Worn Camera audio at 23:21:10 [STATE-BWC-0009] and Rule 15 deposition [DEF-DEP-0018].",
+    settled: false,
+    status: "open",
+    createdAt: "2026-11-08T21:57:00.000Z",
+    updatedAt: "2026-11-12T13:15:00.000Z",
+  },
+];
 
 export const TUTORIAL_SAMPLE_MESSAGES: LegalMessage[] = [
   {

@@ -31,118 +31,116 @@ export interface TutorialOverlayProps {
   onSelectTab?: (tab: 'redline' | 'corpus' | 'chronology') => void;
 }
 
-interface TourStep {
+export interface TourStep {
   id: string;
   targetSelector: string;
   title: string;
   subtitle: string;
   category: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   content: string[];
   keyHighlight?: string;
   cardPlacement: 'center' | 'bottom-left' | 'bottom-right' | 'top-right' | 'top-left';
   preferredTab?: 'redline' | 'corpus' | 'chronology';
 }
 
-const TOUR_STEPS: TourStep[] = [
+export const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome_docket',
     targetSelector: '#tour-matter-overview',
     title: 'Welcome to LexHarness',
-    subtitle: 'Legal Drafting & Review Workspace',
-    category: 'Matters & Dockets',
+    subtitle: 'Matters, Case Issues & Settled Drawer',
+    category: 'Matters & Case Issues',
     icon: <Scale className="w-5 h-5 text-amber-400" />,
     content: [
-      'LexHarness helps you review discovery, verify citations, and draft legal motions and memos.',
-      'A criminal defense sample matter (John Doe v. State of Vermont) is loaded to explore.',
-      'Use the left sidebar to switch matters, jurisdictions, and citation rules.',
+      'LexHarness organizes your work by Matter and focused Case Issues (such as a Motion to Suppress vs. a Witness Impeachment Matrix) that share the same discovery exhibits.',
+      'A criminal defense sample matter (John Doe v. State of Vermont) and a focused Case Issue (Trooper Keller BWC Impeachment Matrix) are loaded in the left sidebar.',
+      'Use the top folder icon to create a New Matter, the pen icon to start a New Case Issue, or settle completed matters and issues into the lower Settled drawer.',
     ],
     keyHighlight:
-      'Sample Case: John Doe v. State of Vermont loaded with sample discovery and drafts.',
+      'Case Issues & Settled Inbox: Spin off focused legal issues under any matter and incorporate their findings back into your brief.',
     cardPlacement: 'center',
   },
   {
     id: 'corpus_discovery',
     targetSelector: '#tour-corpus-tab',
-    title: '1. Case Documents',
-    subtitle: 'Exhibits, Transcripts & Depositions',
-    category: 'Evidence',
+    title: '1. Exhibits, Multi-Format Import & Folder Sync',
+    subtitle: 'Word (.docx), PDF, Excel, CSV, RTF & Auto-Sync',
+    category: 'Evidence & Intake',
     icon: <FileSearch className="w-5 h-5 text-amber-400" />,
     content: [
-      'Case files are indexed with Bates numbers (STATE-0001 to STATE-0005, STATE-BWC-0009, DEF-DEP-0018).',
-      'Assistants reference these exhibits directly to anchor claims in the record.',
-      'Check the Body-Worn Camera transcript and Trooper Keller\'s deposition for timeline contradictions.',
+      'Case files are indexed with Bates numbers (STATE-0001 to STATE-0005, STATE-BWC-0009, DEF-DEP-0018) so every factual claim is anchored to the record.',
+      'Click Import File (or drag-and-drop) to ingest .docx (preserving headings, legal numbering, tables, footnotes, Word Tracked Changes, and comments), .pdf, .xlsx, .csv, .rtf, .txt, and .md files.',
+      'Click Sync Folder (or link a local folder in Matter Settings) so new supplemental disclosures saved into your matter folder on disk are automatically indexed.',
     ],
     keyHighlight:
-      'Pinpoint Citations: Claims cite exact Bates numbers, video timestamps, and transcript lines.',
+      'Multi-Format Intake & Folder Auto-Sync: Import Word, PDF, and spreadsheet exhibits directly or auto-sync from a local case folder.',
     cardPlacement: 'bottom-left',
     preferredTab: 'corpus',
   },
   {
     id: 'agents_composer',
     targetSelector: '#tour-composer',
-    title: '2. Drafting & Practice Tasks',
-    subtitle: 'Profiles & Task Focus',
-    category: 'Drafting',
+    title: '2. Grounded Drafting & Client PII Shield',
+    subtitle: 'Practitioner Profiles, Frontier Models & Confidentiality',
+    category: 'Drafting & Privacy',
     icon: <Send className="w-5 h-5 text-amber-400" />,
     content: [
-      'Use the composer below to draft. Select your Practitioner Profile (e.g., Criminal Defense vs. General Practice).',
-      'Choose a Practice Task (e.g., Suppression & Art. 11, Bail, or Discovery) to focus the legal analysis.',
-      'Pick a connected assistant (such as OpenAI Codex, Claude, or Gemini) or the local assistant.',
+      'Use the vertically resizable composer to draft motions, briefs, or memos, or attach exhibits directly from the prompt bar.',
+      'Select your Practice Task (e.g., Suppression & Art. 11, Bail, or Discovery) and preferred assistant (OpenAI Codex, Claude, Gemini, or Built-In Assistant).',
+      'Substantive drafting stays on your chosen frontier model, while the Privileged PII Shield automatically scrubs client names, SSNs, DOBs, and addresses before cloud dispatch and restores them locally.',
     ],
     keyHighlight:
-      'Legal Focus: Precedents like State v. Sprague and State v. Bauder are applied automatically.',
+      'Privileged PII Shield: Client identifiers are masked before leaving your machine while Bates stamps and citations stay intact.',
     cardPlacement: 'top-left',
   },
   {
     id: 'adversarial_review_gate',
     targetSelector: '#tour-review-gate',
-    title: '3. Peer Review',
-    subtitle: 'Citation Checks & Counterarguments',
-    category: 'Review',
+    title: '3. Peer Review & Checkpoint Issue Branching',
+    subtitle: 'Citation Auditor, Opposing Counsel & Spin Off Issue',
+    category: 'Peer Review',
     icon: <Gavel className="w-5 h-5 text-amber-400" />,
     content: [
-      'Drafts can undergo automatic review before presentation.',
-      'Two review checks run in parallel:',
-      '• Citation Auditor: Verifies citations and checks state authority primacy.',
-      '• Opposing Perspective: Anticipates counterarguments and procedural issues.',
-      'The assistant addresses objections and provides a redline.',
+      'Every draft can run through two independent review checks in parallel before you finish:',
+      '• Citation & Record Auditor: Verifies Bates pinpoints, transcript timestamps, and controlling forum authorities.',
+      '• Opposing Counsel Review: Challenges weak inferences and procedural gaps so the draft cures objections automatically.',
+      'Click the quiet "Worked for..." trace line to inspect review objections and PII masking, or click "Spin Off Issue" on any response to branch a focused inquiry from that checkpoint.',
     ],
     keyHighlight:
-      'Automated Review: Uncited claims and counterarguments are flagged before counsel review.',
+      'Second-Chair Review & Spin Off Issue: Catch citation and record errors automatically or branch any turn into a dedicated Case Issue.',
     cardPlacement: 'center',
   },
   {
     id: 'work_product_editing',
     targetSelector: '#tour-redline-pane',
-    title: '4. Documents & Redlines',
-    subtitle: 'Versions & In-Place Edits',
-    category: 'Editing',
+    title: '4. Redlines, Master Brief Synthesis & Word (.docx) Export',
+    subtitle: 'In-Place Editing, Tracked Changes & Margin Comments',
+    category: 'Redlines & Export',
     icon: <BookOpen className="w-5 h-5 text-amber-400" />,
     content: [
-      'Inspect drafts in the right pane and toggle versions to view redlines.',
-      'Edit document text directly at any time.',
-      'Editing a reviewed document marks it "Changed • Needs Review" with a 1-click button to re-run review.',
+      'Inspect drafts in the right pane, compare pre- and post-review versions side by side, and edit text in-place at any time.',
+      'Use the Case Issues section in the top summary card to incorporate individual issue findings or click "Synthesize Master Brief" to combine multiple Case Issues into a single consolidated pleading.',
+      'Click "Export .docx" to export any draft or redline to Microsoft Word with native Word Tracked Changes and peer-review objections attached as margin comments.',
     ],
     keyHighlight:
-      'Direct Editing: Edit text directly and re-run reviews on demand.',
+      'Native Word (.docx) Export & Master Brief Synthesis: Combine Case Issues into a Master Brief and export native Word redlines with comments.',
     cardPlacement: 'bottom-right',
     preferredTab: 'redline',
   },
   {
     id: 'governance_settings',
     targetSelector: '#tour-settings-button',
-    title: '5. Settings & Next Steps',
-    subtitle: 'Configure Anytime',
-    category: 'Settings',
+    title: '5. Settings, Assistants & PII Shield Inspector',
+    subtitle: 'Customize Prompts, CourtListener & Privacy Anytime',
+    category: 'Settings & Governance',
     icon: <Settings2 className="w-5 h-5 text-amber-400" />,
     content: [
-      'Workflow: Documents → Drafting → Review → Editing.',
-      'Configure practice rules, research tools, and models in Settings.',
-      'Reopen this tour anytime from the top bar or Settings.',
+      'Use the bottom-left utility bar to open Settings (customizing Practitioner Profiles and 4-layer legal system prompts), Connected Assistants (Codex, Claude, Antigravity & CourtListener), and the Decision & PII Shield Inspector (Cmd+Shift+D).',
+      'Reopen this Interactive Guided Tour anytime via the sparkles icon in the lower-left bar or from Settings.',
     ],
     keyHighlight:
-      'Tour Complete: Keep exploring the sample case or close it to start your own matters.',
+      'Tour Complete: Keep exploring the sample casework and its Case Issues, or close it to work on your own matters.',
     cardPlacement: 'center',
   },
 ];

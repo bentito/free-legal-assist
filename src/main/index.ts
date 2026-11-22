@@ -11,6 +11,7 @@ import {
   parseDocumentBuffer,
   SUPPORTED_IMPORT_EXTENSIONS,
 } from './tools/DocxParser';
+import { MatterFolderWatcher } from './tools/MatterFolderWatcher';
 import {
   AdversarialConfig,
   AdversarialReviewMode,
@@ -20,9 +21,11 @@ import {
   CustomLegalMcpServer,
   DocumentCategory,
   ExportDocxPayload,
+  FolderSyncResult,
   LLMProviderId,
   Matter,
   MatterDocument,
+  MatterIssue,
   ParsedDocxPreview,
   PracticeAreaId,
   PractitionerProfileId,
@@ -34,6 +37,7 @@ import {
 let mainWindow: BrowserWindow | null = null;
 let db: LegalDatabase;
 let agentLoop: LegalAgentLoop;
+let folderWatcher: MatterFolderWatcher;
 let activeMatterId = '';
 
 function createSafeStorageEncryptor(): SecretEncryptor {
@@ -74,6 +78,18 @@ function buildBootstrapState(): AppBootstrapState {
     db.setLastActiveMatterId(activeMatterId);
   }
 
+  if (folderWatcher && activeMatterId && folderWatcher.getWatchedMatterId() !== activeMatterId) {
+    folderWatcher.watchMatter(activeMatterId, (result) => {
+      mainWindow?.webContents.send('legal:matter-folder-synced', {
+        result,
+        state: buildBootstrapState(),
+      });
+    });
+  }
+
+  const issues = activeMatterId ? db.listIssues(activeMatterId) : [];
+  const allIssues = db.listAllIssues();
+  const activeIssueId = activeMatterId ? db.getActiveIssueId(activeMatterId) : null;
   const messages = activeMatterId ? db.listMessages(activeMatterId) : [];
   const documents = activeMatterId ? db.listDocuments(activeMatterId) : [];
   const documentVersions = activeMatterId ? db.listDocumentVersions(activeMatterId) : [];
@@ -110,6 +126,9 @@ function buildBootstrapState(): AppBootstrapState {
   return {
     matters,
     activeMatterId,
+    issues,
+    allIssues,
+    activeIssueId,
     messages,
     documents,
     documentVersions,
@@ -206,6 +225,225 @@ function registerIpcHandlers(): void {
     'legal:update-matter',
     async (_event, payload: UpdateMatterPayload) => {
       db.updateMatter(payload);
+      if (folderWatcher && payload.matterId === activeMatterId) {
+        folderWatcher.watchMatter(payload.matterId, (result) => {
+          mainWindow?.webContents.send('legal:matter-folder-synced', {
+            result,
+            state: buildBootstrapState(),
+          });
+        });
+      }
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:sync-matter-folder',
+    async (
+      _event,
+      payload: { matterId: string }
+    ): Promise<{
+      result: FolderSyncResult;
+      state: AppBootstrapState;
+    }> => {
+      const result = folderWatcher.syncMatterFolder(payload.matterId);
+      return {
+        result,
+        state: buildBootstrapState(),
+      };
+    }
+  );
+
+  ipcMain.handle(
+    'legal:pick-matter-folder',
+    async (
+      _event,
+      payload: { matterId: string }
+    ): Promise<{
+      chosenPath: string | null;
+      result?: FolderSyncResult;
+      state: AppBootstrapState;
+    }> => {
+      const dialogOptions = {
+        title: 'Select Local Matter Folder for Discovery Auto-Sync',
+        properties: ['openDirectory' as const, 'createDirectory' as const],
+      };
+      const dialogRes = mainWindow
+        ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
+
+      if (dialogRes.canceled || dialogRes.filePaths.length === 0) {
+        return {
+          chosenPath: null,
+          state: buildBootstrapState(),
+        };
+      }
+
+      const chosenPath = dialogRes.filePaths[0];
+      const existing = db.getMatter(payload.matterId);
+      if (existing) {
+        db.updateMatter({
+          matterId: existing.id,
+          name: existing.name,
+          clientName: existing.clientName,
+          matterNumber: existing.matterNumber,
+          practiceArea: existing.practiceArea,
+          jurisdiction: existing.jurisdiction,
+          citationStyle: existing.citationStyle,
+          folderPath: chosenPath,
+          settled: existing.settled,
+        });
+      }
+
+      const syncResult = folderWatcher.watchMatter(payload.matterId, (res) => {
+        mainWindow?.webContents.send('legal:matter-folder-synced', {
+          result: res,
+          state: buildBootstrapState(),
+        });
+      });
+
+      return {
+        chosenPath,
+        result: syncResult,
+        state: buildBootstrapState(),
+      };
+    }
+  );
+
+  ipcMain.handle(
+    'legal:create-issue',
+    async (
+      _event,
+      payload: {
+        matterId: string;
+        title: string;
+        practiceArea?: PracticeAreaId;
+        description?: string;
+        specialistRole?: string;
+        parentIssueId?: string;
+      }
+    ) => {
+      const matter = db.getMatter(payload.matterId);
+      const now = new Date().toISOString();
+      const newIssue: MatterIssue = {
+        id: `issue-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        matterId: payload.matterId,
+        title: payload.title.trim() || 'Case Issue Analysis',
+        practiceArea: payload.practiceArea || matter?.practiceArea || 'vt_suppression_art11',
+        description: payload.description?.trim() || undefined,
+        specialistRole: payload.specialistRole?.trim() || undefined,
+        parentIssueId: payload.parentIssueId,
+        status: 'open',
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.insertIssue(newIssue);
+      db.setActiveIssueId(payload.matterId, newIssue.id);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:select-issue',
+    async (
+      _event,
+      payload: { matterId: string; issueId: string | null }
+    ) => {
+      if (payload.matterId && payload.matterId !== activeMatterId) {
+        activeMatterId = payload.matterId;
+        db.setLastActiveMatterId(payload.matterId);
+      }
+      db.setActiveIssueId(payload.matterId, payload.issueId);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:fork-issue',
+    async (
+      _event,
+      payload: {
+        matterId: string;
+        sourceIssueId?: string | null;
+        upToMessageId?: string;
+        title: string;
+        practiceArea?: PracticeAreaId;
+        specialistRole?: string;
+        description?: string;
+        relationshipToParent?: 'fork' | 'specialist';
+      }
+    ) => {
+      if (payload.matterId && payload.matterId !== activeMatterId) {
+        activeMatterId = payload.matterId;
+        db.setLastActiveMatterId(payload.matterId);
+      }
+      db.forkIssue(payload);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:settle-issue',
+    async (
+      _event,
+      payload: { issueId: string; settled: boolean }
+    ) => {
+      const updated = db.setIssueSettled(payload.issueId, payload.settled);
+      if (
+        payload.settled &&
+        updated &&
+        db.getActiveIssueId(updated.matterId) === payload.issueId
+      ) {
+        db.setActiveIssueId(updated.matterId, null);
+      }
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:merge-back-issue',
+    async (
+      _event,
+      payload: {
+        issueId: string;
+        targetIssueId?: string | null;
+      }
+    ) => {
+      await agentLoop.mergeBackIssue({
+        ...payload,
+        onProgress: (progressEvent) => {
+          mainWindow?.webContents.send('legal:agent-progress', progressEvent);
+        },
+      });
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:delete-issue',
+    async (_event, payload: { issueId: string }) => {
+      db.deleteIssue(payload.issueId);
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:synthesize-master-brief',
+    async (
+      _event,
+      payload: {
+        matterId: string;
+        issueIds?: string[];
+        briefTitle?: string;
+      }
+    ) => {
+      await agentLoop.synthesizeMasterBrief({
+        ...payload,
+        onProgress: (progressEvent) => {
+          mainWindow?.webContents.send('legal:agent-progress', progressEvent);
+        },
+      });
+      db.setActiveIssueId(payload.matterId, null);
       return buildBootstrapState();
     }
   );
@@ -279,6 +517,7 @@ function registerIpcHandlers(): void {
       _event,
       payload: {
         matterId: string;
+        issueId?: string;
         userPrompt: string;
         overrideReviewMode?: AdversarialReviewMode;
         overridePracticeAreaId?: PracticeAreaId;
@@ -286,8 +525,13 @@ function registerIpcHandlers(): void {
         overridePrimaryModel?: string;
       }
     ) => {
+      const effectiveIssueId =
+        payload.issueId !== undefined
+          ? payload.issueId
+          : db.getActiveIssueId(payload.matterId) || undefined;
       await agentLoop.runTurn({
         ...payload,
+        issueId: effectiveIssueId,
         onProgress: (progressEvent) => {
           mainWindow?.webContents.send('legal:agent-progress', progressEvent);
         },
@@ -844,6 +1088,7 @@ app.whenReady().then(async () => {
   await db.initialize();
   await AncillaryModelManager.getInstance(db).initialize();
   agentLoop = new LegalAgentLoop(db);
+  folderWatcher = new MatterFolderWatcher(db);
 
   registerIpcHandlers();
   await createWindow();
