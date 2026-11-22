@@ -29,8 +29,8 @@ Our security model is built around **local-first control and transparency**.
 
 | Version | Supported |
 | :--- | :--- |
-| **0.7.x (Latest)** | ✅ Yes |
-| < 0.7.0 | ❌ Upgrade to latest release |
+| **0.8.x (Latest)** | ✅ Yes |
+| < 0.8.0 | ❌ Upgrade to latest release |
 
 ---
 
