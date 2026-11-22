@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  Compass,
   Cpu,
   Download,
   ExternalLink,
@@ -29,11 +30,11 @@ import {
   RefreshCw,
   RotateCcw,
   Scale,
+  ScrollText,
   Server,
   ShieldAlert,
   ShieldCheck,
   Sliders,
-  Sparkles,
   Trash2,
   UserCheck,
   Wrench,
@@ -350,7 +351,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-xs text-amber-300 border border-amber-500/40 transition cursor-pointer"
               title="Launch the transparent guided tutorial overlay"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <Compass className="w-3.5 h-3.5 text-amber-400" />
               Guided Tour
             </button>
             <button
@@ -417,7 +418,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <Sparkles className="w-4 h-4 shrink-0" />
+              <ScrollText className="w-4 h-4 shrink-0" />
               <div>
                 <div className="font-semibold">Practice Task Presets</div>
                 <div className="text-[10px] opacity-75">
@@ -529,7 +530,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
                 }`}
               >
-                <Sparkles className="w-4 h-4 shrink-0 text-amber-400" />
+                <Compass className="w-4 h-4 shrink-0 text-amber-400" />
                 <div>
                   <div className="font-semibold">Tour & Sample Case</div>
                   <div className="text-[10px] opacity-75">
@@ -1386,7 +1387,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                         disabled={isInstallingDriver !== null}
                         className="px-3 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-medium text-center transition flex flex-col items-center justify-center gap-1"
                       >
-                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <RefreshCw className="w-4 h-4 text-amber-400" />
                         <span>All Clients</span>
                         <span className="text-[10px] text-amber-300/70">Universal Sync</span>
                       </button>
@@ -1953,7 +1954,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-                        <Sparkles className="w-5 h-5" />
+                        <Compass className="w-5 h-5" />
                       </div>
                       <div>
                         <h3 className="text-base font-semibold text-slate-100">
@@ -1972,7 +1973,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       }}
                       className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs shadow-lg transition active:scale-95 cursor-pointer"
                     >
-                      <Sparkles className="w-4 h-4" />
+                      <Compass className="w-4 h-4" />
                       <span>Start Tour</span>
                     </button>
                   </div>
@@ -2001,7 +2002,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-medium transition cursor-pointer"
                         >
-                          <Sparkles className="w-3.5 h-3.5" />
+                          <Compass className="w-3.5 h-3.5" />
                           <span>Load Sample Case</span>
                         </button>
                       ) : (

@@ -883,23 +883,51 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(rtfDoc?.content).toContain('SCHEDULING ORDER: Discovery closes December 15.');
   });
 
-  it('verifies the Interactive Guided Tour (TOUR_STEPS) has up-to-date coverage of all current features', () => {
-    expect(TOUR_STEPS.length).toBe(6);
-    const selectors = TOUR_STEPS.map((s) => s.targetSelector);
-    expect(selectors).toEqual([
-      '#tour-matter-overview',
-      '#tour-corpus-tab',
-      '#tour-composer',
-      '#tour-review-gate',
-      '#tour-redline-pane',
-      '#tour-settings-button',
-    ]);
+  it('verifies the Interactive Guided Tour (TOUR_STEPS) has up-to-date coverage, an intro card explaining LexHarness vs. chatbots, per-point target selectors, and distinct icons', () => {
+    expect(TOUR_STEPS.length).toBe(7);
 
+    // 1. Verify first card explains LexHarness: harnessing coding agents for legal work & why it beats a chatbot
+    const introCard = TOUR_STEPS[0];
+    expect(introCard.id).toBe('why_lexharness');
+    const introText = `${introCard.title} ${introCard.subtitle} ${introCard.content.join(' ')}`;
+    expect(introText).toContain('Coding Agents');
+    expect(introText).toContain('Chatbot');
+    expect(introCard.points.length).toBeGreaterThanOrEqual(4);
+
+    // 2. Verify every card has per-point target selectors and all referenced #tour-* IDs exist in the renderer UI
+    const appSource = fs.readFileSync(
+      path.join(__dirname, '../../renderer/App.tsx'),
+      'utf8'
+    );
+    const rightPaneSource = fs.readFileSync(
+      path.join(__dirname, '../../renderer/components/RightWorkspacePane.tsx'),
+      'utf8'
+    );
+    const combinedRendererSource = `${appSource}\n${rightPaneSource}`;
+
+    for (const step of TOUR_STEPS) {
+      expect(step.points.length).toBeGreaterThan(0);
+      expect(step.content).toEqual(step.points.map((p) => p.text));
+      const cardId = step.targetSelector.replace(/^#/, '');
+      expect(combinedRendererSource).toContain(cardId);
+
+      for (const pt of step.points) {
+        expect(pt.targetSelector.startsWith('#tour-')).toBe(true);
+        const pointDomId = pt.targetSelector.replace(/^#/, '');
+        expect(combinedRendererSource).toContain(pointDomId);
+      }
+    }
+
+    // 3. Verify unique icons are used for Guided Tour (Compass) vs Sample Legal Prompts (ScrollText), not Sparkles
+    expect(appSource).toContain('<Compass');
+    expect(appSource).toContain('<ScrollText');
+    expect(appSource).not.toContain('<Sparkles');
+
+    // 4. Verify all major features are covered across the tutorial steps
     const combinedText = TOUR_STEPS.map(
       (s) => `${s.title} ${s.subtitle} ${s.content.join(' ')} ${s.keyHighlight || ''}`
     ).join('\n');
 
-    // Verify all major features are covered in the tutorial steps
     expect(combinedText).toContain('Case Issues');
     expect(combinedText).toContain('Settled');
     expect(combinedText).toContain('.docx');

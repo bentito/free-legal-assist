@@ -35,9 +35,11 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  Compass,
   Cpu,
   Download,
   Edit3,
+  FileCheck2,
   FileSearch,
   FileUp,
   FolderPlus,
@@ -49,12 +51,12 @@ import {
   Plus,
   RotateCcw,
   Scale,
+  ScrollText,
   Search,
   Settings,
   Settings2,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   SquarePen,
   Trash2,
   Wrench,
@@ -933,6 +935,7 @@ export const App: React.FC = () => {
             </div>
 
             <button
+              id="tour-new-matter-btn"
               onClick={openNewMatterModal}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05] transition cursor-pointer"
               title="Create New Matter"
@@ -941,6 +944,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
+              id="tour-new-issue-btn"
               onClick={() => openNewIssueDialog()}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05] transition cursor-pointer"
               title="New Case Issue in Active Matter"
@@ -1217,7 +1221,10 @@ export const App: React.FC = () => {
         </div>
 
         {/* LOWER PANE: T3 Code Style "Settled" Matters Drawer (123 settled + Show 25 more) */}
-        <div className="border-t border-white/[0.06] flex flex-col min-h-0 max-h-[46%] shrink-0">
+        <div
+          id="tour-settled-drawer"
+          className="border-t border-white/[0.06] flex flex-col min-h-0 max-h-[46%] shrink-0"
+        >
           <button
             onClick={() => setIsSettledOpen((prev) => !prev)}
             className="w-full px-3.5 py-2 flex items-center justify-between text-[12px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer shrink-0"
@@ -1403,6 +1410,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
+              id="tour-agents-button"
               onClick={() => setIsConnectAgentsOpen(true)}
               className="relative p-1.5 rounded-lg hover:bg-white/[0.05] hover:text-zinc-200 transition cursor-pointer"
               title={`Connected Assistants (${readyAgentsCount} Ready)`}
@@ -1414,6 +1422,7 @@ export const App: React.FC = () => {
             </button>
 
             <button
+              id="tour-routing-button"
               onClick={() => setIsRoutingDrawerOpen((prev) => !prev)}
               className={`p-1.5 rounded-lg hover:bg-white/[0.05] transition cursor-pointer ${
                 isRoutingDrawerOpen ? 'text-emerald-400 bg-white/[0.05]' : 'hover:text-zinc-200'
@@ -1434,7 +1443,7 @@ export const App: React.FC = () => {
               className="p-1.5 rounded-lg hover:bg-white/[0.05] hover:text-amber-300 transition cursor-pointer"
               title="Interactive Guided Tour"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Compass className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -1512,7 +1521,7 @@ export const App: React.FC = () => {
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-[11px] text-zinc-200 transition cursor-pointer disabled:opacity-50"
                 title="Incorporate findings from this Case Issue back into the parent/primary workstream and update the Master Brief"
               >
-                <Sparkles className="w-3 h-3 text-amber-400" />
+                <FileCheck2 className="w-3 h-3 text-amber-400" />
                 <span>Incorporate into Brief</span>
               </button>
             )}
@@ -1562,7 +1571,7 @@ export const App: React.FC = () => {
                     }}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] text-zinc-300 text-xs font-medium border border-white/[0.07] transition cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <Compass className="w-3.5 h-3.5 text-amber-400" />
                     <span>Sample Case Tour</span>
                   </button>
                 </div>
@@ -1572,7 +1581,7 @@ export const App: React.FC = () => {
             {activeMatter && !tutorialBannerDismissed && (
               <div className="px-4 py-2.5 rounded-xl bg-[#121216] border border-white/[0.07] flex items-center justify-between gap-3 text-xs text-zinc-400">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
+                  <Compass className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
                   <span>
                     New to LexHarness? Take the 2-minute tour with sample casework.
                   </span>
@@ -1666,6 +1675,11 @@ export const App: React.FC = () => {
                     {/* T3 Code Style Quiet Collapsible "Worked for ..." Trace Summary Line */}
                     <div className="flex items-center justify-between gap-3">
                       <button
+                        id={
+                          msg.adversarialReviews.length > 0
+                            ? 'tour-trace-summary-btn'
+                            : undefined
+                        }
                         onClick={() =>
                           setExpandedReviewMsgIds((prev) => ({
                             ...prev,
@@ -1723,6 +1737,11 @@ export const App: React.FC = () => {
                           </span>
                         )}
                         <button
+                          id={
+                            msg.adversarialReviews.length > 0
+                              ? 'tour-spin-off-issue-btn'
+                              : undefined
+                          }
                           onClick={() =>
                             openNewIssueDialog({
                               matter: activeMatter,
@@ -1752,6 +1771,11 @@ export const App: React.FC = () => {
                           <span>{isEditingThisMsg ? 'Cancel' : 'Edit'}</span>
                         </button>
                         <button
+                          id={
+                            msg.adversarialReviews.length > 0
+                              ? 'tour-export-docx-msg-btn'
+                              : undefined
+                          }
                           onClick={async () => {
                             const reviewComments = msg.adversarialReviews.flatMap(
                               (rev) =>
@@ -2119,15 +2143,17 @@ export const App: React.FC = () => {
                 {/* Left Controls: Prompts menu, Practice Task, Quiet PII Shield */}
                 <div className="flex items-center gap-1.5 min-w-0">
                   <button
+                    id="tour-sample-prompts-btn"
                     type="button"
                     onClick={() => setShowSamplePromptsMenu((prev) => !prev)}
                     className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.05] transition cursor-pointer"
                     title="Sample legal prompts"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <ScrollText className="w-3.5 h-3.5" />
                   </button>
 
                   <button
+                    id="tour-composer-import-btn"
                     type="button"
                     disabled={!activeMatter || isRunningTurn}
                     onClick={async () => {
@@ -2167,6 +2193,7 @@ export const App: React.FC = () => {
                   </button>
 
                   <select
+                    id="tour-task-selector"
                     value={turnPracticeArea}
                     onChange={(e) =>
                       setTurnPracticeArea(e.target.value as PracticeAreaId)
@@ -2188,87 +2215,93 @@ export const App: React.FC = () => {
 
                 {/* Right Controls: Agent, Model, Review Mode & Circular Send Button */}
                 <div className="flex items-center gap-2 shrink-0">
-                  <select
-                    value={turnProvider}
-                    onChange={(e) => {
-                      if (e.target.value === '__connect__') {
-                        setIsConnectAgentsOpen(true);
-                        return;
-                      }
-                      handleProviderChange(e.target.value as LLMProviderId);
-                    }}
-                    className="bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] text-zinc-400 hover:text-zinc-200 focus:outline-none cursor-pointer"
-                    title="Select Assistant Provider"
+                  <div
+                    id="tour-model-selector"
+                    className="flex items-center gap-1.5"
                   >
-                    {state.providers
-                      .filter(
-                        (p) =>
-                          p.id === 'legal-simulator' ||
-                          p.hasApiKey ||
-                          Boolean(p.runtimeStatus?.installed) ||
-                          p.id === turnProvider
-                      )
-                      .map((p) => (
+                    <select
+                      value={turnProvider}
+                      onChange={(e) => {
+                        if (e.target.value === '__connect__') {
+                          setIsConnectAgentsOpen(true);
+                          return;
+                        }
+                        handleProviderChange(e.target.value as LLMProviderId);
+                      }}
+                      className="bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] text-zinc-400 hover:text-zinc-200 focus:outline-none cursor-pointer"
+                      title="Select Assistant Provider"
+                    >
+                      {state.providers
+                        .filter(
+                          (p) =>
+                            p.id === 'legal-simulator' ||
+                            p.hasApiKey ||
+                            Boolean(p.runtimeStatus?.installed) ||
+                            p.id === turnProvider
+                        )
+                        .map((p) => (
+                          <option
+                            key={p.id}
+                            value={p.id}
+                            className="bg-[#131317] text-zinc-200"
+                          >
+                            {formatAgentLabel(p)}
+                          </option>
+                        ))}
+                      <option
+                        value="__connect__"
+                        className="bg-[#131317] text-amber-300"
+                      >
+                        + Connect Agents...
+                      </option>
+                    </select>
+
+                    <select
+                      value={turnModel}
+                      onChange={(e) => handleModelChange(e.target.value)}
+                      className="bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] font-mono text-zinc-300 focus:outline-none cursor-pointer max-w-[155px] truncate"
+                      title="Select Model"
+                    >
+                      {availableModelsForTurnProvider.map((m) => (
                         <option
-                          key={p.id}
-                          value={p.id}
-                          className="bg-[#131317] text-zinc-200"
+                          key={m.id}
+                          value={m.id}
+                          className="bg-[#131317] text-zinc-200 font-sans"
                         >
-                          {formatAgentLabel(p)}
+                          {m.label}
                         </option>
                       ))}
-                    <option
-                      value="__connect__"
-                      className="bg-[#131317] text-amber-300"
-                    >
-                      + Connect Agents...
-                    </option>
-                  </select>
+                    </select>
 
-                  <select
-                    value={turnModel}
-                    onChange={(e) => handleModelChange(e.target.value)}
-                    className="bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] font-mono text-zinc-300 focus:outline-none cursor-pointer max-w-[155px] truncate"
-                    title="Select Model"
-                  >
-                    {availableModelsForTurnProvider.map((m) => (
+                    <select
+                      id="tour-review-mode-selector"
+                      value={turnReviewMode}
+                      onChange={(e) =>
+                        setTurnReviewMode(e.target.value as AdversarialReviewMode)
+                      }
+                      className="hidden md:inline-block bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] text-zinc-400 hover:text-zinc-200 focus:outline-none cursor-pointer"
+                      title="Peer Review Mode"
+                    >
                       <option
-                        key={m.id}
-                        value={m.id}
-                        className="bg-[#131317] text-zinc-200 font-sans"
+                        value="multi_llm_default"
+                        className="bg-[#131317] text-zinc-200"
                       >
-                        {m.label}
+                        Peer Review
                       </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={turnReviewMode}
-                    onChange={(e) =>
-                      setTurnReviewMode(e.target.value as AdversarialReviewMode)
-                    }
-                    className="hidden md:inline-block bg-transparent hover:bg-white/[0.04] px-1.5 py-1 rounded-md text-[11.5px] text-zinc-400 hover:text-zinc-200 focus:outline-none cursor-pointer"
-                    title="Peer Review Mode"
-                  >
-                    <option
-                      value="multi_llm_default"
-                      className="bg-[#131317] text-zinc-200"
-                    >
-                      Peer Review
-                    </option>
-                    <option
-                      value="single_critic"
-                      className="bg-[#131317] text-zinc-200"
-                    >
-                      Quick Check
-                    </option>
-                    <option
-                      value="direct_bypass"
-                      className="bg-[#131317] text-zinc-200"
-                    >
-                      Direct
-                    </option>
-                  </select>
+                      <option
+                        value="single_critic"
+                        className="bg-[#131317] text-zinc-200"
+                      >
+                        Quick Check
+                      </option>
+                      <option
+                        value="direct_bypass"
+                        className="bg-[#131317] text-zinc-200"
+                      >
+                        Direct
+                      </option>
+                    </select>
+                  </div>
 
                   <button
                     disabled={isRunningTurn || !promptInput.trim()}

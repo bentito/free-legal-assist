@@ -393,7 +393,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
       ) : (
         <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-3 space-y-3">
           {/* Calm Legal Matter & Case File Summary Card */}
-          <div className="rounded-xl bg-[#121216] border border-white/[0.07] p-3 space-y-2.5 text-[12px] shadow-sm shrink-0">
+          <div
+            id="tour-summary-card"
+            className="rounded-xl bg-[#121216] border border-white/[0.07] p-3 space-y-2.5 text-[12px] shadow-sm shrink-0"
+          >
             {/* Row 1: Court Forum (Click to edit matter settings) */}
             <button
               onClick={() => activeMatter && onEditMatter?.(activeMatter)}
@@ -440,6 +443,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               <div className="flex items-center gap-1 shrink-0">
                 {onSyncMatterFolder && (
                   <button
+                    id="tour-sync-folder-btn"
                     onClick={onSyncMatterFolder}
                     title={`Sync discovery files from local matter folder (${activeMatter?.folderPath || 'choose folder'})`}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.1] text-[10.5px] text-zinc-300 transition cursor-pointer shrink-0"
@@ -449,6 +453,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                   </button>
                 )}
                 <button
+                  id="tour-import-file-btn"
                   onClick={handlePickDocxClick}
                   disabled={isParsingDocx}
                   title="Import document or exhibit (.docx, .pdf, .txt, .rtf, .csv, .xlsx)"
@@ -487,7 +492,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
             <div className="border-t border-white/[0.06] my-1" />
 
             {/* Row 5: Peer Review Panel (Tucked Away) */}
-            <div className="space-y-1.5">
+            <div id="tour-peer-review-panel" className="space-y-1.5">
               <button
                 onClick={() => setIsReviewPanelExpanded((v) => !v)}
                 className="w-full flex items-center justify-between gap-2 py-0.5 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
@@ -542,7 +547,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
             {(issues.length > 0 || onNewIssue) && (
               <>
                 <div className="border-t border-white/[0.06] my-1" />
-                <div className="space-y-1.5">
+                <div id="tour-case-issues-lineage" className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2 py-0.5">
                     <button
                       onClick={() => setIsIssuesLineageExpanded((v) => !v)}
@@ -681,6 +686,7 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
                 Exhibits ({documents.length})
               </button>
               <button
+                id="tour-chronology-tab"
                 onClick={() => {
                   setActiveTab('chronology');
                   setIsInspectorDetailOpen(true);
@@ -717,7 +723,10 @@ export const RightWorkspacePane: React.FC<RightWorkspacePaneProps> = ({
               {/* TAB 1: REDLINE & VERSIONS */}
               {activeTab === 'redline' && (
                 <div id="tour-redline-pane" className="space-y-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div
+                    id="tour-redline-version-bar"
+                    className="flex items-center justify-between gap-2"
+                  >
                     <select
                       value={activeVersion?.id || ''}
                       onChange={(e) => setSelectedVersionId(e.target.value)}
