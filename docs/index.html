@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LexHarness — Free, Open-Source Legal Drafting Workspace for Solo & Small-Firm Lawyers</title>
-  <meta name="description" content="LexHarness is a free, local-first legal drafting and review workspace built to help solo practitioners and small law firms safely put AI to work for their clients." />
+  <title>LexHarness — Repurposing Coding Agents for Legal Work | Interactive Web Tour & Downloads</title>
+  <meta name="description" content="LexHarness repurposes software engineering coding agents (OpenAI Codex, Claude Code, Antigravity) for legal work using layered system prompts, Bates-indexed discovery, and parallel peer review. Try the interactive web tour in your browser." />
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" />
-  
+
   <!-- OpenGraph / Social Cards -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="LexHarness — Free, Open-Source Legal AI Workspace" />
-  <meta property="og:description" content="Grounded in discovery, checked by second-chair review, and kept private on your machine. Built for solo practitioners and small law firms." />
+  <meta property="og:title" content="LexHarness — Repurposing Coding Agents for Legal Work" />
+  <meta property="og:description" content="Grounded in discovery exhibits, audited by second-chair & opposing counsel review, and protected by a local PII shield. Try the interactive web tour." />
   <meta property="og:image" content="https://raw.githubusercontent.com/bentito/free-legal-assist/main/docs/assets/social-preview.png" />
   <meta property="og:url" content="https://bentito.github.io/free-legal-assist/" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="LexHarness — Free, Open-Source Legal AI Workspace" />
-  <meta name="twitter:description" content="Grounded in discovery, checked by second-chair review, and kept private on your machine. Built for solo practitioners and small law firms." />
+  <meta name="twitter:title" content="LexHarness — Repurposing Coding Agents for Legal Work" />
+  <meta name="twitter:description" content="Grounded in discovery exhibits, audited by second-chair & opposing counsel review, and protected by a local PII shield. Try the interactive web tour." />
   <meta name="twitter:image" content="https://raw.githubusercontent.com/bentito/free-legal-assist/main/docs/assets/social-preview.png" />
-  
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -37,20 +37,30 @@
       }
     }
   </script>
+  <style>
+    #web-tour-spotlight {
+      transition: top 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  left 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  height 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.2s ease;
+    }
+  </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
 
   <!-- Navigation -->
-  <nav class="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+  <nav class="border-b border-slate-800/80 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
       <div class="flex items-center space-x-3">
         <img src="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" alt="LexHarness" class="w-9 h-9 rounded-lg" />
         <span class="text-xl font-bold tracking-tight text-white">LexHarness</span>
-        <span class="hidden sm:inline-block px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">v0.8.1 Free & Open Source</span>
+        <span class="hidden sm:inline-block px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">v0.8.2 Free & Open Source</span>
       </div>
       <div class="flex items-center space-x-4 text-sm font-medium">
-        <a href="#features" class="text-slate-400 hover:text-slate-200 transition">Features</a>
-        <a href="#comparison" class="text-slate-400 hover:text-slate-200 transition">vs. Chatbots</a>
+        <a href="#tour" class="text-amber-400 hover:text-amber-300 font-semibold transition">Interactive Tour</a>
+        <a href="#tour-guide" class="hidden md:inline text-slate-400 hover:text-slate-200 transition">7-Step Guide</a>
+        <a href="#comparison" class="hidden sm:inline text-slate-400 hover:text-slate-200 transition">Agents vs. Chatbots</a>
         <a href="#downloads" class="text-slate-400 hover:text-slate-200 transition">Downloads</a>
         <a href="https://github.com/bentito/free-legal-assist" target="_blank" rel="noopener" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition">
           <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -61,87 +71,766 @@
   </nav>
 
   <!-- Hero Section -->
-  <header class="relative overflow-hidden pt-16 pb-20 md:pt-24 md:pb-32 border-b border-slate-850">
+  <header class="relative overflow-hidden pt-12 pb-14 md:pt-16 md:pb-20 border-b border-slate-900">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-      <div class="inline-flex items-center space-x-2 px-3 py-1 mb-8 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold uppercase tracking-wider">
-        <span>⚖️ Legal AI for Solo & Small-Firm Practitioners</span>
+      <div class="inline-flex items-center space-x-2 px-3 py-1 mb-6 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold uppercase tracking-wider">
+        <span>⚖️ Repurposing Coding Agents for Legal Work</span>
       </div>
       <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight">
-        Safely put AI to work for your clients. <br class="hidden sm:inline" />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500">Without big-firm budgets.</span>
+        Coding agents are built for task work. <br class="hidden sm:inline" />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500">Put them to work on your case file.</span>
       </h1>
-      <p class="mt-6 text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
-        LexHarness is a free desktop workspace that grounds AI drafting in your actual case exhibits, stress-tests arguments with automatic peer review, and keeps privileged client files on your computer.
+      <p class="mt-5 text-base sm:text-lg text-slate-300 max-w-3xl mx-auto leading-relaxed">
+        Chatbots generate single-shot replies from memory. Coding agents (<strong class="text-white">OpenAI Codex</strong>, <strong class="text-white">Claude Code</strong>, and <strong class="text-white">Antigravity</strong>) are engineered to search file repositories, verify exact line citations, and iteratively revise drafts. LexHarness repurposes them from software engineering to legal practice using layered system prompts in Settings—shipping today with <strong class="text-amber-300">Vermont Criminal Defense</strong> and <strong class="text-amber-300">General Legal Practice</strong> profiles, with many more locales and practice areas coming soon.
       </p>
 
-      <!-- 1-Click Download Buttons -->
-      <div id="downloads" class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.8.1/LexHarness-0.8.1-arm64.dmg" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 text-base font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-lg shadow-amber-500/20 transition transform hover:-translate-y-0.5">
-          <svg class="w-5 h-5 mr-2.5 fill-current" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.85.94-2.93-.91.04-2.02.61-2.67 1.37-.58.67-.99 1.77-.96 2.84 1.02.08 2.06-.51 2.69-1.28z"/></svg>
+      <!-- 1-Click Download & Web Tour Buttons -->
+      <div id="downloads" class="mt-8 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3.5">
+        <a href="#tour" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl shadow-lg transition">
+          <span class="mr-2">🧭</span>
+          Try Interactive Web Tour Below
+        </a>
+        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness-0.8.2-arm64.dmg" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-lg shadow-amber-500/20 transition transform hover:-translate-y-0.5">
+          <svg class="w-4 h-4 mr-2 fill-current" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.85.94-2.93-.91.04-2.02.61-2.67 1.37-.58.67-.99 1.77-.96 2.84 1.02.08 2.06-.51 2.69-1.28z"/></svg>
           Download for Mac (.dmg)
         </a>
-        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.8.1/LexHarness.Setup.0.8.1.exe" class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3.5 text-base font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
-          <svg class="w-5 h-5 mr-2.5 fill-current text-sky-400" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/></svg>
+        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness.Setup.0.8.2.exe" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+          <svg class="w-4 h-4 mr-2 fill-current text-sky-400" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/></svg>
           Download for Windows (.exe)
         </a>
       </div>
-      <p class="mt-4 text-xs text-slate-400">
-        Free & open-source under Apache 2.0 • Pre-loaded with mock casework • No credit card or API keys required to test
+      <p class="mt-3.5 text-xs text-slate-400">
+        Apache 2.0 Open Source • Includes pre-loaded sample matter (<em>John Doe v. State of Vermont</em>) • Works offline out of the box
       </p>
     </div>
   </header>
+
+  <!-- ===================================================================== -->
+  <!-- INTERACTIVE WEB TUTORIAL & LIVE WORKSPACE SIMULATOR                   -->
+  <!-- ===================================================================== -->
+  <section id="tour" class="py-12 border-b border-slate-900 bg-[#07070a]">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
+      <!-- Section Header & Quick Card Selector Bar -->
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <div class="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">
+            <span>🧭 Interactive Guided Tour (No Download Needed)</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-1">
+            Step Through the Live LexHarness Workspace
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-400 mt-0.5">
+            Click <strong class="text-amber-300">Next Point</strong> (or press <kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">→</kbd>) to spotlight each control and open the live Settings &amp; Agent Setup dialogs.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            id="web-tour-toggle-btn"
+            type="button"
+            onclick="toggleWebTourOverlay()"
+            class="px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-semibold transition cursor-pointer"
+          >
+            Hide Tour Card (Explore UI Freely)
+          </button>
+          <button
+            type="button"
+            onclick="resetWebTour()"
+            class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium transition cursor-pointer"
+          >
+            Restart Tour
+          </button>
+        </div>
+      </div>
+
+      <!-- 7 Card Quick-Jump Pills -->
+      <div id="web-tour-card-pills" class="flex flex-wrap items-center gap-1.5"></div>
+
+      <!-- Simulated macOS Desktop Window -->
+      <div id="web-workspace-stage" class="relative rounded-2xl border border-slate-800 bg-[#0b0b0e] shadow-2xl overflow-hidden min-h-[680px] flex select-none">
+
+        <!-- LEFT SIDEBAR: Matters, Case Issues & Settled Drawer -->
+        <aside class="w-[248px] shrink-0 bg-[#09090b] border-r border-white/[0.06] flex flex-col justify-between">
+          <div>
+            <!-- macOS traffic lights + App Title -->
+            <div class="h-9 px-3 flex items-center justify-between border-b border-white/[0.04]">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400/80"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+                <span class="ml-2 text-xs font-semibold text-zinc-200">LexHarness</span>
+              </div>
+              <span class="text-[10px] font-mono text-amber-400/90">VT-Defense</span>
+            </div>
+
+            <!-- Search & New Matter / New Issue Buttons -->
+            <div class="p-2 flex items-center gap-1">
+              <div class="flex-1 px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-500">
+                Search matters...
+              </div>
+              <button
+                id="tour-new-matter-btn"
+                type="button"
+                title="Create New Matter"
+                class="p-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 text-xs"
+              >
+                📁+
+              </button>
+              <button
+                id="tour-new-issue-btn"
+                type="button"
+                title="New Case Issue in Active Matter"
+                class="p-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 text-xs"
+              >
+                ✏️
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Matters & Nested Case Issues -->
+          <div id="tour-matter-overview" class="flex-1 px-2 py-1 space-y-1.5 overflow-y-auto">
+            <div class="p-2.5 rounded-xl bg-[#18181d] border border-white/[0.08] text-left space-y-1">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">JD</span>
+                  <span class="text-[11px] text-zinc-400">John Doe (Sample)</span>
+                </div>
+                <span class="text-[10px] text-emerald-400 font-mono">Active</span>
+              </div>
+              <div class="text-xs font-semibold text-zinc-100">John Doe v. State of Vermont</div>
+              <div class="flex items-center justify-between text-[10px] text-zinc-500">
+                <span>Suppression &amp; Art. 11</span>
+                <span class="font-mono">25-CR-00123</span>
+              </div>
+            </div>
+
+            <!-- Nested Case Issue 1 -->
+            <div class="ml-3 pl-2.5 pr-2 py-2 rounded-xl border-l-2 border-amber-400/70 bg-white/[0.02] space-y-0.5">
+              <div class="flex items-center justify-between text-[10px] text-zinc-500">
+                <span>Case Issue • Impeachment</span>
+                <span class="font-mono text-amber-300">Open</span>
+              </div>
+              <div class="text-[11.5px] font-medium text-zinc-200">
+                Trooper Keller BWC Impeachment Matrix
+              </div>
+            </div>
+
+            <!-- Nested Case Issue 2 -->
+            <div class="ml-3 pl-2.5 pr-2 py-2 rounded-xl border-l border-white/[0.1] bg-white/[0.01] space-y-0.5">
+              <div class="flex items-center justify-between text-[10px] text-zinc-500">
+                <span>Case Issue • Art. 11</span>
+                <span class="font-mono text-zinc-400">Open</span>
+              </div>
+              <div class="text-[11.5px] font-medium text-zinc-300">
+                Bauder Locked Console Warrantless Search
+              </div>
+            </div>
+
+            <!-- Secondary Matter -->
+            <div class="p-2.5 rounded-xl hover:bg-white/[0.03] text-left space-y-1 opacity-75">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1.5">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">AB</span>
+                  <span class="text-[11px] text-zinc-400">Apex Biometrics</span>
+                </div>
+                <span class="text-[10px] text-zinc-500">2d</span>
+              </div>
+              <div class="text-xs font-medium text-zinc-300 truncate">Apex Biometrics v. Meridian Cloud</div>
+            </div>
+          </div>
+
+          <!-- Settled Drawer -->
+          <div id="tour-settled-drawer" class="border-t border-white/[0.06] px-3 py-2 space-y-1">
+            <div class="flex items-center justify-between text-[11px] text-zinc-400 font-medium">
+              <span>Settled</span>
+              <span class="font-mono text-zinc-500">2 ▾</span>
+            </div>
+            <div class="text-[11px] text-zinc-500 truncate py-0.5">
+              • Rule 15 Deposition Notice (Synthesized)
+            </div>
+            <div class="text-[11px] text-zinc-500 truncate py-0.5">
+              • Initial Arraignment Conditions (§ 7554)
+            </div>
+          </div>
+
+          <!-- Bottom Left Utility Bar -->
+          <div class="h-10 px-3 border-t border-white/[0.06] flex items-center justify-between text-zinc-400">
+            <div class="flex items-center gap-1.5">
+              <button
+                id="tour-settings-button"
+                type="button"
+                onclick="openSimulatedDialog('settings', 'layer1_core')"
+                title="Settings &amp; Practitioner Profiles"
+                class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-amber-300 text-xs cursor-pointer"
+              >
+                ⚙️
+              </button>
+              <button
+                id="tour-agents-button"
+                type="button"
+                onclick="openSimulatedDialog('connect_agents')"
+                title="Connected Coding Agents"
+                class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-emerald-300 text-xs cursor-pointer"
+              >
+                🔌
+              </button>
+              <button
+                id="tour-routing-button"
+                type="button"
+                onclick="openSimulatedDialog('settings', 'privacy_routing')"
+                title="PII Shield &amp; Routing Inspector"
+                class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-emerald-300 text-xs cursor-pointer"
+              >
+                📊
+              </button>
+              <button
+                id="tour-top-button"
+                type="button"
+                onclick="resetWebTour()"
+                title="Interactive Guided Tour"
+                class="p-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs cursor-pointer"
+              >
+                🧭
+              </button>
+            </div>
+            <span class="text-[10px] font-mono text-zinc-500">v0.8.2</span>
+          </div>
+        </aside>
+
+        <!-- CENTER WORKSPACE: Grounded Legal Stream & Composer -->
+        <main class="flex-1 flex flex-col justify-between min-w-0 bg-[#0b0b0e]">
+          <!-- Breadcrumb Header -->
+          <div class="h-10 px-5 border-b border-white/[0.06] flex items-center justify-between">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">JD</span>
+              <span class="text-zinc-400">John Doe</span>
+              <span class="text-zinc-600">/</span>
+              <span class="font-medium text-zinc-100">John Doe v. State of Vermont (25-CR-00123)</span>
+            </div>
+            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[10px] text-emerald-300 font-mono">
+              PII Shield Active
+            </span>
+          </div>
+
+          <!-- Conversation & Peer-Reviewed Work Product -->
+          <div class="flex-1 p-5 space-y-4 overflow-y-auto">
+            <!-- User Prompt -->
+            <div class="flex justify-end">
+              <div class="max-w-lg px-3.5 py-2 rounded-2xl bg-[#1c1c22] border border-white/[0.07] text-xs text-zinc-200">
+                Draft a V.R.Cr.P. 12(b)(3) Motion to Suppress challenging Trooper Keller's exit order under Chapter I, Article 11 and the warrantless console search, cross-referencing his affidavit against the body-camera transcript.
+              </div>
+            </div>
+
+            <!-- Assistant Response with Adversarial Peer Review Gate -->
+            <div id="tour-review-gate" class="space-y-2.5 p-3.5 rounded-2xl bg-[#111116] border border-white/[0.07]">
+              <!-- Trace & Action Bar -->
+              <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/[0.06]">
+                <button
+                  id="tour-trace-summary-btn"
+                  type="button"
+                  onclick="toggleWebTraceDrawer()"
+                  class="inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                >
+                  <span>Worked for 4s</span>
+                  <span>•</span>
+                  <span>4 corpus searches</span>
+                  <span>•</span>
+                  <span class="text-emerald-400 font-medium">Peer Reviewed (2 checks, 2 cured)</span>
+                  <span>•</span>
+                  <span class="text-emerald-400 font-medium">PII Protected (3)</span>
+                  <span id="web-trace-chevron">▸</span>
+                </button>
+
+                <div class="flex items-center gap-1.5">
+                  <button
+                    id="tour-spin-off-issue-btn"
+                    type="button"
+                    class="px-2 py-0.5 rounded bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[10.5px] text-zinc-300"
+                  >
+                    + Spin Off Issue
+                  </button>
+                  <button
+                    id="tour-export-docx-msg-btn"
+                    type="button"
+                    class="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-[10.5px] text-amber-300 font-medium"
+                  >
+                    ⬇ Export .docx
+                  </button>
+                </div>
+              </div>
+
+              <!-- Collapsible Peer Review Trace Drawer -->
+              <div id="web-trace-drawer" class="hidden grid-cols-1 sm:grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-black/40 border border-white/[0.06] text-[11px]">
+                <div class="p-2.5 rounded-lg bg-white/[0.02] border border-emerald-500/20 space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="font-semibold text-emerald-300">Citation &amp; Record Auditor</span>
+                    <span class="text-[10px] font-mono text-emerald-400">1 Cured</span>
+                  </div>
+                  <p class="text-zinc-400">Verified BWC timestamp <code class="text-sky-300">02:14:38</code> in <code class="text-sky-300">STATE-BWC-0009</code> contradicts Affidavit ¶ 5 (<code class="text-sky-300">STATE-0002</code>).</p>
+                </div>
+                <div class="p-2.5 rounded-lg bg-white/[0.02] border border-amber-500/20 space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="font-semibold text-amber-300">Opposing Counsel Review</span>
+                    <span class="text-[10px] font-mono text-emerald-400">1 Cured</span>
+                  </div>
+                  <p class="text-zinc-400">Flagged State's inevitable-discovery rejoinder; cured by adding <em>State v. Bauder</em>, 2007 VT 16, ¶ 22 warrant requirement.</p>
+                </div>
+              </div>
+
+              <!-- Motion Body Preview -->
+              <div class="space-y-2 text-xs text-zinc-200 leading-relaxed">
+                <div class="font-semibold text-zinc-100 tracking-wide">
+                  STATE OF VERMONT • CHITTENDEN CRIMINAL DIVISION • DOCKET NO. 25-CR-00123
+                </div>
+                <div class="font-semibold text-amber-300/95">
+                  DEFENDANT'S MOTION TO SUPPRESS EVIDENCE &amp; DISMISS (V.R.Cr.P. 12(b)(3) &amp; 12(d))
+                </div>
+                <p>
+                  1. <strong>Unlawful Exit Order Under Chapter I, Article 11:</strong> Unlike federal Fourth Amendment doctrine under <em>Pennsylvania v. Mimms</em>, Vermont Constitution Chapter I, Article 11 requires objective, particularized facts of criminal activity or danger before ordering a motorist from a vehicle (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">2003 VT 20</code>, <em>State v. Sprague</em>).
+                </p>
+                <p>
+                  2. <strong>Record Contradiction in Discovery Exhibits:</strong> While Trooper Keller's Affidavit ¶ 5 (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">STATE-0002</code>) alleges "furtive movement toward the center console prior to the exit command," the Body-Worn Camera transcript (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">STATE-BWC-0009</code> at 02:14:12–02:14:38) and Rule 15 Deposition (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">DEF-DEP-0018</code>, p. 14:6–19) confirm Mr. Doe's hands remained visible on the steering wheel.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Composer -->
+          <div id="tour-composer" class="p-4 border-t border-white/[0.06] bg-[#0d0d11]">
+            <div class="rounded-2xl bg-[#131317] border border-white/[0.09] p-3 space-y-2.5">
+              <div class="text-xs text-zinc-400">
+                Draft a motion, audit discovery exhibits, or check citations with OpenAI Codex...
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/[0.05]">
+                <div class="flex items-center gap-1.5">
+                  <button
+                    id="tour-sample-prompts-btn"
+                    type="button"
+                    class="px-2 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[11px] text-zinc-300"
+                    title="Sample Legal Prompts"
+                  >
+                    📜 Prompts
+                  </button>
+                  <span
+                    id="tour-task-selector"
+                    class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] text-amber-300 font-medium"
+                  >
+                    Suppression &amp; Art. 11 ▾
+                  </span>
+                </div>
+
+                <div id="tour-model-selector" class="flex items-center gap-1.5">
+                  <span class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] text-zinc-200">
+                    OpenAI Codex ▾
+                  </span>
+                  <span class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] font-mono text-sky-300">
+                    gpt-5.4 ▾
+                  </span>
+                  <span class="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[10.5px] text-emerald-300">
+                    Peer Review ▾
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <!-- RIGHT PANE: Context, Case Issues Lineage, Exhibits & Redline Inspector -->
+        <aside class="w-[310px] shrink-0 bg-[#09090b] border-l border-white/[0.06] flex flex-col justify-between p-3 space-y-3">
+          <!-- Case Issues & Master Brief Synthesis Card -->
+          <div id="tour-case-issues-lineage" class="p-3 rounded-xl bg-[#121217] border border-white/[0.07] space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-zinc-200">Case Issues (2 Open)</span>
+              <span class="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-[10px] text-amber-300 font-semibold">
+                ✨ Synthesize Master Brief
+              </span>
+            </div>
+            <p class="text-[10.5px] text-zinc-400">
+              Incorporate findings from individual Case Issues or synthesize all open issues into a consolidated pleading.
+            </p>
+          </div>
+
+          <!-- Right Pane Tab Bar -->
+          <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#121217] border border-white/[0.06] text-[11px] font-medium">
+            <button
+              id="web-tab-redline"
+              type="button"
+              onclick="switchSimulatedRightTab('redline')"
+              class="py-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 transition cursor-pointer"
+            >
+              Redline
+            </button>
+            <button
+              id="tour-corpus-tab"
+              type="button"
+              onclick="switchSimulatedRightTab('corpus')"
+              class="py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+            >
+              Exhibits (5)
+            </button>
+            <button
+              id="web-tab-chronology"
+              type="button"
+              onclick="switchSimulatedRightTab('chronology')"
+              class="py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+            >
+              Chronology
+            </button>
+          </div>
+
+          <!-- TAB 1: REDLINE PANE -->
+          <div id="tour-redline-pane" class="flex-1 flex flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2.5 overflow-y-auto">
+            <div id="tour-redline-version-bar" class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+              <span class="text-[11px] font-mono text-emerald-300">v2 (Peer-Reviewed Cure) ▾</span>
+              <div class="flex items-center gap-1">
+                <span class="px-1.5 py-0.5 rounded bg-white/[0.05] text-[10px] text-zinc-300">Edit</span>
+                <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-[10px] text-amber-300">.docx</span>
+              </div>
+            </div>
+
+            <div class="space-y-2 text-[11px] leading-relaxed text-zinc-300 font-mono">
+              <div class="p-2 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-200">
+                + Added pinpoint citation to STATE-BWC-0009 (02:14:12–02:14:38) and Rule 15 Deposition DEF-DEP-0018 p. 14:6–19.
+              </div>
+              <div class="p-2 rounded bg-rose-500/10 border border-rose-500/25 text-rose-300 line-through">
+                - Removed unverified paraphrase of officer stop rationale.
+              </div>
+              <div class="p-2 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-200">
+                + Added State v. Bauder, 2007 VT 16, ¶ 22 warrantless vehicle search standard under Art. 11.
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: EXHIBITS / CORPUS PANE (Hidden until selected by tour or user) -->
+          <div id="web-corpus-pane" class="hidden flex-1 flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2.5 overflow-y-auto">
+            <div class="flex items-center justify-between gap-1.5 pb-2 border-b border-white/[0.06]">
+              <button
+                id="tour-import-file-btn"
+                type="button"
+                class="flex-1 py-1.5 px-2 rounded-lg bg-amber-500/15 border border-amber-500/35 text-[10.5px] text-amber-300 font-medium"
+              >
+                + Import File (.docx/.pdf/.xlsx)
+              </button>
+              <button
+                id="tour-sync-folder-btn"
+                type="button"
+                class="py-1.5 px-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-[10.5px] text-zinc-300"
+              >
+                🔄 Sync Folder
+              </button>
+            </div>
+
+            <div class="space-y-1.5 text-[11px]">
+              <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                <div class="flex justify-between font-mono text-[10px] text-sky-300">
+                  <span>STATE-0001 to STATE-0005</span>
+                  <span>PDF</span>
+                </div>
+                <div class="font-medium text-zinc-200 mt-0.5">Affidavit of Probable Cause — Trp. Keller</div>
+              </div>
+              <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                <div class="flex justify-between font-mono text-[10px] text-sky-300">
+                  <span>STATE-BWC-0009</span>
+                  <span>DOCX</span>
+                </div>
+                <div class="font-medium text-zinc-200 mt-0.5">Body-Worn Camera Transcript (Unit 44)</div>
+              </div>
+              <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                <div class="flex justify-between font-mono text-[10px] text-sky-300">
+                  <span>DEF-DEP-0018</span>
+                  <span>DOCX</span>
+                </div>
+                <div class="font-medium text-zinc-200 mt-0.5">Rule 15 Deposition of Trooper B. Keller</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: CHRONOLOGY PANE -->
+          <div id="web-chronology-pane" class="hidden flex-1 flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2 overflow-y-auto text-[11px]">
+            <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+              <div class="font-mono text-[10px] text-amber-300">02:11:04 • STATE-0001</div>
+              <div class="text-zinc-200 mt-0.5">Traffic stop initiated on I-89 Southbound.</div>
+            </div>
+            <div class="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30">
+              <div class="font-mono text-[10px] text-rose-300">02:14:38 • DISPUTED (STATE-BWC-0009)</div>
+              <div class="text-zinc-200 mt-0.5">BWC shows hands on wheel; contradicts Affidavit ¶ 5 claim of furtive console movement.</div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- ================================================================= -->
+        <!-- SIMULATED MODAL 1: SETTINGS & PROMPT GOVERNANCE                   -->
+        <!-- ================================================================= -->
+        <div id="web-sim-settings-modal" class="hidden absolute inset-0 z-30 bg-black/75 items-start justify-center p-4 pt-5">
+          <div class="w-full max-w-5xl rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden text-xs">
+            <!-- Header -->
+            <div class="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="px-2 py-1 rounded bg-amber-500/15 border border-amber-500/35 text-amber-300 font-semibold">⚖️ Settings</span>
+                <span class="text-slate-400">Repurposing coding agents for legal work via layered system prompts</span>
+              </div>
+              <button type="button" onclick="openSimulatedDialog('none')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">✕ Close</button>
+            </div>
+
+            <!-- Practitioner Profile Selector Bar -->
+            <div id="tour-settings-profile-bar" class="px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-amber-300">Practitioner Profile:</span>
+                <select class="px-3 py-1 rounded-lg bg-slate-950 border border-amber-500/40 text-slate-100 font-semibold">
+                  <option>1. Vermont Criminal Defense Lawyer (Default)</option>
+                  <option>2. General Legal Practice (Civil, Contracts, Regulatory)</option>
+                  <option disabled>── More locales &amp; practice areas coming soon ──</option>
+                </select>
+              </div>
+              <span class="text-[11px] text-slate-400">
+                Supplies constitutional primacy, forum citation rules, and adversarial reviewer roles.
+              </span>
+            </div>
+
+            <!-- Settings Body -->
+            <div class="flex min-h-[250px]">
+              <!-- Left Nav -->
+              <div class="w-56 bg-slate-950/70 border-r border-slate-800 p-2.5 space-y-1">
+                <div id="tour-settings-prompt-layers" class="space-y-1">
+                  <div class="px-3 py-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                    1. Core Legal Principles
+                  </div>
+                  <div class="px-3 py-2 rounded-lg text-slate-400">
+                    2. Practice Task Presets
+                  </div>
+                  <div class="px-3 py-2 rounded-lg text-slate-400">
+                    3. Matter &amp; Forum Rules
+                  </div>
+                  <div class="px-3 py-2 rounded-lg text-slate-400">
+                    4. Reviewers &amp; Opposing Counsel
+                  </div>
+                </div>
+                <div class="pt-2 border-t border-slate-800 space-y-1">
+                  <div id="web-settings-nav-mcp" class="px-3 py-2 rounded-lg text-slate-400">
+                    🔧 Legal Research (MCP)
+                  </div>
+                  <div id="web-settings-nav-privacy" class="px-3 py-2 rounded-lg text-slate-400">
+                    🛡️ Privacy &amp; Local Routing
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Content Area -->
+              <div class="flex-1 p-4 space-y-3">
+                <div id="web-settings-pane-core" class="space-y-2">
+                  <div class="font-semibold text-slate-200">
+                    Layer 1–4 System Prompts (Converting Coding Agents into Legal Specialists)
+                  </div>
+                  <pre class="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed">MANDATORY LEGAL HARNESS DIRECTIVES (VERMONT CRIMINAL DEFENSE PROFILE):
+1. GROUNDING IN DISCOVERY RECORD: Anchor every factual claim to exact Bates stamps (e.g., STATE-0001, STATE-BWC-0009) and deposition page:line citations.
+2. STATE CONSTITUTIONAL PRIMACY: Assert Vt. Const. ch. I, art. 11 &amp; 10 independent of federal Fourth/Fifth Amendment floors (citing State v. Sprague, 2003 VT 20; State v. Bauder, 2007 VT 16).
+3. ADVERSARIAL SECOND-CHAIR GATE: Cure all Citation Auditor &amp; Deputy State's Attorney objections prior to delivery.</pre>
+                </div>
+
+                <div id="tour-settings-mcp-panel" class="hidden p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="font-semibold text-amber-300">CourtListener Legal Research MCP &amp; Custom Servers</span>
+                    <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px]">Active on OpenAI Codex &amp; Claude Code</span>
+                  </div>
+                  <p class="text-slate-400">
+                    Automatically configures <code class="text-sky-300">npx -y courtlistener-mcp</code> across your installed coding agents for live federal &amp; state caselaw verification.
+                  </p>
+                </div>
+
+                <div id="tour-settings-privacy-panel" class="hidden grid-cols-3 gap-2.5">
+                  <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/40 space-y-1">
+                    <div class="font-semibold text-amber-300">Dynamic Smart Routing</div>
+                    <p class="text-[10.5px] text-slate-300">ONNX complexity triage + full local PII scrubbing before cloud dispatch.</p>
+                  </div>
+                  <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div class="font-semibold text-indigo-300">Force Frontier Reasoning</div>
+                    <p class="text-[10.5px] text-slate-400">Routes every turn to top frontier models while masking client PII locally.</p>
+                  </div>
+                  <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div class="font-semibold text-cyan-300">Strict Local-Only (Air-Gapped)</div>
+                    <p class="text-[10.5px] text-slate-400">Zero external network calls; runs 100% on-device.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SIMULATED MODAL 2: CONNECT YOUR CODING AGENTS                     -->
+        <!-- ================================================================= -->
+        <div id="web-sim-agents-modal" class="hidden absolute inset-0 z-30 bg-black/75 items-start justify-center p-4 pt-6">
+          <div class="w-full max-w-xl rounded-2xl bg-[#111113] border border-neutral-800 shadow-2xl p-5 space-y-3 text-xs">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-base font-semibold text-white">Connect your agents</h3>
+                <p class="text-neutral-400 text-[11.5px]">
+                  Connect a coding agent—LexHarness repurposes it for legal research, drafting, and peer review via your active Practitioner Profile.
+                </p>
+              </div>
+              <button type="button" onclick="openSimulatedDialog('none')" class="px-2 py-1 rounded bg-neutral-800 text-neutral-300">✕</button>
+            </div>
+
+            <div id="tour-connect-agents-list" class="space-y-2">
+              <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex items-center justify-between">
+                <div>
+                  <div class="font-semibold text-white">OpenAI Codex <span class="font-mono text-[10px] text-neutral-400">v0.116.0</span></div>
+                  <div class="text-[11px] text-neutral-400">Repurposed via CLI harness • Multi-account ChatGPT sign-in supported</div>
+                </div>
+                <span class="text-emerald-400 font-semibold">✓ Ready</span>
+              </div>
+              <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex items-center justify-between">
+                <div>
+                  <div class="font-semibold text-white">Claude Code <span class="font-mono text-[10px] text-neutral-400">v2.1.0</span></div>
+                  <div class="text-[11px] text-neutral-400">Anthropic agent harness • One-click install &amp; OAuth sign-in</div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-white text-neutral-950 font-semibold">Sign in</span>
+              </div>
+              <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex items-center justify-between">
+                <div>
+                  <div class="font-semibold text-white">Antigravity ACP <span class="font-mono text-[10px] text-neutral-400">v1.4.2</span></div>
+                  <div class="text-[11px] text-neutral-400">Gemini / Antigravity coding agent protocol</div>
+                </div>
+                <span class="text-emerald-400 font-semibold">✓ Ready</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- GOLDEN SPOTLIGHT RING + FLOATING INTERACTIVE TUTORIAL CARD        -->
+        <!-- ================================================================= -->
+        <div
+          id="web-tour-spotlight"
+          class=" absolute z-40 rounded-2xl border-2 border-amber-400 pointer-events-none"
+          style="top: 16px; left: 16px; width: 120px; height: 48px; box-shadow: 0 0 0 9999px rgba(9, 9, 11, 0.48), 0 0 28px rgba(245, 158, 11, 0.45);"
+        ></div>
+
+        <div
+          id="web-tour-card-wrapper"
+          class="absolute inset-0 z-40 flex items-start justify-center pt-10 p-4 pointer-events-none"
+        >
+          <div class="pointer-events-auto w-full max-w-lg rounded-2xl bg-[#121216]/95 border border-amber-500/45 shadow-2xl p-5 text-slate-100 space-y-3.5">
+            <!-- Card Header -->
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span id="web-tour-category" class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-semibold">Why LexHarness?</span>
+                  <span id="web-tour-card-badge" class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 font-mono">Card 1 of 7</span>
+                  <span id="web-tour-point-badge" class="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-[10px] text-amber-300 font-mono">Point 1 of 5</span>
+                </div>
+                <h3 id="web-tour-title" class="text-base font-semibold text-white mt-0.5">Welcome to LexHarness</h3>
+              </div>
+              <button
+                type="button"
+                onclick="toggleWebTourOverlay()"
+                title="Hide tour overlay to click around workspace"
+                class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p id="web-tour-subtitle" class="text-xs font-medium text-amber-300/90"></p>
+
+            <!-- Interactive > Points List -->
+            <div id="web-tour-points" class="space-y-1.5 text-xs leading-relaxed"></div>
+
+            <!-- Key Highlight -->
+            <div id="web-tour-highlight" class="p-2.5 rounded-xl bg-slate-950/90 border border-amber-500/30 text-[11px] text-amber-200/90"></div>
+
+            <!-- Navigation Footer -->
+            <div class="flex items-center justify-between border-t border-slate-800 pt-2.5">
+              <div id="web-tour-dots" class="flex items-center gap-1.5"></div>
+              <div class="flex items-center gap-2">
+                <button
+                  id="web-tour-back-btn"
+                  type="button"
+                  onclick="stepWebTour(-1)"
+                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-200 text-xs font-medium border border-slate-700 cursor-pointer"
+                >
+                  ← Back
+                </button>
+                <button
+                  id="web-tour-next-btn"
+                  type="button"
+                  onclick="stepWebTour(1)"
+                  class="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold shadow cursor-pointer"
+                >
+                  Next Point →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- COMPLETE 7-CARD TUTORIAL REFERENCE GUIDE (FOR READERS & MOBILE)       -->
+  <!-- ===================================================================== -->
+  <section id="tour-guide" class="py-16 border-b border-slate-900 bg-slate-950">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+      <div class="text-center max-w-3xl mx-auto">
+        <span class="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">Complete Walkthrough Reference</span>
+        <h2 class="text-3xl font-bold text-white tracking-tight mt-1">All 7 Tutorial Cards at a Glance</h2>
+        <p class="mt-3 text-slate-400 text-sm sm:text-base">
+          Prefer reading without clicking through? Here is the complete walkthrough included inside the LexHarness desktop app.
+        </p>
+      </div>
+
+      <div id="web-tour-static-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+    </div>
+  </section>
 
   <!-- Key Problems Solved -->
   <section id="features" class="py-20 border-b border-slate-900 bg-slate-900/30">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-3xl font-bold text-white tracking-tight">The Reality of Practicing Law with AI</h2>
+        <h2 class="text-3xl font-bold text-white tracking-tight">Why Repurpose Coding Agents for Legal Practice?</h2>
         <p class="mt-4 text-slate-400 text-base sm:text-lg">
-          Consumer chatbots sound confident, but they aren’t lawyers. LexHarness builds in the practical checks and safeguards that real legal representation demands.
+          Consumer chatbots sound fluent, but they guess from memory. Software engineering coding agents are built to search files, verify line-by-line citations, and run multi-step verification tools—making them ideal for legal work once governed by legal system prompts.
         </p>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <!-- Feature 1 -->
         <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">📄</div>
-            <h3 class="text-lg font-semibold text-white mb-2">Record Grounding</h3>
+            <h3 class="text-lg font-semibold text-white mb-2">Bates Record Grounding</h3>
             <p class="text-sm text-slate-400 leading-relaxed">
-              Every factual assertion anchors directly to your case exhibits with exact Bates numbers, transcript page-and-lines, and timestamps.
+              Every factual assertion anchors directly to your case exhibits with exact Bates numbers (<code class="text-amber-300">STATE-0001</code>, <code class="text-amber-300">STATE-BWC-0009</code>), deposition page-and-lines, and timestamps.
             </p>
           </div>
         </div>
 
-        <!-- Feature 2 -->
         <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">🔍</div>
-            <h3 class="text-lg font-semibold text-white mb-2">Second-Chair Review</h3>
+            <h3 class="text-lg font-semibold text-white mb-2">Citation &amp; Record Auditor</h3>
             <p class="text-sm text-slate-400 leading-relaxed">
-              An automated Citation Auditor checks authorities and state precedent before drafts are presented, flagging unsupported claims.
+              An automated second-chair reviewer checks every factual and statutory claim against your exhibits and CourtListener precedent before you see the draft.
             </p>
           </div>
         </div>
 
-        <!-- Feature 3 -->
         <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">⚔️</div>
-            <h3 class="text-lg font-semibold text-white mb-2">Opposing Perspective</h3>
+            <h3 class="text-lg font-semibold text-white mb-2">Opposing Counsel Review</h3>
             <p class="text-sm text-slate-400 leading-relaxed">
-              Anticipates procedural traps, waiver risks, and counterarguments from opposing counsel and the bench so you can cure them early.
+              Anticipates procedural traps, waiver risks, and counterarguments from opposing counsel and the bench so weaknesses are cured in redline before filing.
             </p>
           </div>
         </div>
 
-        <!-- Feature 4 -->
         <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">🔒</div>
-            <h3 class="text-lg font-semibold text-white mb-2">Local-First Privilege</h3>
+            <h3 class="text-lg font-semibold text-white mb-2">Privileged PII Shield</h3>
             <p class="text-sm text-slate-400 leading-relaxed">
-              Your case files and drafts stay on your machine. Includes automatic client-name scrubbing before external API calls.
+              Your database stays on your machine. Client names, SSNs, DOBs, and addresses are scrubbed locally before cloud dispatch while preserving Bates stamps.
             </p>
           </div>
         </div>
@@ -153,9 +842,9 @@
   <section id="comparison" class="py-20 border-b border-slate-900">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-3xl font-bold text-white tracking-tight">How LexHarness Compares to Standard Chatbots</h2>
+        <h2 class="text-3xl font-bold text-white tracking-tight">How LexHarness Compares to Consumer Chatbots</h2>
         <p class="mt-4 text-slate-400 text-base sm:text-lg">
-          Why pasting confidential case facts into consumer chat windows creates serious professional risks.
+          Why repurposing multi-step coding agents inside a local legal workspace outperforms pasting confidential facts into a web chat tab.
         </p>
       </div>
 
@@ -165,39 +854,44 @@
             <tr>
               <th scope="col" class="px-6 py-4 font-semibold">What Matters in Practice</th>
               <th scope="col" class="px-6 py-4 font-semibold text-rose-300">Consumer Chatbots</th>
-              <th scope="col" class="px-6 py-4 font-semibold text-amber-300">LexHarness</th>
+              <th scope="col" class="px-6 py-4 font-semibold text-amber-300">LexHarness (Coding Agents for Law)</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800">
             <tr>
+              <td class="px-6 py-4 font-medium text-white">Task Execution Architecture</td>
+              <td class="px-6 py-4 text-slate-400">Single-shot conversational replies from memory</td>
+              <td class="px-6 py-4 text-slate-200">Multi-step coding agents (Codex, Claude Code, Antigravity) repurposed via 4-layer legal system prompts</td>
+            </tr>
+            <tr>
               <td class="px-6 py-4 font-medium text-white">Factual Grounding</td>
               <td class="px-6 py-4 text-slate-400">Paraphrases or guesses without checking the record</td>
-              <td class="px-6 py-4 text-slate-200">Reads your case exhibits and cites exact Bates numbers, transcript lines, and timestamps</td>
+              <td class="px-6 py-4 text-slate-200">Searches indexed discovery exhibits (.docx, .pdf, .xlsx, .csv, .rtf) with Bates numbers and folder auto-sync</td>
             </tr>
             <tr>
-              <td class="px-6 py-4 font-medium text-white">Citation Accuracy</td>
-              <td class="px-6 py-4 text-slate-400">Single pass that can hallucinate authorities</td>
-              <td class="px-6 py-4 text-slate-200">Automatic Citation Auditor verifies claims against your files and state law</td>
+              <td class="px-6 py-4 font-medium text-white">Citation &amp; Record Accuracy</td>
+              <td class="px-6 py-4 text-slate-400">Prone to hallucinated authorities</td>
+              <td class="px-6 py-4 text-slate-200">Parallel Citation &amp; Record Auditor + Opposing Counsel review + CourtListener MCP verification</td>
             </tr>
             <tr>
-              <td class="px-6 py-4 font-medium text-white">Stress-Testing Arguments</td>
-              <td class="px-6 py-4 text-slate-400">Agreeable "yes-man" answers</td>
-              <td class="px-6 py-4 text-slate-200">Independent Opposing Counsel review challenges weak spots before you file</td>
+              <td class="px-6 py-4 font-medium text-white">Complex Motion Workflows</td>
+              <td class="px-6 py-4 text-slate-400">One long, tangled chat thread</td>
+              <td class="px-6 py-4 text-slate-200">Branch focused Case Issues, incorporate findings, and Synthesize Master Briefs</td>
             </tr>
             <tr>
-              <td class="px-6 py-4 font-medium text-white">Reviewing Revisions</td>
+              <td class="px-6 py-4 font-medium text-white">Reviewing &amp; Exporting Drafts</td>
               <td class="px-6 py-4 text-slate-400">Manual copy-pasting blocks of text</td>
-              <td class="px-6 py-4 text-slate-200">Built-in side-by-side Redline & Document Editor</td>
+              <td class="px-6 py-4 text-slate-200">Side-by-side Redlines + native Word (.docx) export with Tracked Changes and margin comments</td>
+            </tr>
+            <tr>
+              <td class="px-6 py-4 font-medium text-white">Jurisdiction &amp; Practice Profiles</td>
+              <td class="px-6 py-4 text-slate-400">Generic summaries unless prompted from scratch</td>
+              <td class="px-6 py-4 text-slate-200">Built-in Vermont Criminal Defense &amp; General Legal Practice profiles today, with more locales coming soon</td>
             </tr>
             <tr>
               <td class="px-6 py-4 font-medium text-white">Client Confidentiality</td>
-              <td class="px-6 py-4 text-slate-400">Stored in browser tabs and cloud provider accounts</td>
-              <td class="px-6 py-4 text-slate-200">Local-first: database stays on your machine with automated name scrubbing</td>
-            </tr>
-            <tr>
-              <td class="px-6 py-4 font-medium text-white">Cost & Lock-In</td>
-              <td class="px-6 py-4 text-slate-400">Expensive per-seat enterprise contracts</td>
-              <td class="px-6 py-4 text-slate-200">100% Free & Open Source under Apache 2.0</td>
+              <td class="px-6 py-4 text-slate-400">Stored in browser tabs and cloud accounts</td>
+              <td class="px-6 py-4 text-slate-200">Local SQLite storage + Privileged PII Shield local anonymization</td>
             </tr>
           </tbody>
         </table>
@@ -208,26 +902,541 @@
   <!-- Community & CTA -->
   <section class="py-20 text-center">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Built by and for Legal Practitioners</h2>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Help Build Profiles for Your Jurisdiction</h2>
       <p class="mt-4 text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
-        Join solo attorneys, public defenders, legal scholars, and open-source developers helping level the playing field for small law offices.
+        LexHarness currently ships with defaults for Vermont Criminal Defense and General Legal Practice. Join practitioners and contributors adding state-specific rules, citation styles, and practice-area profiles.
       </p>
       <div class="mt-8 flex flex-wrap justify-center gap-4">
         <a href="https://github.com/bentito/free-legal-assist/discussions" class="px-6 py-3 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 font-semibold text-sm transition">
           Join GitHub Discussions
         </a>
         <a href="https://github.com/bentito/free-legal-assist/blob/main/CONTRIBUTING.md" class="px-6 py-3 rounded-xl bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700 font-semibold text-sm transition">
-          Lawyer & Developer Contribution Guide
+          Lawyer &amp; Developer Contribution Guide
         </a>
       </div>
     </div>
   </section>
 
   <!-- Footer -->
-  <footer class="border-t border-slate-850 py-10 bg-slate-950 text-xs text-slate-500 text-center">
+  <footer class="border-t border-slate-900 py-10 bg-slate-950 text-xs text-slate-500 text-center">
     <p>LexHarness is free, open-source software released under the <a href="https://github.com/bentito/free-legal-assist/blob/main/LICENSE" class="underline hover:text-slate-400">Apache License 2.0</a>.</p>
     <p class="mt-2">Not legal advice. Intended as a drafting and review aid for licensed legal professionals.</p>
   </footer>
 
+  <!-- ===================================================================== -->
+  <!-- WEB TUTORIAL DATA & CONTROLLER (SYNCHRONIZED WITH TutorialOverlay.tsx) -->
+  <!-- ===================================================================== -->
+  <script>
+    const WEB_TOUR_STEPS = [
+      {
+        id: 'why_lexharness',
+        targetSelector: '#tour-model-selector',
+        title: 'Welcome to LexHarness',
+        subtitle: 'Repurposing Coding Agents for Legal Work — Why Agents Beat Chatbots',
+        category: 'Why LexHarness?',
+        points: [
+          {
+            text: 'Why Coding Agents Beat Chatbots for Task Work: Chatbots generate single-shot replies from memory. Coding agents (OpenAI Codex, Claude Code, Antigravity) are built for multi-step task work—searching files, running verification tools, checking exact line citations, and revising drafts.',
+            targetSelector: '#tour-model-selector',
+            openDialog: 'none',
+            cardPlacement: 'top-left',
+          },
+          {
+            text: 'Repurposed for Law via Settings Prompts: LexHarness redirects coding agents from software engineering to legal work through layered system prompts in Settings. Defaults currently cover Vermont Criminal Defense and a plain General Legal Practice profile, with profiles for many more locales and practice types coming soon.',
+            targetSelector: '#tour-settings-profile-bar',
+            openDialog: 'settings',
+            settingsTab: 'layer1_core',
+            cardPlacement: 'bottom-corner-right',
+          },
+          {
+            text: 'Setting Up Your Coding Agents: Connect your OpenAI Codex, Claude Code, or Antigravity account here in one click—or use the built-in offline legal simulator to explore immediately.',
+            targetSelector: '#tour-connect-agents-list',
+            openDialog: 'connect_agents',
+            cardPlacement: 'bottom-right',
+          },
+          {
+            text: 'Grounded in Discovery Exhibits: Instead of guessing facts, agents search your indexed case files by Bates number (e.g., STATE-0001, STATE-BWC-0009) so every factual claim is anchored to the record.',
+            targetSelector: '#tour-corpus-tab',
+            openDialog: 'none',
+            preferredTab: 'corpus',
+            cardPlacement: 'bottom-left',
+          },
+          {
+            text: 'Second-Chair Review & Local PII Shield: Every draft is audited in parallel by a Citation & Record Auditor and Opposing Counsel while the Privileged PII Shield scrubs client identifiers locally before cloud dispatch.',
+            targetSelector: '#tour-review-gate',
+            openDialog: 'none',
+            cardPlacement: 'bottom-right',
+          },
+        ],
+        keyHighlight: 'Use Next (or click any point) to step through each highlight—LexHarness automatically opens the relevant workspace pane or settings dialog.',
+      },
+      {
+        id: 'welcome_docket',
+        targetSelector: '#tour-matter-overview',
+        title: '1. Matters, Case Issues & Settled Docket',
+        subtitle: 'Organizing Casework & Focused Legal Inquiries',
+        category: 'Matters & Case Issues',
+        points: [
+          {
+            text: 'Matters & Nested Case Issues: Each Matter holds your full discovery record, while nested Case Issues isolate specific motions or inquiries (such as a Motion to Suppress vs. a Witness Impeachment Matrix) that share those exhibits.',
+            targetSelector: '#tour-matter-overview',
+            openDialog: 'none',
+            cardPlacement: 'center',
+          },
+          {
+            text: 'New Matter: Create a case workspace configured with its governing court forum, docket number, and citation manual.',
+            targetSelector: '#tour-new-matter-btn',
+            openDialog: 'none',
+            cardPlacement: 'center',
+          },
+          {
+            text: 'New Case Issue: Start a focused legal workstream (such as Trooper Keller BWC Impeachment Matrix) under the active matter.',
+            targetSelector: '#tour-new-issue-btn',
+            openDialog: 'none',
+            cardPlacement: 'center',
+          },
+          {
+            text: 'Settled Drawer: Archive completed matters and resolved Case Issues to keep your active docket focused without losing prior research.',
+            targetSelector: '#tour-settled-drawer',
+            openDialog: 'none',
+            cardPlacement: 'center',
+          },
+        ],
+        keyHighlight: 'Break complex matters into focused Case Issues that share the same discovery corpus, then incorporate their findings back into your brief.',
+      },
+      {
+        id: 'corpus_discovery',
+        targetSelector: '#tour-corpus-tab',
+        title: '2. Discovery Exhibits & Folder Auto-Sync',
+        subtitle: 'Word (.docx), PDF, Spreadsheets, RTF & Live Folder Watching',
+        category: 'Evidence & Intake',
+        points: [
+          {
+            text: 'Bates-Indexed Record: Exhibits, pleadings, and depositions are indexed with Bates stamps (STATE-0001 to STATE-0005, STATE-BWC-0009, DEF-DEP-0018) so agents cite exact pages and timestamps.',
+            targetSelector: '#tour-corpus-tab',
+            openDialog: 'none',
+            preferredTab: 'corpus',
+            cardPlacement: 'bottom-left',
+          },
+          {
+            text: 'Multi-Format Import: Ingest .docx (preserving legal numbering, tables, footnotes, Word Tracked Changes, and comments), .pdf, .xlsx, .csv, .rtf, .txt, and .md files via file picker or drag-and-drop.',
+            targetSelector: '#tour-import-file-btn',
+            openDialog: 'none',
+            preferredTab: 'corpus',
+            cardPlacement: 'bottom-left',
+          },
+          {
+            text: 'Sync Folder: Link a local matter folder on disk so new supplemental disclosures are automatically indexed as soon as they are saved.',
+            targetSelector: '#tour-sync-folder-btn',
+            openDialog: 'none',
+            preferredTab: 'corpus',
+            cardPlacement: 'bottom-left',
+          },
+        ],
+        keyHighlight: 'Link a local case folder once—whenever new disclosures arrive on disk, LexHarness indexes them automatically.',
+      },
+      {
+        id: 'agents_composer',
+        targetSelector: '#tour-composer',
+        title: '3. Legal Drafting, Task Presets & PII Protection',
+        subtitle: 'Task-Specific Standards, Model Selection & Local Anonymization',
+        category: 'Drafting & Privacy',
+        points: [
+          {
+            text: 'Drafting & Record Queries: Instruct your agent to draft motions, cross-examine officer affidavits against body-worn camera transcripts, or build chronology tables grounded in your exhibits.',
+            targetSelector: '#tour-composer',
+            openDialog: 'none',
+            cardPlacement: 'top-left',
+          },
+          {
+            text: 'Sample Legal Prompts: Insert ready-to-run practitioner prompts tailored to your active profile.',
+            targetSelector: '#tour-sample-prompts-btn',
+            openDialog: 'none',
+            cardPlacement: 'top-left',
+          },
+          {
+            text: 'Practice Task Focus: Select the active legal task (e.g., Suppression & Art. 11, Discovery & Impeachment, Bail, or Civil Litigation) to apply task-specific legal standards.',
+            targetSelector: '#tour-task-selector',
+            openDialog: 'none',
+            cardPlacement: 'top-left',
+          },
+          {
+            text: 'Agent, Model & Privileged PII Shield: Choose your coding agent, frontier model, and review mode. Client names, SSNs, DOBs, and addresses are scrubbed locally before cloud dispatch and restored on return.',
+            targetSelector: '#tour-model-selector',
+            openDialog: 'none',
+            cardPlacement: 'top-left',
+          },
+        ],
+        keyHighlight: 'Privileged PII Shield masks sensitive client identifiers on your machine while keeping Bates stamps and legal citations intact.',
+      },
+      {
+        id: 'adversarial_review_gate',
+        targetSelector: '#tour-review-gate',
+        title: '4. Adversarial Peer Review & Issue Branching',
+        subtitle: 'Citation & Record Auditor, Opposing Counsel & Checkpoint Forks',
+        category: 'Peer Review',
+        points: [
+          {
+            text: 'Parallel Second-Chair Review: Before finalizing a response, two independent critics review the initial draft—the Citation & Record Auditor verifies Bates pinpoints and authorities, while Opposing Counsel challenges weak inferences and procedural gaps.',
+            targetSelector: '#tour-review-gate',
+            openDialog: 'none',
+            cardPlacement: 'bottom-right',
+          },
+          {
+            text: 'Execution & Audit Trace: Expand the summary line above any response to inspect exhibit searches, reviewer objections and cures, PII masking counts, and the pre-review draft.',
+            targetSelector: '#tour-trace-summary-btn',
+            openDialog: 'none',
+            cardPlacement: 'bottom-right',
+          },
+          {
+            text: 'Spin Off Issue: Branch a new Case Issue directly from any response checkpoint to pursue a subsidiary legal question without cluttering the main thread.',
+            targetSelector: '#tour-spin-off-issue-btn',
+            openDialog: 'none',
+            cardPlacement: 'bottom-right',
+          },
+        ],
+        keyHighlight: 'Expand the trace bar on any response to see every objection raised by the Citation Auditor and Opposing Counsel—and how the final draft cured them.',
+      },
+      {
+        id: 'work_product_editing',
+        targetSelector: '#tour-redline-pane',
+        title: '5. Redlines, Master Brief Synthesis & Word Export',
+        subtitle: 'Version Comparison, Issue Consolidation & Native Tracked Changes',
+        category: 'Redlines & Export',
+        points: [
+          {
+            text: 'Side-by-Side Redlines: Compare the initial draft against the post-review revision with word-level diffs and reviewer rationale.',
+            targetSelector: '#tour-redline-pane',
+            openDialog: 'none',
+            preferredTab: 'redline',
+            cardPlacement: 'bottom-left',
+          },
+          {
+            text: 'Version History & In-Place Editing: Switch between saved draft versions, edit text directly in place, and trigger a 1-click re-audit after manual edits.',
+            targetSelector: '#tour-redline-version-bar',
+            openDialog: 'none',
+            preferredTab: 'redline',
+            cardPlacement: 'bottom-left',
+          },
+          {
+            text: 'Synthesize Master Brief: Incorporate findings from individual Case Issues or click "Synthesize Master Brief" to consolidate all open issues into a single unified pleading.',
+            targetSelector: '#tour-case-issues-lineage',
+            openDialog: 'none',
+            preferredTab: 'redline',
+            cardPlacement: 'bottom-left',
+          },
+          {
+            text: 'Export .docx with Tracked Changes: Export any response to Microsoft Word with native Tracked Changes and peer-review objections attached as margin comments.',
+            targetSelector: '#tour-export-docx-msg-btn',
+            openDialog: 'none',
+            preferredTab: 'redline',
+            cardPlacement: 'bottom-right',
+          },
+        ],
+        keyHighlight: 'Exported .docx files open in Microsoft Word, LibreOffice, or Google Docs with native Tracked Changes and reviewer margin comments.',
+      },
+      {
+        id: 'governance_settings',
+        targetSelector: '#tour-settings-prompt-layers',
+        title: '6. System Prompts, Research Tools & Privacy Controls',
+        subtitle: 'Customizing How Coding Agents Practice Law in Your Jurisdiction',
+        category: 'Settings & Governance',
+        points: [
+          {
+            text: '4-Layer Legal Prompt Harness: Edit the Core Legal Principles, Practice Task Presets, Matter Forum Rules, and Reviewer instructions that govern your agents. Use the built-in Vermont Criminal Defense or General Legal Practice profiles today, or customize the prompts for your own jurisdiction as more locale profiles roll out.',
+            targetSelector: '#tour-settings-prompt-layers',
+            openDialog: 'settings',
+            settingsTab: 'layer1_core',
+            cardPlacement: 'bottom-corner-right',
+          },
+          {
+            text: 'CourtListener & Legal MCP Tools: Equip your connected coding agents with live CourtListener caselaw verification and custom Model Context Protocol (MCP) research servers.',
+            targetSelector: '#tour-settings-mcp-panel',
+            openDialog: 'settings',
+            settingsTab: 'legal_mcp',
+            cardPlacement: 'bottom-corner-right',
+          },
+          {
+            text: 'Privacy & Routing Policies: Choose between Dynamic Smart Routing (ONNX complexity triage), Force Frontier Reasoning, or Strict Local-Only (Air-Gapped) execution.',
+            targetSelector: '#tour-settings-privacy-panel',
+            openDialog: 'settings',
+            settingsTab: 'privacy_routing',
+            cardPlacement: 'bottom-corner-right',
+          },
+          {
+            text: 'Workspace Controls: Open Settings, Connected Assistants, the PII & Routing Inspector (Cmd+Shift+D), or this Guided Tour anytime.',
+            targetSelector: '#tour-top-button',
+            openDialog: 'none',
+            cardPlacement: 'center',
+          },
+        ],
+        keyHighlight: 'Tour Complete: Download LexHarness for macOS or Windows above to run the full sample matter or start your own casework.',
+      },
+    ];
+
+    let webStepIdx = 0;
+    let webPointIdx = 0;
+    let webOverlayVisible = true;
+
+    function switchSimulatedRightTab(tab) {
+      const redlinePane = document.getElementById('tour-redline-pane');
+      const corpusPane = document.getElementById('web-corpus-pane');
+      const chronPane = document.getElementById('web-chronology-pane');
+      const btnRedline = document.getElementById('web-tab-redline');
+      const btnCorpus = document.getElementById('tour-corpus-tab');
+      const btnChron = document.getElementById('web-tab-chronology');
+
+      redlinePane.classList.toggle('hidden', tab !== 'redline');
+      redlinePane.classList.toggle('flex', tab === 'redline');
+      corpusPane.classList.toggle('hidden', tab !== 'corpus');
+      corpusPane.classList.toggle('flex', tab === 'corpus');
+      chronPane.classList.toggle('hidden', tab !== 'chronology');
+      chronPane.classList.toggle('flex', tab === 'chronology');
+
+      const activeCls = ['bg-amber-500/15', 'text-amber-300', 'border', 'border-amber-500/30'];
+      [btnRedline, btnCorpus, btnChron].forEach((b) => {
+        b.classList.remove(...activeCls);
+        b.classList.add('text-zinc-400');
+      });
+      const targetBtn = tab === 'corpus' ? btnCorpus : tab === 'chronology' ? btnChron : btnRedline;
+      targetBtn.classList.remove('text-zinc-400');
+      targetBtn.classList.add(...activeCls);
+    }
+
+    function openSimulatedDialog(dialog, settingsTab) {
+      const settingsModal = document.getElementById('web-sim-settings-modal');
+      const agentsModal = document.getElementById('web-sim-agents-modal');
+
+      settingsModal.classList.toggle('hidden', dialog !== 'settings');
+      settingsModal.classList.toggle('flex', dialog === 'settings');
+      agentsModal.classList.toggle('hidden', dialog !== 'connect_agents');
+      agentsModal.classList.toggle('flex', dialog === 'connect_agents');
+
+      if (dialog === 'settings') {
+        const corePane = document.getElementById('web-settings-pane-core');
+        const mcpPane = document.getElementById('tour-settings-mcp-panel');
+        const privPane = document.getElementById('tour-settings-privacy-panel');
+
+        const showMcp = settingsTab === 'legal_mcp';
+        const showPriv = settingsTab === 'privacy_routing';
+        corePane.classList.toggle('hidden', showMcp || showPriv);
+        mcpPane.classList.toggle('hidden', !showMcp);
+        privPane.classList.toggle('hidden', !showPriv);
+        privPane.classList.toggle('grid', showPriv);
+      }
+    }
+
+    function toggleWebTraceDrawer() {
+      const drawer = document.getElementById('web-trace-drawer');
+      const chev = document.getElementById('web-trace-chevron');
+      const isHidden = drawer.classList.contains('hidden');
+      drawer.classList.toggle('hidden', !isHidden);
+      drawer.classList.toggle('grid', isHidden);
+      chev.textContent = isHidden ? '▾' : '▸';
+    }
+
+    function getPlacementClasses(placement) {
+      switch (placement) {
+        case 'top-left':
+          return 'items-start justify-center pt-8';
+        case 'bottom-left':
+          return 'items-center justify-start pl-64';
+        case 'bottom-right':
+          return 'items-end justify-center pb-6';
+        case 'bottom-corner-right':
+          return 'items-end justify-end pr-6 pb-5';
+        case 'center':
+        default:
+          return 'items-center justify-center';
+      }
+    }
+
+    function updateWebSpotlight() {
+      const stage = document.getElementById('web-workspace-stage');
+      const spotlight = document.getElementById('web-tour-spotlight');
+      if (!stage || !spotlight || !webOverlayVisible) {
+        if (spotlight) spotlight.style.opacity = '0';
+        return;
+      }
+      const step = WEB_TOUR_STEPS[webStepIdx];
+      const pt = step.points[webPointIdx] || step.points[0];
+      const selector = pt.targetSelector || step.targetSelector;
+      const targetEl = stage.querySelector(selector);
+      if (!targetEl) {
+        spotlight.style.opacity = '0';
+        return;
+      }
+      const stageRect = stage.getBoundingClientRect();
+      const rect = targetEl.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        spotlight.style.opacity = '0';
+        return;
+      }
+      spotlight.style.opacity = '1';
+      spotlight.style.top = Math.max(4, rect.top - stageRect.top - 5) + 'px';
+      spotlight.style.left = Math.max(4, rect.left - stageRect.left - 5) + 'px';
+      spotlight.style.width = (rect.width + 10) + 'px';
+      spotlight.style.height = (rect.height + 10) + 'px';
+    }
+
+    function renderWebTour() {
+      const step = WEB_TOUR_STEPS[webStepIdx];
+      const pt = step.points[webPointIdx] || step.points[0];
+
+      if (pt.preferredTab) {
+        switchSimulatedRightTab(pt.preferredTab);
+      }
+      openSimulatedDialog(pt.openDialog || 'none', pt.settingsTab);
+
+      document.getElementById('web-tour-category').textContent = step.category;
+      document.getElementById('web-tour-card-badge').textContent = `Card ${webStepIdx + 1} of ${WEB_TOUR_STEPS.length}`;
+      document.getElementById('web-tour-point-badge').textContent = `Point ${webPointIdx + 1} of ${step.points.length}`;
+      document.getElementById('web-tour-title').textContent = step.title;
+      document.getElementById('web-tour-subtitle').textContent = step.subtitle;
+      document.getElementById('web-tour-highlight').textContent = step.keyHighlight;
+
+      const wrapper = document.getElementById('web-tour-card-wrapper');
+      wrapper.className = `absolute inset-0 z-40 flex p-4 pointer-events-none ${getPlacementClasses(pt.cardPlacement || 'center')}`;
+      wrapper.style.display = webOverlayVisible ? 'flex' : 'none';
+
+      // Render points
+      const pointsContainer = document.getElementById('web-tour-points');
+      pointsContainer.innerHTML = step.points
+        .map((p, idx) => {
+          const active = idx === webPointIdx;
+          return `<button type="button" onclick="selectWebPoint(${idx})" class="w-full text-left flex items-start gap-2 p-2 rounded-xl border transition cursor-pointer ${
+            active
+              ? 'bg-amber-500/15 border-amber-400/50 text-slate-100 shadow-sm'
+              : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
+          }">
+            <span class="${active ? 'text-amber-400 font-bold' : 'text-slate-600'}">›</span>
+            <span>${p.text}</span>
+          </button>`;
+        })
+        .join('');
+
+      // Render top pills
+      const pillsContainer = document.getElementById('web-tour-card-pills');
+      pillsContainer.innerHTML = WEB_TOUR_STEPS.map((s, idx) => {
+        const active = idx === webStepIdx;
+        return `<button type="button" onclick="jumpToWebCard(${idx})" class="px-2.5 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
+          active
+            ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
+            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+        }">${idx + 1}. ${s.category}</button>`;
+      }).join('');
+
+      // Render bottom dots
+      const dotsContainer = document.getElementById('web-tour-dots');
+      dotsContainer.innerHTML = WEB_TOUR_STEPS.map((s, idx) => {
+        const active = idx === webStepIdx;
+        return `<button type="button" onclick="jumpToWebCard(${idx})" title="${s.title}" class="h-2 rounded-full transition-all cursor-pointer ${
+          active ? 'w-6 bg-amber-400' : 'w-2 bg-slate-700 hover:bg-slate-600'
+        }"></button>`;
+      }).join('');
+
+      const isFirst = webStepIdx === 0 && webPointIdx === 0;
+      const isLastPoint = webPointIdx >= step.points.length - 1;
+      const isLastCard = webStepIdx >= WEB_TOUR_STEPS.length - 1;
+
+      document.getElementById('web-tour-back-btn').disabled = isFirst;
+      document.getElementById('web-tour-next-btn').textContent =
+        isLastCard && isLastPoint
+          ? 'Restart Tour ↺'
+          : isLastPoint
+            ? 'Next Card →'
+            : `Next Point (${webPointIdx + 2}/${step.points.length}) →`;
+
+      setTimeout(updateWebSpotlight, 40);
+    }
+
+    function selectWebPoint(ptIdx) {
+      webPointIdx = ptIdx;
+      webOverlayVisible = true;
+      renderWebTour();
+    }
+
+    function jumpToWebCard(cardIdx) {
+      webStepIdx = cardIdx;
+      webPointIdx = 0;
+      webOverlayVisible = true;
+      document.getElementById('web-tour-toggle-btn').textContent = 'Hide Tour Card (Explore UI Freely)';
+      renderWebTour();
+    }
+
+    function stepWebTour(delta) {
+      const step = WEB_TOUR_STEPS[webStepIdx];
+      if (delta > 0) {
+        if (webPointIdx < step.points.length - 1) {
+          webPointIdx++;
+        } else if (webStepIdx < WEB_TOUR_STEPS.length - 1) {
+          webStepIdx++;
+          webPointIdx = 0;
+        } else {
+          webStepIdx = 0;
+          webPointIdx = 0;
+        }
+      } else {
+        if (webPointIdx > 0) {
+          webPointIdx--;
+        } else if (webStepIdx > 0) {
+          webStepIdx--;
+          webPointIdx = WEB_TOUR_STEPS[webStepIdx].points.length - 1;
+        }
+      }
+      webOverlayVisible = true;
+      renderWebTour();
+    }
+
+    function toggleWebTourOverlay() {
+      webOverlayVisible = !webOverlayVisible;
+      document.getElementById('web-tour-toggle-btn').textContent = webOverlayVisible
+        ? 'Hide Tour Card (Explore UI Freely)'
+        : 'Show Guided Tour Card';
+      renderWebTour();
+    }
+
+    function resetWebTour() {
+      webStepIdx = 0;
+      webPointIdx = 0;
+      webOverlayVisible = true;
+      document.getElementById('web-tour-toggle-btn').textContent = 'Hide Tour Card (Explore UI Freely)';
+      renderWebTour();
+    }
+
+    function renderStaticReferenceGrid() {
+      const grid = document.getElementById('web-tour-static-grid');
+      if (!grid) return;
+      grid.innerHTML = WEB_TOUR_STEPS.map((step, idx) => {
+        const bullets = step.points
+          .map((p) => `<li class="flex items-start gap-2"><span class="text-amber-400 font-bold">›</span><span>${p.text}</span></li>`)
+          .join('');
+        return `<div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">${step.category}</span>
+            <span class="px-2 py-0.5 rounded bg-slate-800 text-[11px] font-mono text-slate-300">Card ${idx + 1} of ${WEB_TOUR_STEPS.length}</span>
+          </div>
+          <h3 class="text-lg font-bold text-white">${step.title}</h3>
+          <p class="text-xs font-medium text-amber-300/90">${step.subtitle}</p>
+          <ul class="space-y-2 text-xs text-slate-300 leading-relaxed pt-1">${bullets}</ul>
+        </div>`;
+      }).join('');
+    }
+
+    window.addEventListener('resize', updateWebSpotlight);
+    window.addEventListener('keydown', (e) => {
+      if (!webOverlayVisible) return;
+      if (e.key === 'ArrowRight') {
+        stepWebTour(1);
+      } else if (e.key === 'ArrowLeft') {
+        stepWebTour(-1);
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderStaticReferenceGrid();
+      renderWebTour();
+    });
+  </script>
 </body>
 </html>
