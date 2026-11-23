@@ -331,6 +331,7 @@ export class LegalDatabase {
         tool_calls_json TEXT NOT NULL,
         adversarial_reviews_json TEXT NOT NULL,
         revision_rounds_completed INTEGER DEFAULT 0,
+        duration_ms INTEGER,
         route_tier TEXT,
         routing_log_id TEXT,
         pii_audit_json TEXT,
@@ -461,6 +462,9 @@ export class LegalDatabase {
       }
       if (!refreshedCols.includes('issue_id')) {
         this.db.run('ALTER TABLE messages ADD COLUMN issue_id TEXT;');
+      }
+      if (!refreshedCols.includes('duration_ms')) {
+        this.db.run('ALTER TABLE messages ADD COLUMN duration_ms INTEGER;');
       }
 
       const mattersInfo = this.db.exec('PRAGMA table_info(matters)');
@@ -1171,17 +1175,23 @@ export class LegalDatabase {
     const messages: LegalMessage[] = [];
     while (stmt.step()) {
       const r = stmt.getAsObject() as Record<string, unknown>;
+      const rawContent = String(r.content ?? '');
+      const initialDraft = r.initial_draft_before_review
+        ? String(r.initial_draft_before_review)
+        : undefined;
+      const effectiveContent =
+        r.role === 'assistant' && !rawContent.trim() && initialDraft
+          ? initialDraft
+          : rawContent;
       messages.push({
         id: String(r.id),
         matterId: String(r.matter_id),
         issueId: r.issue_id ? String(r.issue_id) : undefined,
         role: r.role as 'user' | 'assistant',
-        content: String(r.content),
+        content: effectiveContent,
         category: (r.category ? String(r.category) : undefined) as LegalMessage['category'],
         isEditedByAttorney: Boolean(r.is_edited),
-        initialDraftBeforeReview: r.initial_draft_before_review
-          ? String(r.initial_draft_before_review)
-          : undefined,
+        initialDraftBeforeReview: initialDraft,
         primaryProvider: r.primary_provider
           ? (String(r.primary_provider) as LLMProviderId)
           : undefined,
@@ -1195,6 +1205,10 @@ export class LegalDatabase {
         toolCalls: JSON.parse(String(r.tool_calls_json || '[]')),
         adversarialReviews: JSON.parse(String(r.adversarial_reviews_json || '[]')),
         revisionRoundsCompleted: Number(r.revision_rounds_completed ?? 0),
+        durationMs:
+          r.duration_ms !== null && r.duration_ms !== undefined
+            ? Number(r.duration_ms)
+            : undefined,
         routeTier: r.route_tier ? (String(r.route_tier) as RouteTier) : undefined,
         routingLogId: r.routing_log_id ? String(r.routing_log_id) : undefined,
         piiAudit: r.pii_audit_json ? JSON.parse(String(r.pii_audit_json)) : undefined,
@@ -1211,8 +1225,8 @@ export class LegalDatabase {
         id, matter_id, issue_id, role, content, category, is_edited, initial_draft_before_review,
         primary_provider, primary_model, review_mode_used,
         assembled_system_prompt_snapshot, tool_calls_json, adversarial_reviews_json,
-        revision_rounds_completed, route_tier, routing_log_id, pii_audit_json, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        revision_rounds_completed, duration_ms, route_tier, routing_log_id, pii_audit_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         msg.id,
         msg.matterId,
@@ -1229,6 +1243,7 @@ export class LegalDatabase {
         JSON.stringify(msg.toolCalls ?? []),
         JSON.stringify(msg.adversarialReviews ?? []),
         msg.revisionRoundsCompleted ?? 0,
+        msg.durationMs ?? null,
         msg.routeTier ?? null,
         msg.routingLogId ?? null,
         msg.piiAudit ? JSON.stringify(msg.piiAudit) : null,
@@ -1281,6 +1296,10 @@ export class LegalDatabase {
         ? JSON.parse(String(r.adversarial_reviews_json))
         : [],
       revisionRoundsCompleted: Number(r.revision_rounds_completed || 0),
+      durationMs:
+        r.duration_ms !== null && r.duration_ms !== undefined
+          ? Number(r.duration_ms)
+          : undefined,
       routeTier: r.route_tier ? (String(r.route_tier) as RouteTier) : undefined,
       routingLogId: r.routing_log_id ? String(r.routing_log_id) : undefined,
       piiAudit: r.pii_audit_json ? JSON.parse(String(r.pii_audit_json)) : undefined,

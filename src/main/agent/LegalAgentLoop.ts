@@ -54,6 +54,7 @@ export class LegalAgentLoop {
       overridePrimaryModel,
       onProgress,
     } = params;
+    const turnStartTime = Date.now();
 
     const emit = (event: Omit<AgentProgressEvent, 'matterId'>) => {
       onProgress?.({ matterId, ...event });
@@ -230,7 +231,38 @@ export class LegalAgentLoop {
           userPrompt: `MATTER RECORD EVIDENCE & MCP AUTHORITY VERIFICATION:\n${scrubbedCorpus}\n\nATTORNEY INSTRUCTION:\n${scrubbedPrompt}`,
         });
         if (liveRes.text && liveRes.text.trim().length > 0) {
-          candidateDraft = liveRes.text;
+          candidateDraft = liveRes.text.trim();
+          if (MultiLLMClient.isDraftCutOff(candidateDraft, userPrompt)) {
+            try {
+              const contRes = await this.llmClient.generateText({
+                provider: effectivePrimaryProvider,
+                model: effectivePrimaryModel,
+                systemPrompt: assembled.primarySystemPrompt,
+                userPrompt: [
+                  `MATTER RECORD EVIDENCE & MCP AUTHORITY VERIFICATION:\n${scrubbedCorpus}`,
+                  `ATTORNEY INSTRUCTION:\n${scrubbedPrompt}`,
+                  `PARTIAL DRAFT ALREADY GENERATED (CUT OFF MID-DOCUMENT):\n${candidateDraft}`,
+                  `Continue and complete the remainder of the legal work product in full (including all factual allegations with Bates pinpoints, all counts/causes of action, and the prayer for relief) without repeating the text already generated above.`,
+                ].join('\n\n'),
+              });
+              if (contRes.text && contRes.text.trim().length > 0) {
+                candidateDraft = `${candidateDraft.trimEnd()}\n\n${contRes.text.trim()}`;
+              }
+            } catch {
+              // Fall through to grounded completion if continuation call fails
+            }
+
+            if (MultiLLMClient.isDraftCutOff(candidateDraft, userPrompt)) {
+              const completed = this.llmClient.completeCutOffLegalDraft({
+                partialDraft: candidateDraft,
+                userPrompt,
+                matter,
+                docs,
+                isRevisionPass: false,
+              });
+              candidateDraft = completed.draftText;
+            }
+          }
         } else {
           primaryCallFailed = true;
           const emptyErr = `[${effectivePrimaryProvider.toUpperCase()} Error (${effectivePrimaryModel})]: Model returned an empty response.`;
@@ -362,14 +394,40 @@ export class LegalAgentLoop {
                 `RETRIEVED RECORD:\n${scrubbedCorpus}`,
                 `YOUR INITIAL CANDIDATE DRAFT:\n${candidateDraft}`,
                 `MANDATORY ADVERSARIAL REVIEW OBJECTIONS TO CURE:\n${objectionsFormatted}`,
-                `Produce the final, verified legal work product curing every objection above with exact record pinpoints.`,
+                `Produce the COMPLETE, final, verified legal work product in full (including caption, all factual allegations with exact Bates pinpoints, all counts/causes of action, and prayer for relief), curing every objection above. Output the entire pleading directly in your response without omitting or truncating any section.`,
               ].join('\n\n'),
             });
-            if (revRes.text && revRes.text.trim().length > 0) {
-              candidateDraft = revRes.text;
-              revisedRedlineContent = revRes.text;
-              revisedRedlineRationale = `Cured ${gateResult.combinedObjections.length} adversarial review objections.`;
+            const revTrimmed = (revRes.text || '').trim();
+            if (revTrimmed.length > 0) {
+              if (MultiLLMClient.isDraftCutOff(revTrimmed, userPrompt)) {
+                const completedRev = this.llmClient.completeCutOffLegalDraft({
+                  partialDraft: revTrimmed,
+                  userPrompt,
+                  matter,
+                  docs,
+                  isRevisionPass: true,
+                  objectionsToCure: gateResult.combinedObjections,
+                });
+                candidateDraft = completedRev.draftText;
+                revisedRedlineContent = completedRev.proposedRedlineContent;
+              } else {
+                candidateDraft = revTrimmed;
+                revisedRedlineContent = revTrimmed;
+              }
+            } else {
+              // Never overwrite a valid initial draft with an empty string; complete/cure the initial draft instead
+              const completedFromInitial = this.llmClient.completeCutOffLegalDraft({
+                partialDraft: candidateDraft,
+                userPrompt,
+                matter,
+                docs,
+                isRevisionPass: true,
+                objectionsToCure: gateResult.combinedObjections,
+              });
+              candidateDraft = completedFromInitial.draftText;
+              revisedRedlineContent = completedFromInitial.proposedRedlineContent;
             }
+            revisedRedlineRationale = `Cured ${gateResult.combinedObjections.length} adversarial review objections.`;
           } catch (revErr) {
             const revErrMsg = (revErr as Error).message.replace(/[\r\n]+/g, ' ');
             candidateDraft = [
@@ -424,6 +482,25 @@ export class LegalAgentLoop {
       ? this.privacyRouter.rehydrate(initialDraftBeforeReview, vault)
       : undefined;
 
+    // Ensure formal work product drafts always record a redline version even when critics approve in Round 1 or in direct_bypass mode
+    if (
+      !isInformational &&
+      candidateDraft.trim().length > 0 &&
+      !toolCalls.some((tc) => tc.toolName === 'propose_document_redline')
+    ) {
+      const directRedlineCall = await this.toolExecutor.executeTool(
+        matterId,
+        'propose_document_redline',
+        {
+          newContent: candidateDraft,
+          rationaleSummary: `Initial work product draft for instruction: "${userPrompt.slice(0, 80)}"`,
+          title: `Work Product Draft (${new Date().toLocaleTimeString()})`,
+        },
+        effectivePrimaryModel
+      );
+      toolCalls.push(directRedlineCall);
+    }
+
     const assistantMessage: LegalMessage = {
       id: assistantMessageId,
       matterId,
@@ -441,6 +518,7 @@ export class LegalAgentLoop {
       toolCalls,
       adversarialReviews: allReviews,
       revisionRoundsCompleted,
+      durationMs: Math.max(1, Date.now() - turnStartTime),
       createdAt: new Date().toISOString(),
     };
 

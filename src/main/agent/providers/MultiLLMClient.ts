@@ -155,35 +155,138 @@ export class MultiLLMClient {
     return aliasMap[trimmed] || trimmed;
   }
 
+  private static getAnthropicCandidateModels(model: string): string[] {
+    const primary = MultiLLMClient.normalizeAnthropicModelId(model);
+    const fallbacks = primary.includes('haiku')
+      ? [
+          primary,
+          'claude-haiku-4-5',
+          'claude-haiku-4-5-20251001',
+          'claude-3-5-haiku-latest',
+          'claude-sonnet-4-5',
+        ]
+      : primary.includes('opus')
+      ? [
+          primary,
+          'claude-opus-4-5',
+          'claude-sonnet-4-5',
+          'claude-3-7-sonnet-latest',
+        ]
+      : [
+          primary,
+          'claude-sonnet-4-5',
+          'claude-sonnet-4-5-20250929',
+          'claude-3-7-sonnet-latest',
+          'claude-3-5-sonnet-latest',
+        ];
+    return Array.from(new Set(fallbacks));
+  }
+
   private async callLiveProvider(
     req: LLMCompletionRequest,
     apiKey: string
   ): Promise<string> {
     if (req.provider === 'anthropic') {
-      const normalizedModel = MultiLLMClient.normalizeAnthropicModelId(req.model);
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: normalizedModel,
-          max_tokens: 4096,
-          system: req.systemPrompt,
-          messages: [{ role: 'user', content: req.userPrompt }],
-        }),
-      });
+      const candidateModels = MultiLLMClient.getAnthropicCandidateModels(req.model);
+      let lastStatus = 0;
+      let lastErrBody = '';
 
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errBody.slice(0, 240)}`);
+      for (const candidateModel of candidateModels) {
+        const tokenBudgetsToTry = [16384, 8192, 4096];
+        for (const maxTokens of tokenBudgetsToTry) {
+          const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+              model: candidateModel,
+              max_tokens: maxTokens,
+              system: req.systemPrompt,
+              messages: [{ role: 'user', content: req.userPrompt }],
+            }),
+          });
+
+          if (!response.ok) {
+            lastStatus = response.status;
+            lastErrBody = await response.text();
+            // If max_tokens is too large for this specific model, retry with smaller budget
+            if (
+              response.status === 400 &&
+              /max_tokens/i.test(lastErrBody) &&
+              maxTokens > 4096
+            ) {
+              continue;
+            }
+            // If model slug was not found (404), break inner loop and try next candidate model
+            if (response.status === 404) {
+              break;
+            }
+            throw new Error(`HTTP ${response.status}: ${lastErrBody.slice(0, 240)}`);
+          }
+
+          const data = (await response.json()) as {
+            stop_reason?: string;
+            content?: Array<{ type: string; text?: string }>;
+          };
+          let accumulatedText =
+            data.content
+              ?.filter((c) => c.type === 'text' && typeof c.text === 'string')
+              .map((c) => c.text!)
+              .join('\n') || '';
+
+          let currentStopReason = data.stop_reason;
+          let continuationRound = 0;
+
+          while (
+            currentStopReason === 'max_tokens' &&
+            accumulatedText.trim().length > 0 &&
+            continuationRound < 2
+          ) {
+            continuationRound++;
+            try {
+              const contRes = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': apiKey,
+                  'anthropic-version': '2023-06-01',
+                },
+                body: JSON.stringify({
+                  model: candidateModel,
+                  max_tokens: maxTokens,
+                  system: req.systemPrompt,
+                  messages: [
+                    { role: 'user', content: req.userPrompt },
+                    { role: 'assistant', content: accumulatedText.trimEnd() },
+                  ],
+                }),
+              });
+              if (!contRes.ok) break;
+              const contData = (await contRes.json()) as {
+                stop_reason?: string;
+                content?: Array<{ type: string; text?: string }>;
+              };
+              const nextChunk =
+                contData.content
+                  ?.filter((c) => c.type === 'text' && typeof c.text === 'string')
+                  .map((c) => c.text!)
+                  .join('\n') || '';
+              if (!nextChunk.trim()) break;
+              accumulatedText = `${accumulatedText.trimEnd()}${nextChunk}`;
+              currentStopReason = contData.stop_reason;
+            } catch {
+              break;
+            }
+          }
+
+          return accumulatedText;
+        }
       }
-      const data = (await response.json()) as {
-        content?: Array<{ type: string; text?: string }>;
-      };
-      return data.content?.map((c) => c.text || '').join('\n') || '';
+
+      throw new Error(`HTTP ${lastStatus || 404}: ${lastErrBody.slice(0, 240)}`);
     }
 
     if (req.provider === 'openai' || req.provider === 'openrouter') {
@@ -214,9 +317,51 @@ export class MultiLLMClient {
         throw new Error(`HTTP ${response.status}: ${errBody.slice(0, 240)}`);
       }
       const data = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{
+          finish_reason?: string;
+          message?: { content?: string };
+        }>;
       };
-      return data.choices?.[0]?.message?.content || '';
+      let accumulatedText = data.choices?.[0]?.message?.content || '';
+      if (
+        data.choices?.[0]?.finish_reason === 'length' &&
+        accumulatedText.trim().length > 0
+      ) {
+        try {
+          const contRes = await fetch(`${baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: req.model,
+              messages: [
+                { role: 'system', content: req.systemPrompt },
+                { role: 'user', content: req.userPrompt },
+                { role: 'assistant', content: accumulatedText },
+                {
+                  role: 'user',
+                  content:
+                    'Continue the legal pleading from the exact point where it was cut off without repeating earlier sections.',
+                },
+              ],
+            }),
+          });
+          if (contRes.ok) {
+            const contData = (await contRes.json()) as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            const contChunk = contData.choices?.[0]?.message?.content || '';
+            if (contChunk.trim()) {
+              accumulatedText = `${accumulatedText}\n${contChunk}`;
+            }
+          }
+        } catch {
+          // Return initial chunk if continuation fails
+        }
+      }
+      return accumulatedText;
     }
 
     if (req.provider === 'gemini') {
@@ -230,6 +375,7 @@ export class MultiLLMClient {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: req.systemPrompt }] },
           contents: [{ role: 'user', parts: [{ text: req.userPrompt }] }],
+          generationConfig: { maxOutputTokens: 16384 },
         }),
       });
 
@@ -256,10 +402,246 @@ export class MultiLLMClient {
         p
       );
     const isDraftRequest =
-      /\b(draft|write a motion|write the motion|prepare a motion|prepare the brief|compose a motion|file a|motion to suppress|motion to dismiss)\b/i.test(
+      /\b(draft|write a motion|write the motion|prepare a motion|prepare the brief|compose a motion|file a|motion to suppress|motion to dismiss|complaint|petition|memorandum|demand letter)\b/i.test(
         p
       );
     return isQuestion && !isDraftRequest;
+  }
+
+  /**
+   * Detects when a live model output was cut off mid-stream (e.g., ending mid-word or on a
+   * trailing heading like "### COMPLAINT FOR P" right after the caption without facts, counts,
+   * or prayer for relief).
+   */
+  static isDraftCutOff(draftText: string, userPrompt: string): boolean {
+    const trimmed = (draftText || '').trim();
+    if (!trimmed) return true;
+    if (MultiLLMClient.isInformationalInquiry(userPrompt)) return false;
+
+    const nonEmptyLines = trimmed
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (nonEmptyLines.length === 0) return true;
+
+    const lastLine = nonEmptyLines[nonEmptyLines.length - 1];
+
+    // 1. Ends on a Markdown heading (# ... ######) or horizontal rule (---) with no body following
+    if (/^#{1,6}\s+/.test(lastLine) || /^[-*_]{3,}$/.test(lastLine)) {
+      return true;
+    }
+
+    // 2. Ends on an all-caps section header or truncated mid-word heading (e.g. "COMPLAINT FOR P")
+    if (
+      /^(?:PART\s+[A-Z0-9]+|[IVX]+\.\s+|COUNT\s+[IVX0-9]+|COMPLAINT\s+FOR\b|CAUSES?\s+OF\s+ACTION|STATEMENT\s+OF\s+FACTS|PRAYER\s+FOR\s+RELIEF)/i.test(
+        lastLine
+      ) &&
+      !/[.!?)"'\]]$/.test(lastLine)
+    ) {
+      return true;
+    }
+
+    // 3. Ends mid-word or with a dangling preposition/conjunction/single letter
+    if (
+      /\b(?:FOR|AND|OR|OF|TO|IN|THE|WITH|BY|UNDER|PURSUANT|SECTION|COUNT|[A-Z])\s*$/.test(
+        lastLine
+      ) &&
+      !/[.!?)"'\]_`*]$/.test(lastLine) &&
+      !/^(?:Respectfully submitted|JURY DEMANDED|Counsel for|Attorney for)/i.test(
+        lastLine
+      )
+    ) {
+      return true;
+    }
+
+    // 4. If the attorney requested a Complaint, verify that the draft did not stop after the caption
+    if (/\b(complaint|petition)\b/i.test(userPrompt)) {
+      const hasFactsOrAllegations =
+        /\b(factual|allegations?|statement of facts|background|on or about|\b1\.\s+|\bparagraph\s+1\b)/i.test(
+          trimmed
+        );
+      const hasCountsOrClaims =
+        /\b(count\s+[i1v]|causes?\s+of\s+action|claim\s+for\s+relief|negligence|breach|liability|damages)\b/i.test(
+          trimmed
+        );
+      const hasPrayer =
+        /\b(wherefore|prayer for relief|relief requested|demands? judgment|respectfully requests?|respectfully prays?)\b/i.test(
+          trimmed
+        );
+      if (!hasFactsOrAllegations || !hasCountsOrClaims || !hasPrayer) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Repairs and completes a partial/cut-off legal draft (such as a draft stopping at
+   * "### COMPLAINT FOR P" right after the caption) using grounded facts, causes of action,
+   * and prayer for relief extracted from the matter's uploaded exhibits.
+   */
+  completeCutOffLegalDraft(params: {
+    partialDraft: string;
+    userPrompt: string;
+    matter: Matter;
+    docs: MatterDocument[];
+    isRevisionPass?: boolean;
+    objectionsToCure?: AdversarialObjection[];
+  }): {
+    draftText: string;
+    proposedRedlineContent: string;
+    proposedRedlineRationale: string;
+  } {
+    const {
+      partialDraft,
+      userPrompt,
+      matter,
+      docs,
+      isRevisionPass = false,
+      objectionsToCure,
+    } = params;
+
+    const trimmedPartial = (partialDraft || '').trim();
+    if (!trimmedPartial) {
+      const fullFallback = this.generateGroundedLegalDraft({
+        userPrompt,
+        matter,
+        docs,
+        isRevisionPass,
+        objectionsToCure,
+      });
+      return {
+        draftText: fullFallback.draftText,
+        proposedRedlineContent:
+          fullFallback.proposedRedlineContent || fullFallback.draftText,
+        proposedRedlineRationale:
+          fullFallback.proposedRedlineRationale ||
+          'Generated complete grounded legal work product.',
+      };
+    }
+
+    const uploadedDocs = docs.filter((d) => d.batesRange !== 'WP-0001');
+    const targetDocs = uploadedDocs.length > 0 ? uploadedDocs : docs;
+    const primaryExhibit = targetDocs[0];
+
+    const extractGroundedParagraphs = (doc?: MatterDocument): string[] => {
+      if (!doc || !doc.content) return [];
+      return doc.content
+        .split(/\n+/)
+        .map((line) => line.replace(/^#+\s*/, '').replace(/^[-*•]\s*/, '').trim())
+        .filter(
+          (line) =>
+            line.length > 25 &&
+            !line.startsWith('INITIAL MATTER MEMORANDUM') &&
+            !line.startsWith('**Client**:') &&
+            !line.startsWith('**Matter / Docket No.**:') &&
+            !line.startsWith('|')
+        )
+        .slice(0, 15);
+    };
+
+    const exhibitParagraphs = targetDocs.flatMap((d) =>
+      extractGroundedParagraphs(d).map((p) => ({
+        bates: d.batesRange,
+        title: d.title,
+        text: p,
+      }))
+    );
+
+    const factualAllegationsMd =
+      exhibitParagraphs.length > 0
+        ? exhibitParagraphs
+            .slice(0, 12)
+            .map(
+              (item, idx) =>
+                `${idx + 1}. ${item.text} [${item.bates} — ${item.title}].`
+            )
+            .join('\n\n')
+        : `1. Plaintiff incorporates the factual allegations, notice, and damages documented in the matter record for **${matter.name}** (${matter.clientName}) [${primaryExhibit?.batesRange ?? 'DOC-0001'}].`;
+
+    // Strip any broken trailing heading or mid-word line at the end of partialDraft
+    const rawLines = trimmedPartial.split(/\r?\n/);
+    while (rawLines.length > 0) {
+      const tail = rawLines[rawLines.length - 1].trim();
+      if (!tail) {
+        rawLines.pop();
+        continue;
+      }
+      if (
+        /^#{1,6}\s+/.test(tail) ||
+        /^[-*_]{3,}$/.test(tail) ||
+        /^COMPLAINT\s+FOR\b/i.test(tail) ||
+        /\b(?:FOR|AND|OR|OF|TO|IN|THE|WITH|BY|UNDER|PURSUANT|[A-Z])\s*$/.test(tail)
+      ) {
+        rawLines.pop();
+        break;
+      }
+      break;
+    }
+
+    const cleanedPrefix = rawLines.join('\n').trim();
+    const lowerPrefix = cleanedPrefix.toLowerCase();
+
+    const courtMatch =
+      userPrompt.match(
+        /\b(?:for|in)\s+((?:the\s+)?(?:circuit|superior|district|chancery|county|supreme|municipal)\s+court[A-Za-z0-9\s,.-]{0,60}?)(?:\s+with\b|\s+using\b|\s+from\b|\s+based\b|[.?!]|$)/i
+      )?.[1] || matter.jurisdiction;
+    const targetForum = courtMatch.trim();
+
+    const sectionsToAppend: string[] = [];
+
+    if (!lowerPrefix.includes('complaint for damages') && /\b(complaint|petition)\b/i.test(userPrompt)) {
+      sectionsToAppend.push(
+        `### COMPLAINT FOR DAMAGES AND DEMAND FOR JURY TRIAL\n\nCOMES NOW Plaintiff **${matter.clientName}**, by and through undersigned counsel, and for this Complaint against Defendant based upon the evidentiary record in **${primaryExhibit?.title ?? matter.name}** [${primaryExhibit?.batesRange ?? 'DOC-0001'}], states and alleges as follows:`
+      );
+    }
+
+    if (!lowerPrefix.includes('jurisdiction and venue') && !lowerPrefix.includes('parties')) {
+      sectionsToAppend.push(
+        `### I. PARTIES, JURISDICTION, AND VENUE\n\n1. **Plaintiff**: Plaintiff **${matter.clientName}** brings this action based on the events, injuries, and damages documented in **${primaryExhibit?.title ?? matter.name}** [${primaryExhibit?.batesRange ?? 'DOC-0001'}].\n\n2. **Jurisdiction & Venue**: Jurisdiction and venue are proper in **${targetForum}** pursuant to governing forum rules because the cause of action arose within the forum's territorial jurisdiction and the amount in controversy satisfies the Court's jurisdictional threshold [${primaryExhibit?.batesRange ?? 'DOC-0001'}].`
+      );
+    }
+
+    if (!lowerPrefix.includes('statement of facts') && !lowerPrefix.includes('factual allegations')) {
+      sectionsToAppend.push(
+        `### II. STATEMENT OF MATERIAL FACTS\n\n${factualAllegationsMd}`
+      );
+    }
+
+    if (!lowerPrefix.includes('count i') && !lowerPrefix.includes('cause of action') && !lowerPrefix.includes('causes of action')) {
+      sectionsToAppend.push(
+        `### III. CAUSES OF ACTION\n\n#### COUNT I — CAUSE OF ACTION GROUNDED IN MATTER RECORD (${primaryExhibit?.batesRange ?? 'DOC-0001'})\n\n1. Plaintiff realleges and incorporates by reference every preceding paragraph as though fully set forth herein.\n\n2. As established in **${primaryExhibit?.title ?? matter.name}** [${primaryExhibit?.batesRange ?? 'DOC-0001'}], Defendant owed a legal duty of care and performance, breached that duty through the acts and omissions detailed in the record, and directly and proximately caused substantial damages to **${matter.clientName}**.\n\n3. Plaintiff provided formal demand and itemization of damages as set forth in **${primaryExhibit?.title ?? 'Matter Demand Record'}** [${primaryExhibit?.batesRange ?? 'DOC-0001'}], which remains unresolved.`
+      );
+    }
+
+    if (!lowerPrefix.includes('wherefore') && !lowerPrefix.includes('prayer for relief')) {
+      sectionsToAppend.push(
+        `### IV. PRAYER FOR RELIEF & JURY DEMAND\n\n**WHEREFORE**, premises considered, Plaintiff **${matter.clientName}** respectfully prays that this Honorable Court:\n\n1. Issue process requiring Defendant to answer this Complaint within the time prescribed by law;\n2. Award Plaintiff full compensatory, special, and general damages in an amount supported by **${primaryExhibit?.title ?? matter.name}** [${primaryExhibit?.batesRange ?? 'DOC-0001'}], together with pre-judgment and post-judgment interest and costs; and\n3. Empanel a jury to try all issues of fact so triable, and grant such other and further relief to which Plaintiff may be justly entitled.`
+      );
+    }
+
+    if (isRevisionPass && objectionsToCure && objectionsToCure.length > 0) {
+      const curedSummary = objectionsToCure
+        .map(
+          (o, idx) =>
+            `${idx + 1}. **Cured [${o.category}] (${o.location})**: ${o.requiredFix}`
+        )
+        .join('\n');
+      sectionsToAppend.push(
+        `---\n\n### Revisions Applied After Multi-LLM Adversarial Gate\n\n${curedSummary}`
+      );
+    }
+
+    const completedText = [cleanedPrefix, ...sectionsToAppend]
+      .filter(Boolean)
+      .join('\n\n');
+
+    return {
+      draftText: completedText,
+      proposedRedlineContent: completedText,
+      proposedRedlineRationale: `Completed full legal pleading and cured ${(objectionsToCure || []).length} adversarial review objection(s) grounded in ${primaryExhibit?.title ?? matter.name} [${primaryExhibit?.batesRange ?? 'DOC-0001'}].`,
+    };
   }
 
   generateGroundedLegalDraft(params: {
@@ -439,29 +821,30 @@ ${curedSummary}`;
       if (!doc || !doc.content) return [];
       return doc.content
         .split(/\n+/)
-        .map((line) => line.trim())
+        .map((line) => line.replace(/^#+\s*/, '').replace(/^[-*•]\s*/, '').trim())
         .filter(
           (line) =>
             line.length > 25 &&
-            !line.startsWith('# INITIAL MATTER MEMORANDUM') &&
-            !line.startsWith('- **Client**:') &&
-            !line.startsWith('- **Matter / Docket No.**:')
+            !line.startsWith('INITIAL MATTER MEMORANDUM') &&
+            !line.startsWith('**Client**:') &&
+            !line.startsWith('**Matter / Docket No.**:') &&
+            !line.startsWith('|')
         )
-        .slice(0, 8);
+        .slice(0, 15);
     };
 
     const exhibitParagraphs = targetDocs.flatMap((d) =>
       extractGroundedParagraphs(d).map((p) => ({
         bates: d.batesRange,
         title: d.title,
-        text: p.replace(/^#+\s*/, ''),
+        text: p,
       }))
     );
 
     const factualAllegationsMd =
       exhibitParagraphs.length > 0
         ? exhibitParagraphs
-            .slice(0, 6)
+            .slice(0, 12)
             .map(
               (item, idx) =>
                 `${idx + 1}. ${item.text} \`[${item.bates} — ${item.title}]\``
@@ -476,11 +859,18 @@ ${curedSummary}`;
       )
       .join('\n');
 
+    const courtMatch =
+      userPrompt.match(
+        /\b(?:for|in)\s+((?:the\s+)?(?:circuit|superior|district|chancery|county|supreme|municipal)\s+court[A-Za-z0-9\s,.-]{0,60}?)(?:\s+with\b|\s+using\b|\s+from\b|\s+based\b|[.?!]|$)/i
+      )?.[1] || matter.jurisdiction;
+    const targetForum = courtMatch.trim();
+
     if (!isRevisionPass) {
       return {
         draftText: `# INITIAL DRAFT WORK PRODUCT — ${matter.name.toUpperCase()} (${matter.matterNumber})
 
 ## I. CAPTION & GOVERNING FORUM
+- **Court / Forum**: ${targetForum}
 - **Matter**: ${matter.name}
 - **Client / Party**: ${matter.clientName}
 - **Docket / Matter No.**: ${matter.matterNumber}
@@ -493,8 +883,13 @@ ${exhibitsSummaryMd}
 ## III. STATEMENT OF FACTS & CLAIMS FROM UPLOADED RECORD
 ${factualAllegationsMd}
 
-## IV. LEGAL CLAIMS & RELIEF REQUESTED
-Pursuant to the governing rules of **${matter.jurisdiction}** and the factual record established in **${primaryExhibit?.title ?? matter.name}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, ${matter.clientName} demands judgment, compensatory damages, statutory or contractual relief, and all further relief to which ${matter.clientName} is entitled.`,
+## IV. CAUSES OF ACTION & COUNTS
+### COUNT I — CAUSE OF ACTION GROUNDED IN MATTER RECORD (\`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`)
+1. ${matter.clientName} realleges and incorporates by reference each preceding factual paragraph as though fully set forth herein.
+2. Based on the facts, notice, and itemization documented in **${primaryExhibit?.title ?? matter.name}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, opposing party breached its legal duties and caused direct and proximate damages to **${matter.clientName}**.
+
+## V. PRAYER FOR RELIEF & JURY DEMAND
+**WHEREFORE**, premises considered, pursuant to the governing rules of **${targetForum}** and the factual record established in **${primaryExhibit?.title ?? matter.name}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, **${matter.clientName}** respectfully prays for judgment, full compensatory and special damages, pre-judgment and post-judgment interest, costs, a trial by jury on all issues so triable, and all further relief to which ${matter.clientName} is justly entitled.`,
       };
     }
 
@@ -508,17 +903,23 @@ Pursuant to the governing rules of **${matter.jurisdiction}** and the factual re
     const revisedCustomDraft = `# VERIFIED LEGAL WORK PRODUCT — ${matter.name.toUpperCase()} (${matter.matterNumber})
 
 ## I. CAPTION & JURISDICTIONAL STATEMENT
-- **Court / Forum**: ${matter.jurisdiction}
+- **Court / Forum**: ${targetForum}
 - **Case Caption**: ${matter.name}
 - **Client / Party**: ${matter.clientName}
 - **Docket / Matter No.**: ${matter.matterNumber}
+- **Governing Jurisdiction**: ${matter.jurisdiction}
 
 ## II. VERIFIED FACTUAL ALLEGATIONS (WITH BATES PINPOINTS)
 ${factualAllegationsMd}
 
-## III. CAUSES OF ACTION & PRAYER FOR RELIEF
-1. **Primary Claim Grounded in Uploaded Record**: Incorporating the factual allegations and demand particulars from **${primaryExhibit?.title ?? 'Matter Exhibits'}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, ${matter.clientName} pleads entitlement to full legal and equitable relief in **${matter.jurisdiction}**.
-2. **Evidentiary Foundation**: Supported by ${targetDocs.map((d) => `${d.title} \`[${d.batesRange}]\``).join(', ')}.
+## III. CAUSES OF ACTION
+### COUNT I — PRIMARY CLAIM GROUNDED IN UPLOADED RECORD (\`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`)
+1. **Incorporation of Record**: ${matter.clientName} realleges and incorporates by reference all preceding factual paragraphs grounded in **${primaryExhibit?.title ?? 'Matter Exhibits'}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`.
+2. **Liability & Breach**: Incorporating the factual allegations, notice, and demand particulars from **${primaryExhibit?.title ?? 'Matter Exhibits'}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, ${matter.clientName} pleads entitlement to full legal and equitable relief in **${targetForum}**.
+3. **Evidentiary Foundation & Damages**: Supported by ${targetDocs.map((d) => `${d.title} \`[${d.batesRange}]\``).join(', ')}.
+
+## IV. PRAYER FOR RELIEF & JURY DEMAND
+**WHEREFORE**, premises considered, **${matter.clientName}** respectfully requests that the Court enter judgment in favor of ${matter.clientName}, award full compensatory and special damages as itemized in **${primaryExhibit?.title ?? 'Matter Exhibits'}** \`[${primaryExhibit?.batesRange ?? 'DOC-0001'}]\`, together with interest and costs, empanel a jury to try all issues so triable, and grant such other and further relief to which ${matter.clientName} is entitled.
 
 ---
 

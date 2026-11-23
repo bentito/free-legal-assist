@@ -264,6 +264,7 @@ export interface LegalMessage {
   toolCalls: ToolCallRecord[];
   adversarialReviews: AdversarialReviewRecord[];
   revisionRoundsCompleted?: number;
+  durationMs?: number;
   routeTier?: RouteTier;
   routingLogId?: string;
   piiAudit?: PiiMaskingAudit;
@@ -534,11 +535,13 @@ export interface ExportDocxPayload {
   content: string;
   previousContent?: string;
   author?: string;
+  date?: string;
   rationaleSummary?: string;
   comments?: Array<{
     author: string;
     text: string;
     anchorText?: string;
+    targetSnippet?: string;
     date?: string;
   }>;
 }

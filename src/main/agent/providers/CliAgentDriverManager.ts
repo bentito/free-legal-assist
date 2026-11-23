@@ -539,29 +539,64 @@ export class CliAgentDriverManager {
     cwd?: string;
     claudeMcpConfigJson?: string;
   }): Promise<string> {
-    const args = [
-      '-p',
-      '--output-format',
-      'text',
-      '--model',
-      input.model,
-      '--system-prompt',
-      input.systemPrompt,
-      ...(input.claudeMcpConfigJson
-        ? ['--mcp-config', input.claudeMcpConfigJson]
-        : []),
-      input.userPrompt,
-    ];
+    const modelsToTry: (string | undefined)[] = [input.model];
+    if (input.model.includes('sonnet')) {
+      for (const fallback of ['claude-sonnet-4-5', 'sonnet', undefined]) {
+        if (!modelsToTry.includes(fallback)) modelsToTry.push(fallback);
+      }
+    } else if (input.model.includes('opus')) {
+      for (const fallback of ['claude-opus-4-5', 'opus', undefined]) {
+        if (!modelsToTry.includes(fallback)) modelsToTry.push(fallback);
+      }
+    } else if (input.model.includes('haiku')) {
+      for (const fallback of ['claude-haiku-4-5', 'haiku', undefined]) {
+        if (!modelsToTry.includes(fallback)) modelsToTry.push(fallback);
+      }
+    } else {
+      modelsToTry.push(undefined);
+    }
 
-    const out = await this.spawnWithStdin(
-      input.binary,
-      args,
-      '',
-      input.env,
-      input.cwd || this.getSafeFallbackCwd(),
-      120_000
-    );
-    return out.trim();
+    const claudeEnv: NodeJS.ProcessEnv = {
+      ...input.env,
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS:
+        input.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS || '16384',
+    };
+
+    let lastError: Error | null = null;
+    for (const modelToUse of modelsToTry) {
+      const args = [
+        '-p',
+        '--output-format',
+        'text',
+        ...(modelToUse ? ['--model', modelToUse] : []),
+        '--system-prompt',
+        input.systemPrompt,
+        ...(input.claudeMcpConfigJson
+          ? ['--mcp-config', input.claudeMcpConfigJson]
+          : []),
+        input.userPrompt,
+      ];
+
+      try {
+        const out = await this.spawnWithStdin(
+          input.binary,
+          args,
+          '',
+          claudeEnv,
+          input.cwd || this.getSafeFallbackCwd(),
+          180_000
+        );
+        const trimmed = out.trim();
+        if (trimmed) return trimmed;
+      } catch (err) {
+        lastError = err as Error;
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+    throw new Error('Claude CLI completed without writing an output message.');
   }
 
   private static spawnWithStdin(
@@ -584,8 +619,8 @@ export class CliAgentDriverManager {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
-      let stdout = '';
-      let stderr = '';
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
 
       const timer = setTimeout(() => {
         child.kill('SIGTERM');
@@ -593,11 +628,11 @@ export class CliAgentDriverManager {
       }, timeoutMs);
 
       child.stdout.on('data', (chunk: Buffer) => {
-        stdout += chunk.toString('utf8');
+        stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString('utf8');
+        stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       });
 
       child.on('error', (err) => {
@@ -607,6 +642,8 @@ export class CliAgentDriverManager {
 
       child.on('close', (code) => {
         clearTimeout(timer);
+        const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+        const stderr = Buffer.concat(stderrChunks).toString('utf8');
         if (code === 0) {
           resolve(stdout);
         } else {
