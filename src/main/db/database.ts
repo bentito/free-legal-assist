@@ -55,6 +55,32 @@ const defaultEncryptor: SecretEncryptor = {
   decrypt: (cipherText: string) => Buffer.from(cipherText, 'base64').toString('utf8'),
 };
 
+export const RETIRED_CLAUDE_MODEL_MIGRATIONS: Record<string, string> = {
+  'claude-3-7-sonnet-latest': 'claude-sonnet-5-5',
+  'claude-3-7-sonnet': 'claude-sonnet-5-5',
+  'claude-3-7-sonnet-20250219': 'claude-sonnet-5-5',
+  'claude-3-5-sonnet-latest': 'claude-sonnet-5-5',
+  'claude-3-5-sonnet': 'claude-sonnet-5-5',
+  'claude-3-5-sonnet-20241022': 'claude-sonnet-5-5',
+  'claude-3-5-sonnet-20240620': 'claude-sonnet-5-5',
+  'claude-3-5-haiku-latest': 'claude-haiku-5-5',
+  'claude-3-5-haiku': 'claude-haiku-5-5',
+  'claude-3-5-haiku-20241022': 'claude-haiku-5-5',
+  'claude-3-haiku-20240307': 'claude-haiku-5-5',
+  'claude-3-haiku-latest': 'claude-haiku-5-5',
+  'claude-3-haiku': 'claude-haiku-5-5',
+  'claude-3-opus-latest': 'claude-opus-5-5',
+  'claude-3-opus': 'claude-opus-5-5',
+  'claude-3-opus-20240229': 'claude-opus-5-5',
+  'anthropic/claude-3.7-sonnet': 'anthropic/claude-sonnet-5-5',
+};
+
+export function migrateRetiredModelId(modelId?: string): string {
+  if (!modelId) return '';
+  const trimmed = modelId.trim();
+  return RETIRED_CLAUDE_MODEL_MIGRATIONS[trimmed] || trimmed;
+}
+
 export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'>[] = [
   {
     id: 'agy-acp',
@@ -68,8 +94,9 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
     availableModels: [
       { id: 'gemini-4-argon', label: 'Gemini 4 Argon (Antigravity ACP)' },
       { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Antigravity ACP)' },
-      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (via Antigravity ACP)' },
       { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (via Antigravity ACP)' },
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (via Antigravity ACP)' },
+      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (via Antigravity ACP)' },
     ],
     enabled: true,
   },
@@ -99,9 +126,9 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
     runtimeMode: 'approval-required',
     defaultModel: 'claude-sonnet-5-5',
     availableModels: [
-      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Claude Agent CLI)' },
       { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Claude Agent CLI)' },
-      { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet (Claude Agent CLI)' },
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Claude Agent CLI)' },
+      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Claude Agent CLI)' },
     ],
     enabled: true,
   },
@@ -110,12 +137,11 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
     driverKind: 'http-api',
     name: 'Anthropic Claude (Direct HTTPS API)',
     description: 'Primary legal reasoning, brief drafting, and motion/contract analysis via direct HTTPS API.',
-    defaultModel: 'claude-3-7-sonnet-latest',
+    defaultModel: 'claude-sonnet-5-5',
     availableModels: [
-      { id: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet (Extended Legal Reasoning)' },
-      { id: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku (Fast Economy)' },
-      { id: 'claude-3-opus-latest', label: 'Claude 3 Opus (Deepest Analysis)' },
+      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Extended Legal Reasoning)' },
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Deepest Analysis)' },
+      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Fast Economy)' },
     ],
     enabled: true,
   },
@@ -150,9 +176,9 @@ export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'
     name: 'OpenRouter / Custom Local Endpoint',
     description: 'Connect OpenRouter or a local OpenAI-compatible server (e.g., Ollama / vLLM).',
     baseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'anthropic/claude-3.7-sonnet',
+    defaultModel: 'anthropic/claude-sonnet-5-5',
     availableModels: [
-      { id: 'anthropic/claude-3.7-sonnet', label: 'OpenRouter: Claude 3.7 Sonnet' },
+      { id: 'anthropic/claude-sonnet-5-5', label: 'OpenRouter: Claude Sonnet 5.5' },
       { id: 'deepseek/deepseek-r1', label: 'OpenRouter: DeepSeek R1' },
       { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Local / Llama 3.3 70B Instruct' },
     ],
@@ -1452,30 +1478,76 @@ export class LegalDatabase {
   }
 
   getAdversarialConfig(): AdversarialConfig {
-    const raw =
+    const stored =
       this.getKeyValue<AdversarialConfig>('adversarial_config') ??
       DEFAULT_ADVERSARIAL_CONFIG;
 
-    // Verify if raw.primaryProvider is actually usable or if it points to an uninstalled agent like Claude
-    const resolved = this.resolveBestAvailableProvider(raw.primaryProvider);
-    if (resolved.providerId !== raw.primaryProvider) {
-      const updated: AdversarialConfig = {
-        ...raw,
-        primaryProvider: resolved.providerId,
-        primaryModel: resolved.model,
-      };
-      this.setKeyValue('adversarial_config', updated, true);
-      return updated;
+    const migratedPrimaryModel =
+      migrateRetiredModelId(stored.primaryModel) || stored.primaryModel;
+    const migratedAuditorModel =
+      migrateRetiredModelId(stored.citationAuditorModel) ||
+      stored.citationAuditorModel;
+    const migratedOpposingModel =
+      migrateRetiredModelId(stored.opposingCounselModel) ||
+      stored.opposingCounselModel;
+
+    const raw: AdversarialConfig = {
+      ...stored,
+      primaryModel: migratedPrimaryModel,
+      citationAuditorModel: migratedAuditorModel,
+      opposingCounselModel: migratedOpposingModel,
+    };
+
+    const modelsMigrated =
+      raw.primaryModel !== stored.primaryModel ||
+      raw.citationAuditorModel !== stored.citationAuditorModel ||
+      raw.opposingCounselModel !== stored.opposingCounselModel;
+
+    // Only auto-heal away from uninstalled CLI agents (e.g. claude-cli when not installed).
+    // Preserve explicit HTTP provider selections (e.g. anthropic, openai, gemini, openrouter).
+    const isCliPrimary =
+      raw.primaryProvider === 'claude-cli' ||
+      raw.primaryProvider === 'codex-cli' ||
+      raw.primaryProvider === 'agy-acp';
+
+    if (isCliPrimary) {
+      const resolved = this.resolveBestAvailableProvider(raw.primaryProvider);
+      if (resolved.providerId !== raw.primaryProvider) {
+        const updated: AdversarialConfig = {
+          ...raw,
+          primaryProvider: resolved.providerId,
+          primaryModel: resolved.model,
+        };
+        this.setKeyValue('adversarial_config', updated, true);
+        return updated;
+      }
+    }
+
+    if (modelsMigrated) {
+      this.setKeyValue('adversarial_config', raw, true);
     }
 
     return raw;
   }
 
   saveAdversarialConfig(updated: Partial<AdversarialConfig>): AdversarialConfig {
-    const current = this.getAdversarialConfig();
+    const current =
+      this.getKeyValue<AdversarialConfig>('adversarial_config') ??
+      DEFAULT_ADVERSARIAL_CONFIG;
     const merged: AdversarialConfig = {
       ...current,
       ...updated,
+      primaryModel:
+        migrateRetiredModelId(updated.primaryModel ?? current.primaryModel) ||
+        (updated.primaryModel ?? current.primaryModel),
+      citationAuditorModel:
+        migrateRetiredModelId(
+          updated.citationAuditorModel ?? current.citationAuditorModel
+        ) || (updated.citationAuditorModel ?? current.citationAuditorModel),
+      opposingCounselModel:
+        migrateRetiredModelId(
+          updated.opposingCounselModel ?? current.opposingCounselModel
+        ) || (updated.opposingCounselModel ?? current.opposingCounselModel),
     };
     this.setKeyValue('adversarial_config', merged, true);
     return merged;
@@ -1623,6 +1695,17 @@ export class LegalDatabase {
     return null;
   }
 
+  hasStoredApiKey(providerId: LLMProviderId): boolean {
+    const row = this.getRawProviderRow(providerId);
+    if (!row || !row.encrypted_api_key) return false;
+    try {
+      const decrypted = this.encryptor.decrypt(row.encrypted_api_key);
+      return Boolean(decrypted && decrypted.trim().length > 0);
+    } catch {
+      return false;
+    }
+  }
+
   getDecryptedApiKey(providerId: LLMProviderId): string | null {
     const envMap: Record<LLMProviderId, string | undefined> = {
       'agy-acp': process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
@@ -1649,11 +1732,72 @@ export class LegalDatabase {
 
   listProviderConfigs(): ProviderConfig[] {
     const cliOverrides = this.getCliOverrides();
+    const rawAdv =
+      this.getKeyValue<AdversarialConfig>('adversarial_config') ??
+      DEFAULT_ADVERSARIAL_CONFIG;
+    const rawPrivacy = this.getKeyValue<PrivacyRoutingSettings>(
+      'privacy_routing_settings'
+    );
+    const ancillaryRegistry =
+      this.getKeyValue<AncillaryModelRegistryState>('ancillary_model_registry');
 
     return PROVIDER_CATALOG.map((cat) => {
       const row = this.getRawProviderRow(cat.id);
       const rawKey = this.getDecryptedApiKey(cat.id);
       const override = cliOverrides[cat.id];
+
+      const rowDefaultModel = migrateRetiredModelId(row?.default_model);
+      const settingsPrimaryModel =
+        rawAdv.primaryProvider === cat.id
+          ? migrateRetiredModelId(rawAdv.primaryModel)
+          : '';
+      const effectiveDefaultModel =
+        settingsPrimaryModel || rowDefaultModel || cat.defaultModel;
+
+      // Merge models from Settings, live Models API / Ancillary Registry, and catalog defaults
+      const modelMap = new Map<string, { id: string; label: string }>();
+      for (const m of cat.availableModels) {
+        modelMap.set(m.id, m);
+      }
+
+      if (ancillaryRegistry?.availableWorkingModels) {
+        for (const wm of ancillaryRegistry.availableWorkingModels) {
+          if (wm.providerId === cat.id && wm.modelId) {
+            const migratedId = migrateRetiredModelId(wm.modelId);
+            if (migratedId && !modelMap.has(migratedId)) {
+              modelMap.set(migratedId, {
+                id: migratedId,
+                label: wm.modelLabel || migratedId,
+              });
+            }
+          }
+        }
+      }
+
+      const settingsModelsForProvider = [
+        settingsPrimaryModel,
+        rowDefaultModel,
+        rawAdv.citationAuditorProvider === cat.id
+          ? migrateRetiredModelId(rawAdv.citationAuditorModel)
+          : '',
+        rawAdv.opposingCounselProvider === cat.id
+          ? migrateRetiredModelId(rawAdv.opposingCounselModel)
+          : '',
+        rawPrivacy?.economyModelProvider === cat.id
+          ? migrateRetiredModelId(rawPrivacy.economyModel)
+          : '',
+      ].filter((m): m is string => Boolean(m && m.trim().length > 0));
+
+      for (const customId of settingsModelsForProvider) {
+        if (!modelMap.has(customId)) {
+          modelMap.set(customId, {
+            id: customId,
+            label: `${customId} (Configured in Settings)`,
+          });
+        }
+      }
+
+      const mergedAvailableModels = Array.from(modelMap.values());
 
       if (cat.id === 'agy-acp' || cat.id === 'codex-cli' || cat.id === 'claude-cli') {
         const runtimeStatus = CliAgentDriverManager.probeProviderStatusSync(
@@ -1663,6 +1807,7 @@ export class LegalDatabase {
         const isReady = runtimeStatus.installed && (runtimeStatus.authenticated || Boolean(rawKey));
         return {
           ...cat,
+          availableModels: mergedAvailableModels,
           hasApiKey: isReady,
           maskedApiKey: runtimeStatus.installed
             ? `${runtimeStatus.version} • ${runtimeStatus.authLabel}`
@@ -1672,7 +1817,7 @@ export class LegalDatabase {
           customArgs: override?.customArgs || '',
           reasoningEffort: override?.reasoningEffort || cat.reasoningEffort || 'medium',
           runtimeMode: override?.runtimeMode || cat.runtimeMode || 'read-only',
-          defaultModel: row?.default_model || cat.defaultModel,
+          defaultModel: effectiveDefaultModel,
           runtimeStatus,
         };
       }
@@ -1692,10 +1837,11 @@ export class LegalDatabase {
 
       return {
         ...cat,
+        availableModels: mergedAvailableModels,
         hasApiKey,
         maskedApiKey,
         baseUrl: row?.base_url || cat.baseUrl,
-        defaultModel: row?.default_model || cat.defaultModel,
+        defaultModel: effectiveDefaultModel,
       };
     });
   }
@@ -1772,10 +1918,21 @@ export class LegalDatabase {
       preDispatchReviewEnabled: false,
       preferDirectMLorCoreML: true,
     };
-    return (
+    const stored =
       this.getKeyValue<PrivacyRoutingSettings>('privacy_routing_settings') ??
-      defaultSettings
-    );
+      defaultSettings;
+    if (stored.economyModel) {
+      const migrated = migrateRetiredModelId(stored.economyModel);
+      if (migrated && migrated !== stored.economyModel) {
+        const updated: PrivacyRoutingSettings = {
+          ...stored,
+          economyModel: migrated,
+        };
+        this.setKeyValue('privacy_routing_settings', updated, true);
+        return updated;
+      }
+    }
+    return stored;
   }
 
   savePrivacyRoutingSettings(
@@ -1785,6 +1942,12 @@ export class LegalDatabase {
     const merged: PrivacyRoutingSettings = {
       ...current,
       ...updated,
+      ...(updated.economyModel !== undefined
+        ? {
+            economyModel:
+              migrateRetiredModelId(updated.economyModel) || updated.economyModel,
+          }
+        : {}),
     };
     this.setKeyValue('privacy_routing_settings', merged, true);
     return merged;

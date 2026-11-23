@@ -130,9 +130,16 @@ const highlightInlineCitations = (text: string): React.ReactNode[] => {
  * Renders legal work product with calm, T3 Code-style typography, lists, and headers
  */
 const renderCalmLegalContent = (content: string): React.ReactNode => {
+  const isModelError = content.startsWith('### Model Call Error');
   const lines = content.split('\n');
   return (
-    <div className="space-y-2.5 text-[14px] text-zinc-200 leading-[1.68] font-sans">
+    <div
+      className={
+        isModelError
+          ? 'p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-2 text-[13.5px] text-rose-100 leading-[1.65] font-sans'
+          : 'space-y-2.5 text-[14px] text-zinc-200 leading-[1.68] font-sans'
+      }
+    >
       {lines.map((rawLine, idx) => {
         const line = rawLine.trim();
         if (!line) {
@@ -142,7 +149,12 @@ const renderCalmLegalContent = (content: string): React.ReactNode => {
         // Markdown headings or all-caps legal section headers
         if (line.startsWith('### ')) {
           return (
-            <h4 key={idx} className="text-[13.5px] font-semibold text-zinc-100 pt-2">
+            <h4
+              key={idx}
+              className={`text-[13.5px] font-semibold pt-1 ${
+                isModelError ? 'text-rose-300' : 'text-zinc-100 pt-2'
+              }`}
+            >
               {line.replace(/^###\s+/, '')}
             </h4>
           );
@@ -436,6 +448,9 @@ export const App: React.FC = () => {
   };
 
   const detectWorkProductBadge = (msg: ThreadMessage): string => {
+    if ((msg.content || '').startsWith('### Model Call Error')) {
+      return 'Model Error';
+    }
     if (msg.category === 'ADVISORY') return 'Case Advisory';
     const content = (msg.content || '').slice(0, 350).toLowerCase();
     if (content.includes('complaint') || content.includes('causes of action') || content.includes('prayer for relief')) {
@@ -551,6 +566,19 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!state?.adversarialConfig) return;
+    if (state.adversarialConfig.primaryProvider) {
+      setTurnProvider(state.adversarialConfig.primaryProvider);
+    }
+    if (state.adversarialConfig.primaryModel) {
+      setTurnModel(state.adversarialConfig.primaryModel);
+    }
+  }, [
+    state?.adversarialConfig?.primaryProvider,
+    state?.adversarialConfig?.primaryModel,
+  ]);
+
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-[#0b0b0e] text-zinc-300">
@@ -635,16 +663,56 @@ export const App: React.FC = () => {
     return p.name;
   };
 
-  const availableModelsForTurnProvider =
-    currentProviderConfig?.availableModels ?? [
-      { id: turnModel, label: turnModel },
-    ];
+  const availableModelsForTurnProvider = (() => {
+    const map = new Map<string, { id: string; label: string }>();
+    for (const m of currentProviderConfig?.availableModels ?? []) {
+      if (m.id) map.set(m.id, m);
+    }
+    for (const wm of state.ancillaryModelRegistry?.availableWorkingModels ?? []) {
+      if (wm.providerId === turnProvider && wm.modelId && !map.has(wm.modelId)) {
+        map.set(wm.modelId, {
+          id: wm.modelId,
+          label: wm.modelLabel || wm.modelId,
+        });
+      }
+    }
+    if (
+      state.adversarialConfig.primaryProvider === turnProvider &&
+      state.adversarialConfig.primaryModel &&
+      !map.has(state.adversarialConfig.primaryModel)
+    ) {
+      map.set(state.adversarialConfig.primaryModel, {
+        id: state.adversarialConfig.primaryModel,
+        label: `${state.adversarialConfig.primaryModel} (Settings)`,
+      });
+    }
+    if (
+      currentProviderConfig?.defaultModel &&
+      !map.has(currentProviderConfig.defaultModel)
+    ) {
+      map.set(currentProviderConfig.defaultModel, {
+        id: currentProviderConfig.defaultModel,
+        label: currentProviderConfig.defaultModel,
+      });
+    }
+    if (turnModel && !map.has(turnModel)) {
+      map.set(turnModel, { id: turnModel, label: turnModel });
+    }
+    return Array.from(map.values());
+  })();
 
   const handleProviderChange = async (providerId: LLMProviderId) => {
     setTurnProvider(providerId);
     const providerObj = state.providers.find((p) => p.id === providerId);
+    const settingsModelForProvider =
+      state.adversarialConfig.primaryProvider === providerId
+        ? state.adversarialConfig.primaryModel
+        : undefined;
     const newModel =
-      providerObj?.availableModels[0]?.id || providerObj?.defaultModel || turnModel;
+      settingsModelForProvider ||
+      providerObj?.defaultModel ||
+      providerObj?.availableModels[0]?.id ||
+      turnModel;
     setTurnModel(newModel);
     try {
       const updated = await ipcBridge.saveAdversarialConfig({
@@ -1689,7 +1757,16 @@ export const App: React.FC = () => {
                         className="inline-flex items-center gap-1.5 text-[12px] text-zinc-500 hover:text-zinc-300 transition cursor-pointer"
                         title="Click to inspect research tool calls, multi-LLM peer review objections, and PII audit"
                       >
-                        <span>Worked for {durationLabel}</span>
+                        {(msg.content || '').startsWith('### Model Call Error') ? (
+                          <span className="text-rose-400 font-medium inline-flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>
+                              Model call failed ({msg.primaryModel || turnModel})
+                            </span>
+                          </span>
+                        ) : (
+                          <span>Worked for {durationLabel}</span>
+                        )}
                         {msg.toolCalls.length > 0 && (
                           <>
                             <span>•</span>
@@ -2761,6 +2838,15 @@ export const App: React.FC = () => {
           const next = await ipcBridge.saveAdversarialConfig(updated);
           setState(next);
           if (updated.mode) setTurnReviewMode(updated.mode);
+          if (updated.primaryProvider !== undefined) {
+            setTurnProvider(next.adversarialConfig.primaryProvider);
+          }
+          if (
+            updated.primaryModel !== undefined ||
+            updated.primaryProvider !== undefined
+          ) {
+            setTurnModel(next.adversarialConfig.primaryModel);
+          }
         }}
         onSaveProviderCredential={async (payload) => {
           const next = await ipcBridge.saveProviderCredential(payload);

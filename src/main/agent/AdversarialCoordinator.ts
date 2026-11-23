@@ -181,8 +181,22 @@ export class AdversarialCoordinator {
             createdAt: new Date().toISOString(),
           };
         }
-      } catch {
-        // Fall through to deterministic local legal audit if API call fails
+      } catch (err) {
+        const errMsg = (err as Error).message.replace(/[\r\n]+/g, ' ');
+        return {
+          id: `rev-${Date.now()}-error`,
+          messageId,
+          round,
+          criticRole,
+          criticTitle,
+          provider,
+          model,
+          verdict: 'APPROVE',
+          severity: 'NONE',
+          objections: [],
+          dissentingConsiderations: `Reviewer model call failed (${provider} / ${model}): ${errMsg}`,
+          createdAt: new Date().toISOString(),
+        };
       }
     }
 

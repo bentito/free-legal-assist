@@ -216,7 +216,7 @@ export class LegalAgentLoop {
     });
 
     let candidateDraft = '';
-    let primaryConnectionAdvisoryNote = '';
+    let primaryCallFailed = false;
     const hasLivePrimary = this.llmClient.hasLiveCredentials(
       effectivePrimaryProvider
     );
@@ -232,28 +232,53 @@ export class LegalAgentLoop {
         if (liveRes.text && liveRes.text.trim().length > 0) {
           candidateDraft = liveRes.text;
         } else {
-          // If live CLI/API returned empty string, fall back to grounded engine
-          const simulated = this.llmClient.generateGroundedLegalDraft({
-            userPrompt,
-            matter,
-            docs,
-            isRevisionPass: false,
+          primaryCallFailed = true;
+          const emptyErr = `[${effectivePrimaryProvider.toUpperCase()} Error (${effectivePrimaryModel})]: Model returned an empty response.`;
+          candidateDraft = [
+            `### Model Call Error — ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel})`,
+            ``,
+            `**Error**: ${emptyErr}`,
+            ``,
+            `No draft was generated because the model returned an empty response. Verify the selected model ID (**${effectivePrimaryModel}**) and credentials in **Settings → Providers & Models**, or select another model in the composer picker.`,
+          ].join('\n');
+          emit({
+            phase: 'error',
+            statusText: emptyErr,
           });
-          candidateDraft = simulated.draftText;
         }
       } catch (err) {
-        // Fall back gracefully so the attorney NEVER gets an empty screen
-        const simulated = this.llmClient.generateGroundedLegalDraft({
-          userPrompt,
-          matter,
-          docs,
-          isRevisionPass: false,
-        });
-        candidateDraft = simulated.draftText;
+        primaryCallFailed = true;
         const errMsg = (err as Error).message.replace(/[\r\n]+/g, ' ');
-        primaryConnectionAdvisoryNote = `> [!NOTE]\n> **Agent Connection Note**: ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel}) encountered an issue: *${errMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n`;
-        candidateDraft = `${primaryConnectionAdvisoryNote}${candidateDraft}`;
+        candidateDraft = [
+          `### Model Call Error — ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel})`,
+          ``,
+          `**Error**: ${errMsg}`,
+          ``,
+          `No draft was generated because the model call failed. Verify the selected model ID (**${effectivePrimaryModel}**) and API credentials in **Settings → Providers & Models**, or choose an active model (such as \`claude-sonnet-5-5\`, \`claude-opus-5-5\`, or \`claude-haiku-5-5\`) in the composer picker.`,
+        ].join('\n');
+        emit({
+          phase: 'error',
+          statusText: errMsg,
+        });
       }
+    } else if (
+      !process.env.VITEST &&
+      effectivePrimaryProvider !== 'legal-simulator' &&
+      selectedTier !== 'LOCAL_PRIVATE'
+    ) {
+      primaryCallFailed = true;
+      const missingCredErr = `[${effectivePrimaryProvider.toUpperCase()} Configuration Error (${effectivePrimaryModel})]: No active API key or authenticated agent session found for ${effectivePrimaryProvider}.`;
+      candidateDraft = [
+        `### Model Call Error — ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel})`,
+        ``,
+        `**Error**: ${missingCredErr}`,
+        ``,
+        `No draft was generated. Configure your API key or sign in to this agent in **Settings → Providers & Models**, or select **Built-In Assistant** for offline test mode.`,
+      ].join('\n');
+      emit({
+        phase: 'error',
+        statusText: missingCredErr,
+      });
     } else {
       const simulated = this.llmClient.generateGroundedLegalDraft({
         userPrompt,
@@ -272,6 +297,7 @@ export class LegalAgentLoop {
 
     // 5. Default Multi-LLM Adversarial Review Gate (runs for formal drafts or when review is explicitly enabled)
     const shouldRunReview =
+      !primaryCallFailed &&
       advConfig.mode !== 'direct_bypass' &&
       (!isInformational || advConfig.mode === 'multi_llm_default');
 
@@ -339,24 +365,22 @@ export class LegalAgentLoop {
                 `Produce the final, verified legal work product curing every objection above with exact record pinpoints.`,
               ].join('\n\n'),
             });
-            candidateDraft = revRes.text;
-            revisedRedlineContent = revRes.text;
-            revisedRedlineRationale = `Cured ${gateResult.combinedObjections.length} adversarial review objections.`;
+            if (revRes.text && revRes.text.trim().length > 0) {
+              candidateDraft = revRes.text;
+              revisedRedlineContent = revRes.text;
+              revisedRedlineRationale = `Cured ${gateResult.combinedObjections.length} adversarial review objections.`;
+            }
           } catch (revErr) {
-            const revisedSim = this.llmClient.generateGroundedLegalDraft({
-              userPrompt,
-              matter,
-              docs,
-              isRevisionPass: true,
-              objectionsToCure: gateResult.combinedObjections,
-            });
             const revErrMsg = (revErr as Error).message.replace(/[\r\n]+/g, ' ');
-            const advisoryPrefix =
-              primaryConnectionAdvisoryNote ||
-              `> [!NOTE]\n> **Agent Connection Note**: ${effectivePrimaryProvider.toUpperCase()} (${effectivePrimaryModel}) encountered an issue: *${revErrMsg}*. The local legal engine answered below based on the current matter discovery files.\n\n`;
-            candidateDraft = `${advisoryPrefix}${revisedSim.draftText}`;
-            revisedRedlineContent = revisedSim.proposedRedlineContent;
-            revisedRedlineRationale = revisedSim.proposedRedlineRationale;
+            candidateDraft = [
+              `### Model Call Error — Revision Pass Failed (${effectivePrimaryProvider.toUpperCase()} / ${effectivePrimaryModel})`,
+              ``,
+              `**Error**: ${revErrMsg}`,
+              ``,
+              `---`,
+              ``,
+              candidateDraft,
+            ].join('\n');
           }
         } else {
           const revisedSim = this.llmClient.generateGroundedLegalDraft({
@@ -366,7 +390,7 @@ export class LegalAgentLoop {
             isRevisionPass: true,
             objectionsToCure: gateResult.combinedObjections,
           });
-          candidateDraft = `${primaryConnectionAdvisoryNote}${revisedSim.draftText}`;
+          candidateDraft = revisedSim.draftText;
           revisedRedlineContent = revisedSim.proposedRedlineContent;
           revisedRedlineRationale = revisedSim.proposedRedlineRationale;
         }
