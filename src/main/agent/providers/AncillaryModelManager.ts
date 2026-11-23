@@ -9,12 +9,17 @@ import {
   LLMProviderId,
   RouteTier,
 } from '../../../shared/types';
-import { LegalDatabase } from '../../db/database';
+import {
+  LegalDatabase,
+  migrateRetiredModelId,
+  RETIRED_CLAUDE_MODEL_MIGRATIONS,
+} from '../../db/database';
 import { CliAgentDriverManager } from './CliAgentDriverManager';
 
 export class AncillaryModelManager {
   private static instance: AncillaryModelManager | null = null;
   private cachedRegistry: AncillaryModelRegistryState | null = null;
+  private discoveredAnthropicModels: AncillaryModelOption[] = [];
   private timer: NodeJS.Timeout | null = null;
 
   constructor(private db: LegalDatabase) {}
@@ -161,6 +166,26 @@ export class AncillaryModelManager {
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
       });
+
+      options.push({
+        providerId: 'agy-acp',
+        providerName: 'Antigravity ACP (Google / T3 Driver)',
+        modelId: 'claude-opus-5-5',
+        modelLabel: 'Claude Opus 5.5 (via Antigravity ACP)',
+        tier: 'FRONTIER_REASONING',
+        isAvailable: true,
+        costPer1kTokensUSD: 0.015,
+      });
+
+      options.push({
+        providerId: 'agy-acp',
+        providerName: 'Antigravity ACP (Google / T3 Driver)',
+        modelId: 'claude-haiku-5-5',
+        modelLabel: 'Claude Haiku 5.5 (via Antigravity ACP)',
+        tier: 'FAST_ECONOMY',
+        isAvailable: true,
+        costPer1kTokensUSD: 0.002,
+      });
     }
 
     // 3. Claude Agent CLI (claude)
@@ -179,11 +204,21 @@ export class AncillaryModelManager {
       options.push({
         providerId: 'claude-cli',
         providerName: 'Claude Code Agent',
-        modelId: 'claude-3-7-sonnet-latest',
-        modelLabel: 'Claude 3.7 Sonnet (Claude Agent CLI)',
+        modelId: 'claude-opus-5-5',
+        modelLabel: 'Claude Opus 5.5 (Claude Agent CLI)',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
+      });
+
+      options.push({
+        providerId: 'claude-cli',
+        providerName: 'Claude Code Agent',
+        modelId: 'claude-haiku-5-5',
+        modelLabel: 'Claude Haiku 5.5 (Claude Agent CLI)',
+        tier: 'FAST_ECONOMY',
+        isAvailable: true,
+        costPer1kTokensUSD: 0.002,
       });
     }
 
@@ -237,8 +272,8 @@ export class AncillaryModelManager {
       options.push({
         providerId: 'anthropic',
         providerName: 'Anthropic Direct API',
-        modelId: 'claude-3-5-haiku-latest',
-        modelLabel: 'Claude 3.5 Haiku (Direct API)',
+        modelId: 'claude-haiku-5-5',
+        modelLabel: 'Claude Haiku 5.5 (Direct API)',
         tier: 'FAST_ECONOMY',
         isAvailable: true,
         costPer1kTokensUSD: 0.002,
@@ -246,8 +281,8 @@ export class AncillaryModelManager {
       options.push({
         providerId: 'anthropic',
         providerName: 'Anthropic Direct API',
-        modelId: 'claude-3-7-sonnet-latest',
-        modelLabel: 'Claude 3.7 Sonnet (Direct API)',
+        modelId: 'claude-sonnet-5-5',
+        modelLabel: 'Claude Sonnet 5.5 (Direct API)',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
@@ -255,12 +290,23 @@ export class AncillaryModelManager {
       options.push({
         providerId: 'anthropic',
         providerName: 'Anthropic Direct API',
-        modelId: 'claude-3-5-sonnet-latest',
-        modelLabel: 'Claude 3.5 Sonnet (Direct API)',
+        modelId: 'claude-opus-5-5',
+        modelLabel: 'Claude Opus 5.5 (Direct API)',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
       });
+
+      for (const discovered of this.discoveredAnthropicModels) {
+        if (
+          !options.some(
+            (o) =>
+              o.providerId === 'anthropic' && o.modelId === discovered.modelId
+          )
+        ) {
+          options.push(discovered);
+        }
+      }
     }
 
     // 5. Built-in Local Legal Simulator (always available offline)
@@ -278,10 +324,69 @@ export class AncillaryModelManager {
   }
 
   /**
+   * Queries Anthropic's Models API (`GET https://api.anthropic.com/v1/models`)
+   * to discover live non-retired model IDs for the composer and Settings pickers.
+   */
+  public async fetchAnthropicModelsFromApi(
+    apiKey: string
+  ): Promise<AncillaryModelOption[]> {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'x-api-key': apiKey.trim(),
+          'anthropic-version': '2023-06-01',
+        },
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!response.ok) return [];
+      const payload = (await response.json()) as {
+        data?: Array<{ id?: string; display_name?: string }>;
+      };
+      const items = Array.isArray(payload.data) ? payload.data : [];
+      const discovered: AncillaryModelOption[] = [];
+      for (const item of items) {
+        const id = (item.id || '').trim();
+        if (
+          !id ||
+          id.startsWith('claude-3-') ||
+          id.startsWith('claude-2') ||
+          Boolean(RETIRED_CLAUDE_MODEL_MIGRATIONS[id])
+        ) {
+          continue;
+        }
+        const isHaiku = id.toLowerCase().includes('haiku');
+        discovered.push({
+          providerId: 'anthropic',
+          providerName: 'Anthropic Direct API',
+          modelId: id,
+          modelLabel: item.display_name
+            ? `${item.display_name} (Direct API)`
+            : `${id} (Direct API)`,
+          tier: isHaiku ? 'FAST_ECONOMY' : 'FRONTIER_REASONING',
+          isAvailable: true,
+          costPer1kTokensUSD: isHaiku ? 0.002 : 0.015,
+        });
+      }
+      this.discoveredAnthropicModels = discovered;
+      return discovered;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Refreshes the model registry, checks the 3 ancillary roles, auto-picks
    * working models on initial runs, and generates advisories with explanations.
    */
   public async refreshModelRegistry(): Promise<AncillaryModelRegistryState> {
+    if (this.db.hasStoredApiKey('anthropic') || !process.env.VITEST) {
+      const anthropicKey = this.db.getDecryptedApiKey('anthropic');
+      if (anthropicKey && anthropicKey.trim().length > 0) {
+        await this.fetchAnthropicModelsFromApi(anthropicKey);
+      }
+    }
+
     const availableOptions = this.probeAvailableModels();
     const workingEconomyModels = availableOptions.filter(
       (m) => m.tier === 'FAST_ECONOMY' && m.isAvailable
@@ -298,13 +403,16 @@ export class AncillaryModelManager {
     let configuredEconomyProv = privacySettings.economyModelProvider;
     let configuredEconomyModel = privacySettings.economyModel;
 
-    // Migrate legacy unversioned 'claude-3-5-haiku' slug to 'claude-3-5-haiku-latest'
-    if (configuredEconomyProv === 'anthropic' && configuredEconomyModel === 'claude-3-5-haiku') {
-      configuredEconomyModel = 'claude-3-5-haiku-latest';
-      this.db.savePrivacyRoutingSettings({
-        economyModelProvider: configuredEconomyProv,
-        economyModel: configuredEconomyModel,
-      });
+    // Migrate retired Claude 3.x slugs (e.g. 'claude-3-5-haiku', 'claude-3-5-haiku-latest') to 'claude-haiku-5-5'
+    if (configuredEconomyModel) {
+      const migratedEconomy = migrateRetiredModelId(configuredEconomyModel);
+      if (migratedEconomy && migratedEconomy !== configuredEconomyModel) {
+        configuredEconomyModel = migratedEconomy;
+        this.db.savePrivacyRoutingSettings({
+          economyModelProvider: configuredEconomyProv,
+          economyModel: configuredEconomyModel,
+        });
+      }
     }
 
     // Default initial assignment if unset

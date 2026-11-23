@@ -409,18 +409,18 @@ describe('Phase 2 Item 7: LocalPrivacyModelRouter, PiiScrubberVault & RoutingDeb
         updatedAt: new Date().toISOString(),
       });
 
-      // 3. Ask the exact Issue #6 prompt with Claude 3.7 Sonnet selected
+      // 3. Ask the exact Issue #6 prompt with Claude Sonnet 5.5 selected
       const loop = new LegalAgentLoop(db);
       const turnRes = await loop.runTurn({
         matterId: tnMatter.id,
         userPrompt: 'Please draft a Complaint for TN Circuit Court using the attached demand letter.',
         overridePrimaryProvider: 'anthropic',
-        overridePrimaryModel: 'claude-3-7-sonnet-latest',
+        overridePrimaryModel: 'claude-sonnet-5-5',
       });
 
-      // Must route to FRONTIER_REASONING and preserve Claude 3.7 Sonnet (NOT downgrade to claude-3-5-haiku / Fast Economy)
+      // Must route to FRONTIER_REASONING and preserve Claude Sonnet 5.5 (NOT downgrade to Fast Economy)
       expect(turnRes.assistantMessage.routeTier).toBe('FRONTIER_REASONING');
-      expect(turnRes.assistantMessage.primaryModel).toBe('claude-3-7-sonnet-latest');
+      expect(turnRes.assistantMessage.primaryModel).toBe('claude-sonnet-5-5');
       expect(turnRes.assistantMessage.primaryProvider).toBe('anthropic');
 
       // Output and peer-review notes must use the uploaded demand letter and TN Circuit Court matter, NEVER Apex / Abry Partners / MSA 8.2

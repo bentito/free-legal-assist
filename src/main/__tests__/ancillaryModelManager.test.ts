@@ -144,4 +144,155 @@ describe('AncillaryModelManager & Ancillary Checker Model Awareness', () => {
     expect(citationEval.selectedModel).not.toBe('o4-mini');
     expect(citationEval.selectedModel).toBeTruthy();
   });
+
+  it('Issue #12 regression: uses current Claude 5.5 defaults (claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5), syncs Settings & Models API into provider models, and shows model errors instead of falling back to local templates', async () => {
+    // 1. Verify PROVIDER_CATALOG for anthropic and claude-cli uses current 5.5 IDs and has zero retired 3.x IDs
+    const providers = db.listProviderConfigs();
+    const anthropicCfg = providers.find((p) => p.id === 'anthropic');
+    const claudeCliCfg = providers.find((p) => p.id === 'claude-cli');
+
+    expect(anthropicCfg?.defaultModel).toBe('claude-sonnet-5-5');
+    expect(anthropicCfg?.availableModels.map((m) => m.id)).toEqual([
+      'claude-sonnet-5-5',
+      'claude-opus-5-5',
+      'claude-haiku-5-5',
+    ]);
+    expect(claudeCliCfg?.defaultModel).toBe('claude-sonnet-5-5');
+    expect(claudeCliCfg?.availableModels.map((m) => m.id)).toEqual([
+      'claude-sonnet-5-5',
+      'claude-opus-5-5',
+      'claude-haiku-5-5',
+    ]);
+
+    // 2. Verify retired 3.x slugs saved in Settings are migrated to 5.5 IDs
+    db.savePrivacyRoutingSettings({
+      economyModelProvider: 'anthropic',
+      economyModel: 'claude-3-5-haiku-latest',
+    });
+    expect(db.getPrivacyRoutingSettings().economyModel).toBe('claude-haiku-5-5');
+
+    db.saveAdversarialConfig({
+      primaryProvider: 'anthropic',
+      primaryModel: 'claude-3-7-sonnet-latest',
+      citationAuditorProvider: 'anthropic',
+      citationAuditorModel: 'claude-3-5-haiku-latest',
+      opposingCounselProvider: 'anthropic',
+      opposingCounselModel: 'claude-3-opus-latest',
+    });
+    const migratedAdv = db.getAdversarialConfig();
+    expect(migratedAdv.primaryProvider).toBe('anthropic');
+    expect(migratedAdv.primaryModel).toBe('claude-sonnet-5-5');
+    expect(migratedAdv.citationAuditorModel).toBe('claude-haiku-5-5');
+    expect(migratedAdv.opposingCounselModel).toBe('claude-opus-5-5');
+
+    // 3. Verify custom Lead Counsel model set in Settings is preserved and surfaced in provider availableModels
+    db.saveAdversarialConfig({
+      primaryProvider: 'anthropic',
+      primaryModel: 'claude-sonnet-5-5-custom',
+    });
+    const updatedAnthropic = db
+      .listProviderConfigs()
+      .find((p) => p.id === 'anthropic');
+    expect(updatedAnthropic?.defaultModel).toBe('claude-sonnet-5-5-custom');
+    expect(
+      updatedAnthropic?.availableModels.some(
+        (m) => m.id === 'claude-sonnet-5-5-custom'
+      )
+    ).toBe(true);
+
+    // 4. Verify Models API discovery populates availableModels and filters out retired claude-3-* models
+    db.saveProviderCredential({
+      providerId: 'anthropic',
+      apiKey: 'sk-ant-test-models-api-key',
+    });
+
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/v1/models')) {
+          return new Response(
+            JSON.stringify({
+              data: [
+                { id: 'claude-sonnet-5-5', display_name: 'Claude Sonnet 5.5' },
+                { id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5' },
+                { id: 'claude-haiku-5-5', display_name: 'Claude Haiku 5.5' },
+                {
+                  id: 'claude-sonnet-5-5-20261022',
+                  display_name: 'Claude Sonnet 5.5 (Oct 2026)',
+                },
+                {
+                  id: 'claude-3-5-haiku-latest',
+                  display_name: 'Retired Claude 3.5 Haiku',
+                },
+              ],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            type: 'error',
+            error: {
+              type: 'not_found_error',
+              message: 'model: retired-model-id',
+            },
+          }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
+        );
+      }) as typeof fetch;
+
+      const manager = AncillaryModelManager.getInstance(db);
+      const registry = await manager.refreshModelRegistry();
+      expect(
+        registry.availableWorkingModels.some(
+          (m) => m.modelId === 'claude-sonnet-5-5-20261022'
+        )
+      ).toBe(true);
+      expect(
+        registry.availableWorkingModels.some((m) =>
+          m.modelId.startsWith('claude-3-')
+        )
+      ).toBe(false);
+
+      const syncedAnthropic = db
+        .listProviderConfigs()
+        .find((p) => p.id === 'anthropic');
+      expect(
+        syncedAnthropic?.availableModels.some(
+          (m) => m.id === 'claude-sonnet-5-5-20261022'
+        )
+      ).toBe(true);
+
+      // 5. Verify when a model call fails (e.g. HTTP 404), LegalAgentLoop shows the error instead of falling back to the local template
+      const { LegalAgentLoop } = await import('../agent/LegalAgentLoop');
+      const loop = new LegalAgentLoop(db);
+      const failedTurn = await loop.runTurn({
+        matterId: 'matter-vt-state-v-thorne',
+        userPrompt:
+          'Draft a Complaint from the uploaded demand letter.',
+        overridePrimaryProvider: 'anthropic',
+        overridePrimaryModel: 'claude-sonnet-5-5',
+      });
+
+      expect(failedTurn.assistantMessage.content).toContain(
+        '### Model Call Error — ANTHROPIC (claude-sonnet-5-5)'
+      );
+      expect(failedTurn.assistantMessage.content).toContain('HTTP 404');
+      expect(failedTurn.assistantMessage.content).toContain('not_found_error');
+      // Must NOT fall back to the local template outline
+      expect(failedTurn.assistantMessage.content).not.toContain(
+        '# INITIAL DRAFT WORK PRODUCT'
+      );
+      expect(failedTurn.assistantMessage.content).not.toContain(
+        '# VERIFIED LEGAL WORK PRODUCT'
+      );
+      expect(failedTurn.assistantMessage.content).not.toContain(
+        'The local legal engine answered below'
+      );
+      expect(failedTurn.assistantMessage.adversarialReviews.length).toBe(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

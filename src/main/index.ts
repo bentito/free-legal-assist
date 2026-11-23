@@ -577,6 +577,7 @@ function registerIpcHandlers(): void {
       }
     ) => {
       db.saveProviderCredential(payload);
+      await AncillaryModelManager.getInstance(db).refreshModelRegistry();
       return buildBootstrapState();
     }
   );

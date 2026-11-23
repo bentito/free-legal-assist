@@ -480,7 +480,7 @@ Defendant Marcus Thorne moves to suppress the evidence seized during the October
     previousContent: '',
     rationaleSummary:
       'Initial candidate draft prior to Multi-LLM Adversarial Gate.',
-    createdByModel: 'claude-3-7-sonnet-latest',
+    createdByModel: 'claude-sonnet-5-5',
     createdAt: '2026-11-08T10:10:00.000Z',
   },
   {
@@ -500,7 +500,7 @@ Defendant Marcus Thorne moves to suppress the evidence seized during the October
     rationaleSummary:
       'Cured 2 critical objections from Vermont Citation & Discovery Record Auditor (Gemini 2.5 Pro) and Deputy State’s Attorney Critic (OpenAI o3-mini): (1) replaced narrower federal Fourth Amendment framing (*Mimms*) with controlling Chapter I, Article 11 Vermont Supreme Court precedent (*State v. Sprague*, 2003 VT 20; *State v. Bauder*, 2007 VT 16; *State v. Savva*, 159 Vt. 75; *State v. Oakes*, 157 Vt. 171); (2) incorporated BWC timestamp [23:21:10, STATE-BWC-0009] and Rule 15 deposition concessions [DEF-DEP-0018, 0026] impeaching Paragraph 5 of the Affidavit, and added concurrent V.R.Cr.P. 12(d) motion to dismiss.',
     createdByModel:
-      'claude-3-7-sonnet-latest (Reviewed by gemini-2.5-pro & o3-mini)',
+      'claude-sonnet-5-5 (Reviewed by gemini-2.5-pro & o3-mini)',
     createdAt: '2026-11-08T10:15:00.000Z',
   },
 ];
@@ -565,7 +565,7 @@ export const SEEDED_MESSAGES: LegalMessage[] = [
     matterId: 'matter-vt-state-v-thorne',
     role: 'assistant',
     primaryProvider: 'anthropic',
-    primaryModel: 'claude-3-7-sonnet-latest',
+    primaryModel: 'claude-sonnet-5-5',
     reviewModeUsed: 'multi_llm_default',
     revisionRoundsCompleted: 1,
     initialDraftBeforeReview: `# INITIAL CANDIDATE ANALYSIS (PRE-ADVERSARIAL GATE)

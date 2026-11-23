@@ -37,6 +37,9 @@ export class MultiLLMClient {
 
   hasLiveCredentials(provider: LLMProviderId): boolean {
     if (provider === 'legal-simulator') return false;
+    if (!this.isCliAgentProvider(provider) && this.db.hasStoredApiKey(provider)) {
+      return true;
+    }
     if (process.env.VITEST && !process.env.TEST_LIVE_CLI) return false;
     if (this.isCliAgentProvider(provider)) {
       const overrides = this.db.getCliOverrides()[provider];
@@ -59,11 +62,15 @@ export class MultiLLMClient {
   }> {
     if (this.isCliAgentProvider(req.provider)) {
       if (this.hasLiveCredentials(req.provider)) {
+        const effectiveCliModel =
+          req.provider === 'claude-cli' || req.provider === 'agy-acp'
+            ? MultiLLMClient.normalizeAnthropicModelId(req.model)
+            : req.model;
         try {
           const overrides = this.db.getCliOverrides()[req.provider];
           const cliText = await CliAgentDriverManager.runCliTurn({
             providerId: req.provider,
-            model: req.model,
+            model: effectiveCliModel,
             systemPrompt: req.systemPrompt,
             userPrompt: req.userPrompt,
             binaryPath: overrides?.binaryPath,
@@ -74,11 +81,11 @@ export class MultiLLMClient {
             text: cliText,
             usedLiveApi: true,
             providerUsed: req.provider,
-            modelUsed: req.model,
+            modelUsed: effectiveCliModel,
           };
         } catch (err) {
           throw new Error(
-            `[${req.provider.toUpperCase()} CLI Harness Error (${req.model})]: ${(err as Error).message}`
+            `[${req.provider.toUpperCase()} CLI Harness Error (${effectiveCliModel})]: ${(err as Error).message}`
           );
         }
       }
@@ -92,13 +99,20 @@ export class MultiLLMClient {
       apiKey &&
       apiKey.trim().length > 0
     ) {
+      const effectiveModel =
+        req.provider === 'anthropic'
+          ? MultiLLMClient.normalizeAnthropicModelId(req.model)
+          : req.model;
       try {
-        const liveText = await this.callLiveProvider(req, apiKey.trim());
+        const liveText = await this.callLiveProvider(
+          { ...req, model: effectiveModel },
+          apiKey.trim()
+        );
         return {
           text: liveText,
           usedLiveApi: true,
           providerUsed: req.provider,
-          modelUsed: req.model,
+          modelUsed: effectiveModel,
         };
       } catch (err) {
         throw new Error(
@@ -115,13 +129,28 @@ export class MultiLLMClient {
     };
   }
 
-  private static normalizeAnthropicModelId(model: string): string {
+  public static normalizeAnthropicModelId(model: string): string {
     const trimmed = model.trim();
     const aliasMap: Record<string, string> = {
-      'claude-3-5-haiku': 'claude-3-5-haiku-latest',
-      'claude-3-5-sonnet': 'claude-3-5-sonnet-latest',
-      'claude-3-7-sonnet': 'claude-3-7-sonnet-latest',
-      'claude-3-opus': 'claude-3-opus-latest',
+      'claude-3-5-haiku': 'claude-haiku-5-5',
+      'claude-3-5-haiku-latest': 'claude-haiku-5-5',
+      'claude-3-5-haiku-20241022': 'claude-haiku-5-5',
+      'claude-3-haiku': 'claude-haiku-5-5',
+      'claude-3-haiku-latest': 'claude-haiku-5-5',
+      'claude-3-haiku-20240307': 'claude-haiku-5-5',
+      'claude-haiku-4-5': 'claude-haiku-5-5',
+      'claude-3-5-sonnet': 'claude-sonnet-5-5',
+      'claude-3-5-sonnet-latest': 'claude-sonnet-5-5',
+      'claude-3-5-sonnet-20241022': 'claude-sonnet-5-5',
+      'claude-3-5-sonnet-20240620': 'claude-sonnet-5-5',
+      'claude-3-7-sonnet': 'claude-sonnet-5-5',
+      'claude-3-7-sonnet-latest': 'claude-sonnet-5-5',
+      'claude-3-7-sonnet-20250219': 'claude-sonnet-5-5',
+      'claude-sonnet-4-6': 'claude-sonnet-5-5',
+      'claude-3-opus': 'claude-opus-5-5',
+      'claude-3-opus-latest': 'claude-opus-5-5',
+      'claude-3-opus-20240229': 'claude-opus-5-5',
+      'claude-opus-4-6': 'claude-opus-5-5',
     };
     return aliasMap[trimmed] || trimmed;
   }
