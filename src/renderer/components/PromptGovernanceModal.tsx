@@ -364,7 +364,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
         </div>
 
         {/* Practitioner Profile Selector Bar (1st: Vermont Criminal Defense Lawyer, 2nd: General Legal Practice) */}
-        <div className="px-6 py-3 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div
+          id="tour-settings-profile-bar"
+          className="px-6 py-3 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-4"
+        >
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
               <UserCheck className="w-4 h-4 text-amber-400" />
@@ -393,73 +396,75 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
         <div className="flex flex-1 min-h-0">
           {/* Left Navigation Tabs */}
           <div className="w-68 bg-slate-950/60 border-r border-slate-800 p-3 flex flex-col gap-1.5">
-            <button
-              onClick={() => setActiveTab('layer1_core')}
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
-                activeTab === 'layer1_core'
-                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Scale className="w-4 h-4 shrink-0" />
-              <div>
-                <div className="font-semibold">Core Legal Principles</div>
-                <div className="text-[10px] opacity-75">
-                  Constitutional & Ethical Standards
+            <div id="tour-settings-prompt-layers" className="flex flex-col gap-1.5">
+              <button
+                onClick={() => setActiveTab('layer1_core')}
+                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
+                  activeTab === 'layer1_core'
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Scale className="w-4 h-4 shrink-0" />
+                <div>
+                  <div className="font-semibold">Core Legal Principles</div>
+                  <div className="text-[10px] opacity-75">
+                    Constitutional & Ethical Standards
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('layer2_practice')}
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
-                activeTab === 'layer2_practice'
-                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <ScrollText className="w-4 h-4 shrink-0" />
-              <div>
-                <div className="font-semibold">Practice Task Presets</div>
-                <div className="text-[10px] opacity-75">
-                  Suppression, Bail, Discovery, etc.
+              <button
+                onClick={() => setActiveTab('layer2_practice')}
+                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
+                  activeTab === 'layer2_practice'
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <ScrollText className="w-4 h-4 shrink-0" />
+                <div>
+                  <div className="font-semibold">Practice Task Presets</div>
+                  <div className="text-[10px] opacity-75">
+                    Suppression, Bail, Discovery, etc.
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('layer3_jurisdiction')}
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
-                activeTab === 'layer3_jurisdiction'
-                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Sliders className="w-4 h-4 shrink-0" />
-              <div>
-                <div className="font-semibold">Matter & Forum Rules</div>
-                <div className="text-[10px] opacity-75">
-                  Court Rules & Citation Manual
+              <button
+                onClick={() => setActiveTab('layer3_jurisdiction')}
+                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
+                  activeTab === 'layer3_jurisdiction'
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Sliders className="w-4 h-4 shrink-0" />
+                <div>
+                  <div className="font-semibold">Matter & Forum Rules</div>
+                  <div className="text-[10px] opacity-75">
+                    Court Rules & Citation Manual
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('layer4_critics')}
-              className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
-                activeTab === 'layer4_critics'
-                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <ShieldAlert className="w-4 h-4 shrink-0" />
-              <div>
-                <div className="font-semibold">Reviewers & Opposing Counsel</div>
-                <div className="text-[10px] opacity-75">
-                  Citation Auditor & Opposing Perspective
+              <button
+                onClick={() => setActiveTab('layer4_critics')}
+                className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-left text-xs font-medium transition ${
+                  activeTab === 'layer4_critics'
+                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <div>
+                  <div className="font-semibold">Reviewers & Opposing Counsel</div>
+                  <div className="text-[10px] opacity-75">
+                    Citation Auditor & Opposing Perspective
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+            </div>
 
             <button
               onClick={() => setActiveTab('providers_models')}
@@ -1258,7 +1263,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 </div>
 
                 {/* Assurance & Hosting Client Card */}
-                <div className="p-4 rounded-xl bg-slate-900 border border-slate-700/80 space-y-4">
+                <div
+                  id="tour-settings-mcp-panel"
+                  className="p-4 rounded-xl bg-slate-900 border border-slate-700/80 space-y-4"
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <div className="text-xs font-semibold text-slate-200 flex items-center gap-2">
@@ -1759,7 +1767,7 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                 </div>
 
                 {/* Routing Policy Mode Selection Cards */}
-                <div className="space-y-3">
+                <div id="tour-settings-privacy-panel" className="space-y-3">
                   <div className="text-xs font-semibold text-slate-200">
                     Routing Policy Mode (Always-On Default)
                   </div>
@@ -2029,10 +2037,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
                         1
                       </span>
-                      <span>Case Documents & Bates Pinpointing</span>
+                      <span>Repurposing Coding Agents for Law</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Upload or index police affidavits, body-worn camera transcripts, Rule 15 depositions, and statutory authority. Drafting assistants query the case record using exact Bates numbers to anchor every assertion directly in evidence.
+                      Chatbots generate single-pass replies from memory. Coding agents (OpenAI Codex, Claude Code, Antigravity) are built for multi-step task work—searching files, verifying citations, and revising drafts.
                     </p>
                   </div>
 
@@ -2042,10 +2050,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
                         2
                       </span>
-                      <span>Practitioner Prompts & Presets</span>
+                      <span>Practitioner Profiles & System Prompts</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Governed prompts inject constitutional primacy (such as Chapter I, Article 11 over federal Mimms) and forum citation standards directly into every drafting turn.
+                      Layered system prompts supply forum standards and ethical guardrails. Defaults currently include Vermont Criminal Defense and General Legal Practice, with profiles for many more locales and practice types coming soon.
                     </p>
                   </div>
 
@@ -2055,10 +2063,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
                         3
                       </span>
-                      <span>Multi-Perspective Peer Review</span>
+                      <span>Bates Discovery & Parallel Peer Review</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Candidate drafts are reviewed in parallel by the Citation Auditor and Opposing Counsel Reviewer. Objections are addressed and redlined before presentation.
+                      Agents query indexed discovery exhibits by Bates stamp while the Citation & Record Auditor and Opposing Counsel reviewers audit every draft in parallel before delivery.
                     </p>
                   </div>
 
@@ -2068,10 +2076,10 @@ export const PromptGovernanceModal: React.FC<PromptGovernanceModalProps> = ({
                       <span className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-[10px]">
                         4
                       </span>
-                      <span>In-Place Editing & 1-Click Re-Audit</span>
+                      <span>Case Issues, Master Brief & Word Redlines</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Review redlines, toggle draft versions, or edit directly in place. Changing a reviewed document updates the status badge to "Changed" and offers a 1-click re-audit.
+                      Branch focused Case Issues, synthesize them into a Master Brief, and export native Word (.docx) files with Tracked Changes and reviewer margin comments.
                     </p>
                   </div>
                 </div>

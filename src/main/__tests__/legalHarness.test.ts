@@ -886,15 +886,25 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
   it('verifies the Interactive Guided Tour (TOUR_STEPS) has up-to-date coverage, an intro card explaining LexHarness vs. chatbots, per-point target selectors, and distinct icons', () => {
     expect(TOUR_STEPS.length).toBe(7);
 
-    // 1. Verify first card explains LexHarness: harnessing coding agents for legal work & why it beats a chatbot
+    // 1. Verify first card explains LexHarness: why coding agents beat chatbots for task work, repurposing from software engineering via Settings prompts, and current/upcoming profiles
     const introCard = TOUR_STEPS[0];
     expect(introCard.id).toBe('why_lexharness');
     const introText = `${introCard.title} ${introCard.subtitle} ${introCard.content.join(' ')}`;
     expect(introText).toContain('Coding Agents');
-    expect(introText).toContain('Chatbot');
-    expect(introCard.points.length).toBeGreaterThanOrEqual(4);
+    expect(introText).toContain('Chatbots');
+    expect(introText).toContain('Task Work');
+    expect(introText).toContain('software engineering');
+    expect(introText).toContain('system prompts in Settings');
+    expect(introText).toContain('Vermont Criminal Defense');
+    expect(introText).toContain('General Legal Practice');
+    expect(introText).toContain('locales and practice types coming soon');
+    expect(introCard.points.length).toBeGreaterThanOrEqual(5);
 
-    // 2. Verify every card has per-point target selectors and all referenced #tour-* IDs exist in the renderer UI
+    // Verify intro card automatically opens Settings and Connect Agents dialogs to spotlight off-main-screen setup
+    expect(introCard.points.some((p) => p.openDialog === 'settings')).toBe(true);
+    expect(introCard.points.some((p) => p.openDialog === 'connect_agents')).toBe(true);
+
+    // 2. Verify every card has per-point target selectors and all referenced #tour-* IDs exist in the renderer UI (including Settings & Connect Agents modals)
     const appSource = fs.readFileSync(
       path.join(__dirname, '../../renderer/App.tsx'),
       'utf8'
@@ -903,7 +913,15 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
       path.join(__dirname, '../../renderer/components/RightWorkspacePane.tsx'),
       'utf8'
     );
-    const combinedRendererSource = `${appSource}\n${rightPaneSource}`;
+    const settingsModalSource = fs.readFileSync(
+      path.join(__dirname, '../../renderer/components/PromptGovernanceModal.tsx'),
+      'utf8'
+    );
+    const connectAgentsModalSource = fs.readFileSync(
+      path.join(__dirname, '../../renderer/components/ConnectAgentsModal.tsx'),
+      'utf8'
+    );
+    const combinedRendererSource = `${appSource}\n${rightPaneSource}\n${settingsModalSource}\n${connectAgentsModalSource}`;
 
     for (const step of TOUR_STEPS) {
       expect(step.points.length).toBeGreaterThan(0);
@@ -923,7 +941,7 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(appSource).toContain('<ScrollText');
     expect(appSource).not.toContain('<Sparkles');
 
-    // 4. Verify all major features are covered across the tutorial steps
+    // 4. Verify all major features are covered across the tutorial steps and wasted/redundant icon descriptions are removed
     const combinedText = TOUR_STEPS.map(
       (s) => `${s.title} ${s.subtitle} ${s.content.join(' ')} ${s.keyHighlight || ''}`
     ).join('\n');
@@ -941,5 +959,39 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(combinedText).toContain('Synthesize Master Brief');
     expect(combinedText).toContain('Export .docx');
     expect(combinedText).toContain('Tracked Changes');
+
+    expect(combinedText.toLowerCase()).not.toContain('quiet');
+    expect(combinedText.toLowerCase()).not.toContain('vertically resizable');
+    expect(combinedText.toLowerCase()).not.toContain('folder icon');
+    expect(combinedText.toLowerCase()).not.toContain('pen icon');
+    expect(combinedText.toLowerCase()).not.toContain('scroll icon');
+    expect(combinedText.toLowerCase()).not.toContain('gear icon');
+    expect(combinedText.toLowerCase()).not.toContain('plug icon');
+    expect(combinedText.toLowerCase()).not.toContain('bar-chart icon');
+
+    // 5. Verify GitHub Pages Web Tutorial (docs/index.html) and README.md stay 100% synchronized with TOUR_STEPS
+    const readmeSource = fs.readFileSync(
+      path.join(__dirname, '../../../README.md'),
+      'utf8'
+    );
+    const docsHtmlSource = fs.readFileSync(
+      path.join(__dirname, '../../../docs/index.html'),
+      'utf8'
+    );
+
+    expect(readmeSource).toContain('https://bentito.github.io/free-legal-assist/#tour');
+    expect(docsHtmlSource).toContain('WEB_TOUR_STEPS');
+
+    for (const step of TOUR_STEPS) {
+      expect(docsHtmlSource).toContain(`id: '${step.id}'`);
+      expect(docsHtmlSource).toContain(step.title);
+      expect(docsHtmlSource).toContain(step.subtitle);
+      for (const pt of step.points) {
+        expect(docsHtmlSource).toContain(pt.targetSelector);
+        expect(docsHtmlSource).toContain(pt.text);
+        const domId = pt.targetSelector.replace(/^#/, '');
+        expect(docsHtmlSource).toContain(`id="${domId}"`);
+      }
+    }
   });
 });

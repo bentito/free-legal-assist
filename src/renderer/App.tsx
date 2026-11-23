@@ -3169,6 +3169,7 @@ export const App: React.FC = () => {
       {state.agentOnboarding && (
         <ConnectAgentsModal
           isOpen={isConnectAgentsOpen}
+          isTutorialActive={isTutorialOpen}
           onClose={() => setIsConnectAgentsOpen(false)}
           onboarding={state.agentOnboarding}
           matters={state.matters}
@@ -3215,6 +3216,8 @@ export const App: React.FC = () => {
         isOpen={isTutorialOpen}
         onClose={() => {
           setIsTutorialOpen(false);
+          setIsStudioOpen(false);
+          setIsConnectAgentsOpen(false);
           try {
             localStorage.setItem('lexharness_tutorial_seen', 'true');
           } catch {
@@ -3227,6 +3230,25 @@ export const App: React.FC = () => {
         onLoadSampleCase={handleLoadSampleCase}
         onCloseSampleCase={handleCloseSampleCase}
         onSelectTab={setRightPaneTab}
+        onSyncTourUiState={(uiState) => {
+          if (uiState.preferredTab) {
+            setIsRightPaneVisible(true);
+            setRightPaneTab(uiState.preferredTab);
+          }
+          if (uiState.openDialog === 'settings') {
+            setIsConnectAgentsOpen(false);
+            if (uiState.settingsTab) {
+              setStudioInitialTab(uiState.settingsTab);
+            }
+            setIsStudioOpen(true);
+          } else if (uiState.openDialog === 'connect_agents') {
+            setIsStudioOpen(false);
+            setIsConnectAgentsOpen(true);
+          } else {
+            setIsStudioOpen(false);
+            setIsConnectAgentsOpen(false);
+          }
+        }}
       />
     </div>
   );

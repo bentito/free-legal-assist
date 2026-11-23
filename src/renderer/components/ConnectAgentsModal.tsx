@@ -24,6 +24,7 @@ import {
 
 interface ConnectAgentsModalProps {
   isOpen: boolean;
+  isTutorialActive?: boolean;
   onClose: () => void;
   onboarding: AgentOnboardingState;
   matters: Matter[];
@@ -132,6 +133,7 @@ const ProviderAvatarIcon: React.FC<{
 
 export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
   isOpen,
+  isTutorialActive = false,
   onClose,
   onboarding,
   matters,
@@ -152,6 +154,12 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
   const [stepIndex, setStepIndex] = useState<number>(1);
   const [setupMode, setSetupMode] = useState<'local' | 'remote'>('local');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setStepIndex(1);
+    }
+  }, [isOpen]);
 
   // Add ChatGPT Account modal state (replicates T3's `Ae` dialog in CodexSetupSection)
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
@@ -259,7 +267,11 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
     : undefined;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 select-none">
+    <div
+      className={`fixed inset-0 z-50 flex justify-center bg-black/80 backdrop-blur-md p-4 select-none ${
+        isTutorialActive ? 'items-start pt-6' : 'items-center'
+      }`}
+    >
       {/* Main T3-Style Onboarding & Agent Connection Card */}
       <div className="relative w-full max-w-[680px] rounded-2xl border border-neutral-800 bg-[#111113] text-neutral-100 shadow-2xl overflow-hidden">
         {/* Top Bar: App Title + 1 Connect · 2 Agents · 3 Projects Stepper + Close X */}
@@ -408,7 +420,7 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
                     Connect your agents
                   </h2>
                   <p className="mt-1 text-sm text-neutral-400">
-                    Choose an agent to start coding. You can add more later.
+                    Connect a coding agent—LexHarness repurposes it for legal research, drafting, and peer review via your active Practitioner Profile.
                   </p>
                 </div>
 
@@ -440,7 +452,10 @@ export const ConnectAgentsModal: React.FC<ConnectAgentsModalProps> = ({
                 </div>
 
                 {/* Agent Connection Cards */}
-                <div className="space-y-2.5 max-h-[340px] overflow-y-auto pr-0.5">
+                <div
+                  id="tour-connect-agents-list"
+                  className="space-y-2.5 max-h-[300px] overflow-y-auto pr-0.5"
+                >
                   {onboarding.agentInstances.map((instance) => {
                     const isReady = instance.status === 'ready';
                     const isCustomCodex = Boolean(instance.isAdditionalAccount);
