@@ -2087,7 +2087,11 @@ function splitIntoLogicalBlocks(markdown: string): string[] {
       flushPara();
     } else {
       flushTable();
-      if (/^#{1,6}\s+/.test(trimmed) || /^(\d+\.|\([a-z0-9]+\)|-)\s+/i.test(trimmed)) {
+      if (
+        /^#{1,6}\s+/.test(trimmed) ||
+        /^[-*_]{3,}$/.test(trimmed) ||
+        /^(\d+\.|\([a-z0-9]+\)|[-*•])\s+/i.test(trimmed)
+      ) {
         flushPara();
         blocks.push(trimmed);
       } else {
@@ -2186,7 +2190,7 @@ function computeBlockSequenceDiff(
  */
 export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
   const author = payload.author || 'LexHarness Peer Review';
-  const nowIso = new Date().toISOString();
+  const nowIso = payload.date || new Date().toISOString();
   let revisionIdCounter = 1;
 
   // Normalize comment items
@@ -2215,16 +2219,130 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
         author: c.author || author,
         date: c.date || nowIso,
         text: c.text.trim(),
-        anchorText: c.anchorText,
+        anchorText: c.anchorText || c.targetSnippet,
       });
     }
   }
 
   const attachedCommentIds = new Set<string>();
 
-  const buildRunXml = (text: string): string => {
+  const buildSingleStyledRunXml = (
+    runText: string,
+    opts: {
+      tagMode: 't' | 'delText';
+      bold?: boolean;
+      italic?: boolean;
+      code?: boolean;
+    }
+  ): string => {
+    if (!runText) return '';
+    const rPrParts: string[] = [];
+    if (opts.code) {
+      rPrParts.push('<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>');
+    }
+    if (opts.bold) {
+      rPrParts.push('<w:b/>');
+    }
+    if (opts.italic) {
+      rPrParts.push('<w:i/>');
+    }
+    const rPr = rPrParts.length > 0 ? `<w:rPr>${rPrParts.join('')}</w:rPr>` : '';
+    const tag = opts.tagMode;
+    return `<w:r>${rPr}<w:${tag} xml:space="preserve">${escapeXml(runText)}</w:${tag}></w:r>`;
+  };
+
+  const buildFormattedRunsXml = (
+    rawSegment: string,
+    tagMode: 't' | 'delText' = 't',
+    defaultBold = false
+  ): string => {
+    if (!rawSegment) return '';
+    const lines = rawSegment.split(/\r?\n/);
+    let outXml = '';
+
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      if (lineIdx > 0) {
+        outXml += '<w:r><w:br/></w:r>';
+      }
+      let line = lines[lineIdx];
+      if (/^>\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i.test(line.trim())) {
+        continue;
+      }
+      line = line
+        .replace(/^>\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '')
+        .replace(/^>\s?/, '')
+        .replace(/^[-*]\s+/, '• ');
+
+      if (!line) continue;
+
+      const tokenRegex =
+        /\*\*\*([\s\S]+?)\*\*\*|\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|\*([^\s*](?:[\s\S]*?[^\s*])?)\*|`([^`]+)`/g;
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+
+      const emitPlainSlice = (slice: string) => {
+        if (!slice) return;
+        if (slice.includes('**')) {
+          const cleaned = slice.replace(/\*\*/g, '').replace(/`/g, '');
+          outXml += buildSingleStyledRunXml(cleaned, {
+            tagMode,
+            bold: true,
+          });
+        } else {
+          outXml += buildSingleStyledRunXml(slice.replace(/`/g, ''), {
+            tagMode,
+            bold: defaultBold,
+          });
+        }
+      };
+
+      while ((match = tokenRegex.exec(line)) !== null) {
+        if (match.index > lastIndex) {
+          emitPlainSlice(line.slice(lastIndex, match.index));
+        }
+
+        if (match[1] !== undefined) {
+          outXml += buildSingleStyledRunXml(match[1].replace(/`/g, ''), {
+            tagMode,
+            bold: true,
+            italic: true,
+          });
+        } else if (match[2] !== undefined || match[3] !== undefined) {
+          const innerBold = (match[2] ?? match[3] ?? '')
+            .replace(/`/g, '')
+            .replace(/^\*+|\*+$/g, '');
+          outXml += buildSingleStyledRunXml(innerBold, {
+            tagMode,
+            bold: true,
+          });
+        } else if (match[4] !== undefined) {
+          outXml += buildSingleStyledRunXml(match[4].replace(/`/g, ''), {
+            tagMode,
+            bold: defaultBold,
+            italic: true,
+          });
+        } else if (match[5] !== undefined) {
+          outXml += buildSingleStyledRunXml(match[5], {
+            tagMode,
+            bold: defaultBold,
+            code: true,
+          });
+        }
+
+        lastIndex = match.index + match[0].length;
+      }
+
+      if (lastIndex < line.length) {
+        emitPlainSlice(line.slice(lastIndex));
+      }
+    }
+
+    return outXml;
+  };
+
+  const buildRunXml = (text: string, defaultBold = false): string => {
     if (!text) return '';
-    // Also support inline {+inserted+} and {~deleted~} markers inside text
+    // Support inline {+inserted+} and {~deleted~} markers inside text while preserving bold/italic formatting
     const inlineChangeRegex = /\{\+([\s\S]*?)\+\}|\{~([\s\S]*?)~\}/g;
     if (inlineChangeRegex.test(text)) {
       inlineChangeRegex.lastIndex = 0;
@@ -2234,24 +2352,24 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
       while ((match = inlineChangeRegex.exec(text)) !== null) {
         if (match.index > lastIndex) {
           const plain = text.slice(lastIndex, match.index);
-          resultXml += `<w:r><w:t xml:space="preserve">${escapeXml(plain)}</w:t></w:r>`;
+          resultXml += buildFormattedRunsXml(plain, 't', defaultBold);
         }
         const revId = revisionIdCounter++;
         if (match[1] !== undefined) {
-          resultXml += `<w:ins w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}"><w:r><w:t xml:space="preserve">${escapeXml(match[1])}</w:t></w:r></w:ins>`;
+          resultXml += `<w:ins w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}">${buildFormattedRunsXml(match[1], 't', defaultBold)}</w:ins>`;
         } else if (match[2] !== undefined) {
-          resultXml += `<w:del w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}"><w:r><w:delText xml:space="preserve">${escapeXml(match[2])}</w:delText></w:r></w:del>`;
+          resultXml += `<w:del w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}">${buildFormattedRunsXml(match[2], 'delText', defaultBold)}</w:del>`;
         }
         lastIndex = match.index + match[0].length;
       }
       if (lastIndex < text.length) {
         const trailing = text.slice(lastIndex);
-        resultXml += `<w:r><w:t xml:space="preserve">${escapeXml(trailing)}</w:t></w:r>`;
+        resultXml += buildFormattedRunsXml(trailing, 't', defaultBold);
       }
       return resultXml;
     }
 
-    return `<w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
+    return buildFormattedRunsXml(text, 't', defaultBold);
   };
 
   const parseParagraphHeadingAndPrefix = (
@@ -2260,9 +2378,13 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
     const headingMatch = /^(#{1,6})\s+([\s\S]+)$/.exec(rawLine);
     if (headingMatch) {
       const level = Math.min(6, headingMatch[1].length);
+      const strippedHeading = headingMatch[2]
+        .trim()
+        .replace(/^\*\*([\s\S]+)\*\*$/, '$1')
+        .trim();
       return {
         styleId: `Heading${level}`,
-        cleanText: headingMatch[2].trim(),
+        cleanText: strippedHeading,
       };
     }
     return { cleanText: rawLine };
@@ -2280,16 +2402,19 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
     if (dataRows.length === 0) return '';
 
     const rowsXml = dataRows
-      .map((rowLine) => {
+      .map((rowLine, rowIdx) => {
+        const isHeaderRow = rowIdx === 0 && dataRows.length > 1;
         const cells = rowLine
           .slice(1, -1)
           .split('|')
           .map((c) => c.trim());
         const cellsXml = cells
-          .map(
-            (cellText) =>
-              `<w:tc><w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr><w:p>${buildRunXml(cellText)}</w:p></w:tc>`
-          )
+          .map((cellText) => {
+            const shd = isHeaderRow
+              ? '<w:shd w:val="clear" w:color="auto" w:fill="F4F4F5"/>'
+              : '';
+            return `<w:tc><w:tcPr><w:tcW w:w="2400" w:type="dxa"/>${shd}</w:tcPr><w:p>${buildRunXml(cellText, isHeaderRow)}</w:p></w:tc>`;
+          })
           .join('');
         return `<w:tr>${cellsXml}</w:tr>`;
       })
@@ -2298,21 +2423,50 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
     return `<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/><w:left w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/><w:right w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/></w:tblBorders></w:tblPr>${rowsXml}</w:tbl>`;
   };
 
-  const diffBlocks: ParagraphDiffBlock[] = payload.previousContent
+  // Guard against empty payload.content when previousContent exists so we never export an all-deleted document
+  const effectiveContent =
+    payload.content && payload.content.trim().length > 0
+      ? payload.content
+      : payload.previousContent || '';
+  const effectivePreviousContent =
+    payload.content &&
+    payload.content.trim().length > 0 &&
+    payload.previousContent &&
+    payload.previousContent.trim().length > 0 &&
+    payload.previousContent.trim() !== payload.content.trim()
+      ? payload.previousContent
+      : undefined;
+
+  let diffBlocks: ParagraphDiffBlock[] = effectivePreviousContent
     ? computeBlockSequenceDiff(
-        splitIntoLogicalBlocks(payload.previousContent),
-        splitIntoLogicalBlocks(payload.content)
+        splitIntoLogicalBlocks(effectivePreviousContent),
+        splitIntoLogicalBlocks(effectiveContent)
       )
-    : splitIntoLogicalBlocks(payload.content).map((text) => ({
+    : splitIntoLogicalBlocks(effectiveContent).map((text) => ({
         mode: 'unchanged',
         text,
       }));
+
+  // If diffing somehow produced only 'removed' blocks and zero retained/added blocks, treat content as unchanged
+  if (
+    diffBlocks.length > 0 &&
+    diffBlocks.every((b) => b.mode === 'removed')
+  ) {
+    diffBlocks = diffBlocks.map((b) => ({ mode: 'unchanged', text: b.text }));
+  }
 
   const bodyElementsXml: string[] = [];
 
   diffBlocks.forEach((block, blockIdx) => {
     if (block.text.startsWith('|') && block.text.endsWith('|')) {
       bodyElementsXml.push(buildTableXml(block.text));
+      return;
+    }
+
+    if (/^[-*_]{3,}$/.test(block.text.trim())) {
+      bodyElementsXml.push(
+        `<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="D4D4D8"/></w:pBdr></w:pPr></w:p>`
+      );
       return;
     }
 
@@ -2339,13 +2493,13 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
 
     if (block.mode === 'added') {
       const revId = revisionIdCounter++;
-      const innerRuns = `<w:ins w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}"><w:r><w:t xml:space="preserve">${escapeXml(cleanText)}</w:t></w:r></w:ins>`;
+      const innerRuns = `<w:ins w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}">${buildFormattedRunsXml(cleanText, 't')}</w:ins>`;
       bodyElementsXml.push(
         `<w:p>${pPr}${commentStartTags}${innerRuns}${commentEndTags}</w:p>`
       );
     } else if (block.mode === 'removed') {
       const revId = revisionIdCounter++;
-      const innerRuns = `<w:del w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}"><w:r><w:delText xml:space="preserve">${escapeXml(cleanText)}</w:delText></w:r></w:del>`;
+      const innerRuns = `<w:del w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}">${buildFormattedRunsXml(cleanText, 'delText')}</w:del>`;
       bodyElementsXml.push(
         `<w:p>${pPr}${commentStartTags}${innerRuns}${commentEndTags}</w:p>`
       );
@@ -2355,13 +2509,13 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
       const runsXml = wordOps
         .map((op) => {
           if (op.type === 'equal') {
-            return `<w:r><w:t xml:space="preserve">${escapeXml(op.text)}</w:t></w:r>`;
+            return buildFormattedRunsXml(op.text, 't');
           }
           const revId = revisionIdCounter++;
           if (op.type === 'insert') {
-            return `<w:ins w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}"><w:r><w:t xml:space="preserve">${escapeXml(op.text)}</w:t></w:r></w:ins>`;
+            return `<w:ins w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}">${buildFormattedRunsXml(op.text, 't')}</w:ins>`;
           }
-          return `<w:del w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}"><w:r><w:delText xml:space="preserve">${escapeXml(op.text)}</w:delText></w:r></w:del>`;
+          return `<w:del w:id="${revId}" w:author="${escapeXml(author)}" w:date="${nowIso}">${buildFormattedRunsXml(op.text, 'delText')}</w:del>`;
         })
         .join('');
       bodyElementsXml.push(
@@ -2374,7 +2528,7 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
     }
   });
 
-  // Attach any remaining unanchored comments to the first paragraph (or a dedicated paragraph)
+  // Attach any remaining unanchored comments to the first text paragraph (or a dedicated paragraph)
   const unattached = commentsToEmbed.filter(
     (c) => !attachedCommentIds.has(c.id)
   );
@@ -2386,8 +2540,11 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
       startTags += `<w:commentRangeStart w:id="${c.id}"/>`;
       endTags += `<w:commentRangeEnd w:id="${c.id}"/><w:r><w:commentReference w:id="${c.id}"/></w:r>`;
     }
-    if (bodyElementsXml.length > 0) {
-      bodyElementsXml[0] = bodyElementsXml[0].replace(
+    const targetParaIdx = bodyElementsXml.findIndex(
+      (el) => el.startsWith('<w:p>') && el.includes('<w:r')
+    );
+    if (targetParaIdx >= 0) {
+      bodyElementsXml[targetParaIdx] = bodyElementsXml[targetParaIdx].replace(
         /<\/w:p>$/,
         `${startTags}${endTags}</w:p>`
       );
@@ -2435,6 +2592,24 @@ export function exportDocxBuffer(payload: ExportDocxPayload): Buffer {
     <w:basedOn w:val="Normal"/>
     <w:pPr><w:outlineLvl w:val="2"/></w:pPr>
     <w:rPr><w:b/><w:sz w:val="24"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading4">
+    <w:name w:val="heading 4"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="3"/></w:pPr>
+    <w:rPr><w:b/><w:i/><w:sz w:val="24"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading5">
+    <w:name w:val="heading 5"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="4"/></w:pPr>
+    <w:rPr><w:b/><w:sz w:val="22"/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading6">
+    <w:name w:val="heading 6"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr><w:outlineLvl w:val="5"/></w:pPr>
+    <w:rPr><w:b/><w:i/><w:sz w:val="22"/></w:rPr>
   </w:style>
 </w:styles>`;
 

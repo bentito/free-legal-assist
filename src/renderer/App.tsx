@@ -106,32 +106,282 @@ const getMonogram = (clientName: string, matterName: string): { code: string; co
 
 /**
  * Highlights inline legal citations, statutes, and Bates ranges as subtle T3-style monospace pills
+ * and formats inline Markdown (**bold**, *italic*, `code`) without showing raw asterisks.
  */
-const highlightInlineCitations = (text: string): React.ReactNode[] => {
-  const citationRegex = /(\b(?:(?:DEF|STATE|EX|DOC|WP|AUTH|APEX)-[A-Z0-9-]+(?:–[A-Z0-9-]+)?|\d{4}\s+VT\s+\d+|\d+\s+V\.S\.A\.\s+§\s*\d+[a-z0-9()]*|T\.C\.A\.\s+§\s*[\d-]+|V\.R\.Cr\.P\.\s+\d+[a-z0-9()]*|V\.R\.E\.\s+\d+[a-z0-9()]*|Article\s+11)\b)/g;
+const highlightCitationsOnly = (text: string, keyPrefix = 'c'): React.ReactNode[] => {
+  const citationRegex = /(\b(?:(?:DEF|STATE|EX|DOC|WP|AUTH|APEX)-[A-Z0-9-]+(?:–[A-Z0-9-]+)?|\d{4}\s+VT\s+\d+|\d+\s+V\.S\.A\.\s+§\s*\d+[a-z0-9()]*|T\.C\.A\.\s+§\s*[\d-]+|Tenn\.\s+Code\s+Ann\.\s+§\s*[\d-a-z()]+|V\.R\.Cr\.P\.\s+\d+[a-z0-9()]*|V\.R\.E\.\s+\d+[a-z0-9()]*|Article\s+11)\b)/g;
   const parts = text.split(citationRegex);
   return parts.map((part, i) => {
     if (citationRegex.test(part)) {
       citationRegex.lastIndex = 0;
       return (
         <code
-          key={i}
+          key={`${keyPrefix}-${i}`}
           className="px-1.5 py-0.5 mx-0.5 rounded bg-white/[0.06] border border-white/[0.07] text-sky-300/95 font-mono text-[12px]"
         >
           {part}
         </code>
       );
     }
-    return <React.Fragment key={i}>{part}</React.Fragment>;
+    return <React.Fragment key={`${keyPrefix}-${i}`}>{part}</React.Fragment>;
+  });
+};
+
+const highlightInlineCitations = (text: string): React.ReactNode[] => {
+  if (!text) return [];
+  const inlineMarkdownRegex =
+    /(\*\*\*[\s\S]+?\*\*\*|\*\*[\s\S]+?\*\*|__[\s\S]+?__|\*[^\s*](?:[\s\S]*?[^\s*])?\*|`[^`]+`)/g;
+  const tokens = text.split(inlineMarkdownRegex);
+  return tokens.map((tok, idx) => {
+    if (!tok) return null;
+    if (tok.startsWith('***') && tok.endsWith('***') && tok.length > 6) {
+      return (
+        <strong key={idx} className="font-semibold italic text-zinc-100">
+          {highlightCitationsOnly(tok.slice(3, -3), `bi-${idx}`)}
+        </strong>
+      );
+    }
+    if (
+      ((tok.startsWith('**') && tok.endsWith('**')) ||
+        (tok.startsWith('__') && tok.endsWith('__'))) &&
+      tok.length > 4
+    ) {
+      return (
+        <strong key={idx} className="font-semibold text-zinc-100">
+          {highlightCitationsOnly(tok.slice(2, -2), `b-${idx}`)}
+        </strong>
+      );
+    }
+    if (tok.startsWith('*') && tok.endsWith('*') && tok.length > 2) {
+      return (
+        <em key={idx} className="italic text-zinc-300">
+          {highlightCitationsOnly(tok.slice(1, -1), `i-${idx}`)}
+        </em>
+      );
+    }
+    if (tok.startsWith('`') && tok.endsWith('`') && tok.length > 2) {
+      return (
+        <code
+          key={idx}
+          className="px-1.5 py-0.5 mx-0.5 rounded bg-white/[0.06] border border-white/[0.07] text-sky-300/95 font-mono text-[12px]"
+        >
+          {tok.slice(1, -1)}
+        </code>
+      );
+    }
+    return (
+      <React.Fragment key={idx}>
+        {highlightCitationsOnly(tok.replace(/\*\*/g, ''), `p-${idx}`)}
+      </React.Fragment>
+    );
   });
 };
 
 /**
- * Renders legal work product with calm, T3 Code-style typography, lists, and headers
+ * Renders legal work product with calm, T3 Code-style typography, lists, tables, and headers
  */
 const renderCalmLegalContent = (content: string): React.ReactNode => {
-  const isModelError = content.startsWith('### Model Call Error');
-  const lines = content.split('\n');
+  const safeContent = content || '';
+  const isModelError = safeContent.startsWith('### Model Call Error');
+  const lines = safeContent.split('\n');
+  const elements: React.ReactNode[] = [];
+  let idx = 0;
+
+  while (idx < lines.length) {
+    const rawLine = lines[idx];
+    const line = rawLine.trim();
+
+    if (!line) {
+      elements.push(<div key={`sp-${idx}`} className="h-1.5" />);
+      idx++;
+      continue;
+    }
+
+    // Markdown table block
+    if (line.startsWith('|') && line.endsWith('|')) {
+      const tableLines: string[] = [];
+      const startIdx = idx;
+      while (idx < lines.length) {
+        const tl = lines[idx].trim();
+        if (tl.startsWith('|') && tl.endsWith('|')) {
+          tableLines.push(tl);
+          idx++;
+        } else {
+          break;
+        }
+      }
+      const dataRows = tableLines
+        .filter((l) => !/^\|\s*[-:]+(\s*\|\s*[-:]+)*\s*\|$/.test(l))
+        .map((r) =>
+          r
+            .slice(1, -1)
+            .split('|')
+            .map((c) => c.trim())
+        );
+      if (dataRows.length > 0) {
+        const header = dataRows[0];
+        const body = dataRows.slice(1);
+        elements.push(
+          <div
+            key={`tbl-${startIdx}`}
+            className="my-2 overflow-x-auto rounded-xl border border-white/[0.08] bg-[#111115]"
+          >
+            <table className="w-full text-left border-collapse text-[12.5px]">
+              <thead>
+                <tr className="border-b border-white/[0.08] bg-white/[0.03] text-zinc-200 font-semibold">
+                  {header.map((cell, ci) => (
+                    <th key={ci} className="px-3 py-2 align-top">
+                      {highlightInlineCitations(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.05]">
+                {body.map((row, ri) => (
+                  <tr key={ri} className="hover:bg-white/[0.015]">
+                    {row.map((cell, ci) => (
+                      <td key={ci} className="px-3 py-2 align-top text-zinc-300">
+                        {highlightInlineCitations(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+      continue;
+    }
+
+    // Horizontal rule
+    if (/^[-*_]{3,}$/.test(line)) {
+      elements.push(<hr key={`hr-${idx}`} className="border-white/[0.08] my-3" />);
+      idx++;
+      continue;
+    }
+
+    // Skip standalone GitHub alert header line like "> [!NOTE]"
+    if (/^>\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i.test(line)) {
+      idx++;
+      continue;
+    }
+
+    // Blockquote line
+    if (line.startsWith('>')) {
+      const cleanedQuote = line
+        .replace(/^>\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '')
+        .replace(/^>\s?/, '');
+      elements.push(
+        <div
+          key={`bq-${idx}`}
+          className="px-3.5 py-2 rounded-lg bg-white/[0.03] border-l-2 border-amber-400/60 text-[13px] text-zinc-300"
+        >
+          {highlightInlineCitations(cleanedQuote)}
+        </div>
+      );
+      idx++;
+      continue;
+    }
+
+    // Markdown headings or all-caps legal section headers
+    if (line.startsWith('#### ')) {
+      const hText = line.replace(/^####\s+/, '').replace(/^\*\*([\s\S]+)\*\*$/, '$1');
+      elements.push(
+        <h5 key={`h4-${idx}`} className="text-[13px] font-semibold text-zinc-200 pt-1.5">
+          {highlightInlineCitations(hText)}
+        </h5>
+      );
+      idx++;
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      const hText = line.replace(/^###\s+/, '').replace(/^\*\*([\s\S]+)\*\*$/, '$1');
+      elements.push(
+        <h4
+          key={`h3-${idx}`}
+          className={`text-[13.5px] font-semibold pt-1 ${
+            isModelError ? 'text-rose-300' : 'text-zinc-100 pt-2'
+          }`}
+        >
+          {highlightInlineCitations(hText)}
+        </h4>
+      );
+      idx++;
+      continue;
+    }
+    if (line.startsWith('## ') || line.startsWith('# ')) {
+      const hText = line.replace(/^#+\s+/, '').replace(/^\*\*([\s\S]+)\*\*$/, '$1');
+      elements.push(
+        <h3
+          key={`h2-${idx}`}
+          className="text-[15px] font-semibold text-zinc-100 pt-3 pb-0.5 border-b border-white/[0.06]"
+        >
+          {highlightInlineCitations(hText)}
+        </h3>
+      );
+      idx++;
+      continue;
+    }
+    if (
+      /^(STATE OF VERMONT|SUPERIOR COURT|IN THE CIRCUIT COURT|DEFENDANT’S|DEFENDANT'S|PLAINTIFF’S|PLAINTIFF'S|COMPLAINT FOR|MOTION TO|MEMORANDUM OF LAW|I+\.|CONCLUSION|RELIEF REQUESTED|PRAYER FOR RELIEF|FACTUAL BACKGROUND|ARGUMENT)/.test(
+        line.replace(/^\*\*|\*\*$/g, '')
+      ) &&
+      line === line.toUpperCase() &&
+      line.length < 110
+    ) {
+      elements.push(
+        <div
+          key={`cap-${idx}`}
+          className="text-[12.5px] font-semibold tracking-wide text-zinc-100 pt-2.5"
+        >
+          {highlightInlineCitations(line)}
+        </div>
+      );
+      idx++;
+      continue;
+    }
+
+    // Numbered list items (e.g. "1. **Argument**: ...")
+    const numberedMatch = line.match(/^(\d+\.)\s+(.*)$/);
+    if (numberedMatch) {
+      elements.push(
+        <div key={`num-${idx}`} className="flex items-start gap-2.5 pl-1">
+          <span className="text-zinc-400 font-medium shrink-0 select-none">
+            {numberedMatch[1]}
+          </span>
+          <div className="flex-1 min-w-0">
+            {highlightInlineCitations(numberedMatch[2])}
+          </div>
+        </div>
+      );
+      idx++;
+      continue;
+    }
+
+    // Bullet list items (excluding lines starting with **bold**)
+    const bulletMatch = !line.startsWith('**') ? line.match(/^([-•*])\s+(.*)$/) : null;
+    if (bulletMatch) {
+      elements.push(
+        <div key={`bul-${idx}`} className="flex items-start gap-2.5 pl-4">
+          <span className="text-zinc-500 shrink-0 select-none">•</span>
+          <div className="flex-1 min-w-0">
+            {highlightInlineCitations(bulletMatch[2])}
+          </div>
+        </div>
+      );
+      idx++;
+      continue;
+    }
+
+    elements.push(
+      <p key={`p-${idx}`} className="text-zinc-200/95">
+        {highlightInlineCitations(rawLine)}
+      </p>
+    );
+    idx++;
+  }
+
   return (
     <div
       className={
@@ -140,83 +390,7 @@ const renderCalmLegalContent = (content: string): React.ReactNode => {
           : 'space-y-2.5 text-[14px] text-zinc-200 leading-[1.68] font-sans'
       }
     >
-      {lines.map((rawLine, idx) => {
-        const line = rawLine.trim();
-        if (!line) {
-          return <div key={idx} className="h-1.5" />;
-        }
-
-        // Markdown headings or all-caps legal section headers
-        if (line.startsWith('### ')) {
-          return (
-            <h4
-              key={idx}
-              className={`text-[13.5px] font-semibold pt-1 ${
-                isModelError ? 'text-rose-300' : 'text-zinc-100 pt-2'
-              }`}
-            >
-              {line.replace(/^###\s+/, '')}
-            </h4>
-          );
-        }
-        if (line.startsWith('## ') || line.startsWith('# ')) {
-          return (
-            <h3 key={idx} className="text-[15px] font-semibold text-zinc-100 pt-3 pb-0.5 border-b border-white/[0.06]">
-              {line.replace(/^#+\s+/, '')}
-            </h3>
-          );
-        }
-        if (
-          /^(STATE OF VERMONT|SUPERIOR COURT|DEFENDANT’S|DEFENDANT'S|MOTION TO|MEMORANDUM OF LAW|I+\.|CONCLUSION|RELIEF REQUESTED|FACTUAL BACKGROUND|ARGUMENT)/.test(
-            line
-          ) &&
-          line === line.toUpperCase() &&
-          line.length < 95
-        ) {
-          return (
-            <div
-              key={idx}
-              className="text-[12.5px] font-semibold tracking-wide text-zinc-100 pt-2.5"
-            >
-              {line}
-            </div>
-          );
-        }
-
-        // Numbered list items (e.g. "1. ** Argument**: ...")
-        const numberedMatch = line.match(/^(\d+\.)\s+(.*)$/);
-        if (numberedMatch) {
-          return (
-            <div key={idx} className="flex items-start gap-2.5 pl-1">
-              <span className="text-zinc-400 font-medium shrink-0 select-none">
-                {numberedMatch[1]}
-              </span>
-              <div className="flex-1 min-w-0">
-                {highlightInlineCitations(numberedMatch[2])}
-              </div>
-            </div>
-          );
-        }
-
-        // Bullet list items
-        const bulletMatch = line.match(/^([-•*])\s+(.*)$/);
-        if (bulletMatch) {
-          return (
-            <div key={idx} className="flex items-start gap-2.5 pl-4">
-              <span className="text-zinc-500 shrink-0 select-none">•</span>
-              <div className="flex-1 min-w-0">
-                {highlightInlineCitations(bulletMatch[2])}
-              </div>
-            </div>
-          );
-        }
-
-        return (
-          <p key={idx} className="text-zinc-200/95">
-            {highlightInlineCitations(rawLine)}
-          </p>
-        );
-      })}
+      {elements}
     </div>
   );
 };
@@ -1719,14 +1893,30 @@ export const App: React.FC = () => {
                   (acc, r) => acc + r.objections.length,
                   0
                 );
-                const totalDurationMs = msg.toolCalls.reduce(
+                const toolCallsDurationMs = msg.toolCalls.reduce(
                   (acc, tc) => acc + (tc.durationMs || 12),
                   0
                 );
+                const totalDurationMs =
+                  msg.durationMs && msg.durationMs > toolCallsDurationMs
+                    ? msg.durationMs
+                    : toolCallsDurationMs;
                 const durationLabel =
-                  totalDurationMs >= 1000
-                    ? `${Math.round(totalDurationMs / 1000)}s`
+                  totalDurationMs >= 60_000
+                    ? `${Math.floor(totalDurationMs / 60_000)}m ${Math.round(
+                        (totalDurationMs % 60_000) / 1000
+                      )}s`
+                    : totalDurationMs >= 1000
+                    ? `${
+                        totalDurationMs < 10_000
+                          ? (totalDurationMs / 1000).toFixed(1).replace(/\.0$/, '')
+                          : Math.round(totalDurationMs / 1000)
+                      }s`
                     : `${Math.max(18, totalDurationMs)}ms`;
+                const effectiveMsgContent =
+                  msg.content && msg.content.trim().length > 0
+                    ? msg.content
+                    : msg.initialDraftBeforeReview || '';
                 const isEditingThisMsg = editingMsgId === msg.id;
                 const workProductLabel = detectWorkProductBadge(msg);
 
@@ -1838,7 +2028,7 @@ export const App: React.FC = () => {
                               setEditingMsgId(null);
                             } else {
                               setEditingMsgId(msg.id);
-                              setEditingMsgContent(msg.content);
+                              setEditingMsgContent(effectiveMsgContent);
                             }
                           }}
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/[0.03] hover:bg-white/[0.08] text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
@@ -1862,6 +2052,14 @@ export const App: React.FC = () => {
                                   targetSnippet: obj.location,
                                 }))
                             );
+                            const previousForRedline =
+                              msg.content &&
+                              msg.content.trim().length > 0 &&
+                              msg.initialDraftBeforeReview &&
+                              msg.initialDraftBeforeReview.trim() !==
+                                msg.content.trim()
+                                ? msg.initialDraftBeforeReview
+                                : undefined;
                             await ipcBridge.exportDocx({
                               title: `${activeMatter.name} — ${workProductLabel}`,
                               suggestedFileName: `${activeMatter.name.replace(
@@ -1871,8 +2069,8 @@ export const App: React.FC = () => {
                                 /[^a-zA-Z0-9-_]+/g,
                                 '_'
                               )}.docx`,
-                              content: msg.content,
-                              previousContent: msg.initialDraftBeforeReview,
+                              content: effectiveMsgContent,
+                              previousContent: previousForRedline,
                               author: msg.primaryModel || 'LexHarness Peer Review',
                               comments:
                                 reviewComments.length > 0
@@ -2132,7 +2330,7 @@ export const App: React.FC = () => {
                           {renderCalmLegalContent(msg.initialDraftBeforeReview)}
                         </div>
                       ) : (
-                        renderCalmLegalContent(msg.content)
+                        renderCalmLegalContent(effectiveMsgContent)
                       )}
                     </div>
                   </div>

@@ -994,4 +994,107 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
       }
     }
   });
+
+  it('prevents cut-off or empty drafts after adversarial review, records turn durationMs, and completes truncated complaints grounded in uploaded exhibits (Issue #8)', async () => {
+    db.selectPractitionerProfile('general-legal-practice');
+    const now = new Date().toISOString();
+
+    db.insertMatter({
+      id: 'matter-shelby-test-2',
+      name: 'Test 2',
+      clientName: 'Shanice Burks',
+      matterNumber: '26-CV-00002',
+      practiceArea: 'general_litigation',
+      jurisdiction: 'Circuit Court for Shelby County, Tennessee (30th Judicial District at Memphis)',
+      citationStyle: 'The Bluebook (21st Ed.)',
+      folderPath: '~/Matters/26-CV-00002-Test-2',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    db.insertDocument({
+      id: 'doc-demand-letter-wt',
+      matterId: 'matter-shelby-test-2',
+      title: 'Shanice Banks Demand Letter - WT',
+      fileName: 'Shanice Banks Demand Letter - WT.docx',
+      category: 'WORK_PRODUCT',
+      batesRange: 'DOC-0002',
+      pageCount: 2,
+      summary: 'Pre-suit personal injury demand letter for September 30, 2025 drive-through collision in Memphis.',
+      content: [
+        '# PRE-SUIT SETTLEMENT DEMAND — SHANICE BURKS',
+        '1. Date of Loss: September 30, 2025. Claimant Shanice Burks was stopped in a drive-through line in Memphis, Shelby County, Tennessee when the insured driver negligently rear-ended her vehicle.',
+        '2. Liability: The insured driver failed to maintain a proper lookout and struck Ms. Burks from behind while her vehicle was stationary.',
+        '3. Injuries and Medical Treatment: Ms. Burks sustained cervical and lumbar spine injuries requiring emergency evaluation and physical therapy in Memphis.',
+        '4. Demand: Claimant demands policy limits compensation within 10 business days of July 9, 2026.',
+      ].join('\n\n'),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const loop = new LegalAgentLoop(db);
+    const llmClient = new MultiLLMClient(db);
+
+    // 1. Verify isDraftCutOff detects the exact mid-word cut-off from Issue #8 ("### COMPLAINT FOR P")
+    const cutOffRound1 = [
+      '# PRIVILEGED & CONFIDENTIAL – ATTORNEY WORK PRODUCT',
+      '## PART B: DRAFT COMPLAINT',
+      '**IN THE CIRCUIT COURT OF TENNESSEE FOR THE THIRTIETH JUDICIAL DISTRICT AT MEMPHIS, SHELBY COUNTY**',
+      '**SHANICE BURKS,**\nPlaintiff,\nv.\n**[DEFENDANT NAME],**\nDefendant.',
+      '---',
+      '### COMPLAINT FOR P',
+    ].join('\n\n');
+
+    const promptText = 'Draft a Complaint for Circuit Court Shelby County with attached document.';
+    expect(MultiLLMClient.isDraftCutOff(cutOffRound1, promptText)).toBe(true);
+
+    // 2. Verify completeCutOffLegalDraft repairs "### COMPLAINT FOR P" and appends facts, causes of action, and prayer for relief
+    const docs = db.listDocuments('matter-shelby-test-2');
+    const matter = db.getMatter('matter-shelby-test-2')!;
+    const completed = llmClient.completeCutOffLegalDraft({
+      partialDraft: cutOffRound1,
+      userPrompt: promptText,
+      matter,
+      docs,
+      isRevisionPass: true,
+      objectionsToCure: [
+        {
+          category: 'RECORD_MISMATCH',
+          location: 'Statement of Facts',
+          critique: 'Include DOC-0002 Bates pinpoints.',
+          requiredFix: 'Add [DOC-0002] pinpoints to factual allegations.',
+        },
+      ],
+    });
+
+    expect(completed.draftText).not.toMatch(/COMPLAINT FOR P$/);
+    expect(completed.draftText).toContain('COMPLAINT FOR DAMAGES AND DEMAND FOR JURY TRIAL');
+    expect(completed.draftText).toContain('STATEMENT OF MATERIAL FACTS');
+    expect(completed.draftText).toContain('September 30, 2025');
+    expect(completed.draftText).toContain('DOC-0002');
+    expect(completed.draftText).toContain('CAUSES OF ACTION');
+    expect(completed.draftText).toContain('COUNT I');
+    expect(completed.draftText).toContain('PRAYER FOR RELIEF');
+    expect(completed.draftText).toContain('WHEREFORE');
+    expect(MultiLLMClient.isDraftCutOff(completed.draftText, promptText)).toBe(false);
+
+    // 3. Verify full LegalAgentLoop.runTurn produces a non-empty, complete Complaint, saves a redline version, and records durationMs
+    const turnResult = await loop.runTurn({
+      matterId: 'matter-shelby-test-2',
+      userPrompt: promptText,
+      overrideReviewMode: 'multi_llm_default',
+      overridePrimaryProvider: 'anthropic',
+      overridePrimaryModel: 'claude-sonnet-4-5',
+    });
+
+    expect(turnResult.assistantMessage.content.trim().length).toBeGreaterThan(400);
+    expect(turnResult.assistantMessage.content).toContain('DOC-0002');
+    expect(turnResult.assistantMessage.content).toContain('COUNT I');
+    expect(turnResult.assistantMessage.content).toContain('WHEREFORE');
+    expect(turnResult.assistantMessage.durationMs).toBeGreaterThanOrEqual(1);
+
+    const versions = db.listDocumentVersions('matter-shelby-test-2');
+    expect(versions.length).toBeGreaterThanOrEqual(1);
+    expect(versions[0].content).toContain('WHEREFORE');
+  });
 });

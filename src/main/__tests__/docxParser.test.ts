@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildZipArchive,
   exportDocxBuffer,
+  extractZipEntries,
   parseDocumentBuffer,
   parseDocxBuffer,
 } from '../tools/DocxParser';
@@ -649,6 +650,69 @@ describe('Multi-format document & exhibit ingestion (.txt, .csv, .xlsx, .rtf, .p
       '1. Plaintiff alleges breach of Section 4.2 of the Supply Agreement.'
     );
     expect(parsed.summary).toContain('SUPERIOR COURT OF VERMONT');
+  });
+
+  it('converts Markdown **bold**, *italic*, `code`, tables, and --- horizontal rules into native Word XML without literal **asterisks** (Issue #8)', () => {
+    const markdownComplaint = [
+      '# PRIVILEGED & CONFIDENTIAL – ATTORNEY WORK PRODUCT',
+      '## Draft Complaint (Circuit Court for Shelby County, Tennessee)',
+      '**Matter:** Test 2 | **Posture:** Pre-suit; initial pleading | **Citation manual:** Bluebook (21st ed.)',
+      '---',
+      '| # | Issue | Why it matters |',
+      '| --- | --- | --- |',
+      '| 1 | **Limitations deadline.** The date of loss is September 30, 2025 (`[DOC-0002]`). | If correct, the complaint must be filed by **September 30, 2026** for the *plaintiff-side* claim. |',
+      '---',
+      '**IN THE CIRCUIT COURT OF TENNESSEE FOR THE THIRTIETH JUDICIAL DISTRICT AT MEMPHIS, SHELBY COUNTY**',
+      '**SHANICE BURKS,**\nPlaintiff,',
+      '### COMPLAINT FOR DAMAGES AND DEMAND FOR JURY TRIAL',
+      '1. **Negligence**: Defendant breached the duty of care owed to **Shanice Burks** `[DOC-0002]`.',
+    ].join('\n\n');
+
+    const exportedBuf = exportDocxBuffer({
+      title: 'Test 2 — Complaint',
+      content: markdownComplaint,
+      author: 'claude-sonnet-4-5',
+    });
+
+    const entries = extractZipEntries(exportedBuf);
+    const docXml = entries.get('word/document.xml')!.toString('utf8');
+
+    // Verify native Word bold (<w:b/>), italic (<w:i/>), line break (<w:br/>), and bottom border (<w:pBdr>) tags exist
+    expect(docXml).toContain('<w:b/>');
+    expect(docXml).toContain('<w:i/>');
+    expect(docXml).toContain('<w:br/>');
+    expect(docXml).toContain('<w:pBdr>');
+
+    // Verify zero literal **asterisks** remain in the exported Word document XML
+    expect(docXml).not.toContain('**');
+
+    // Verify round-trip parsed text is clean and complete
+    const roundTripped = parseDocxBuffer(exportedBuf, 'Test_2_Complaint.docx');
+    expect(roundTripped.content).not.toContain('**');
+    expect(roundTripped.content).toContain('Limitations deadline.');
+    expect(roundTripped.content).toContain('COMPLAINT FOR DAMAGES AND DEMAND FOR JURY TRIAL');
+  });
+
+  it('never exports an all-deleted (<w:del>) document when content is empty and previousContent is provided (Issue #8)', () => {
+    const initialDraft = [
+      '# DRAFT COMPLAINT',
+      '1. **Plaintiff**: Shanice Burks brings this action in Shelby County Circuit Court `[DOC-0002]`.',
+    ].join('\n\n');
+
+    const exportedBuf = exportDocxBuffer({
+      title: 'Test 2 — Legal Work Product',
+      content: '',
+      previousContent: initialDraft,
+      author: 'claude-sonnet-4-5',
+    });
+
+    const entries = extractZipEntries(exportedBuf);
+    const docXml = entries.get('word/document.xml')!.toString('utf8');
+
+    // Should retain initialDraft as active <w:t> text rather than marking the entire document as <w:del>
+    expect(docXml).not.toContain('<w:del ');
+    expect(docXml).toContain('Shanice Burks brings this action in Shelby County Circuit Court');
+    expect(docXml).not.toContain('**');
   });
 });
 
