@@ -177,6 +177,38 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     expect(codexCfg?.binaryPath).toBe('/opt/homebrew/bin/codex');
     expect(codexCfg?.reasoningEffort).toBe('xhigh');
     expect(codexCfg?.runtimeMode).toBe('read-only');
+
+    // Add a multi-instance provider (e.g. Antigravity personal) and verify T3 Code runtime config + configProblem flagging
+    const { providers: afterAdd } = db.addProviderInstance({
+      driverKind: 'antigravity-acp',
+      name: 'Antigravity (personal)',
+      authMethod: 'oauth-business',
+      gcpLocation: 'us-central1',
+    });
+    const agyPersonal = afterAdd.find((p) => p.name === 'Antigravity (personal)');
+    expect(agyPersonal).toBeDefined();
+    expect(agyPersonal?.isDefaultInstance).toBe(false);
+    expect(
+      agyPersonal?.runtimeStatus?.configProblems.some((msg) =>
+        msg.includes('GCP project is required')
+      )
+    ).toBe(true);
+
+    // Fix the missing GCP project and verify the problem clears
+    const afterFix = db.saveProviderCredential({
+      providerId: agyPersonal!.id,
+      gcpProject: 'vermont-defense-ai',
+    });
+    const fixedAgy = afterFix.find((p) => p.id === agyPersonal!.id);
+    expect(
+      fixedAgy?.runtimeStatus?.configProblems.some((msg) =>
+        msg.includes('GCP project is required')
+      )
+    ).toBe(false);
+
+    // Delete the custom instance
+    const afterDelete = db.deleteOrResetProviderInstance(agyPersonal!.id);
+    expect(afterDelete.some((p) => p.id === agyPersonal!.id)).toBe(false);
   });
 
   it('manages prompt governance, local matter corpus tools, and leaves MCP tooling native to agents', async () => {
@@ -921,7 +953,11 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
       path.join(__dirname, '../../renderer/components/ConnectAgentsModal.tsx'),
       'utf8'
     );
-    const combinedRendererSource = `${appSource}\n${rightPaneSource}\n${settingsModalSource}\n${connectAgentsModalSource}`;
+    const updateButtonSource = fs.readFileSync(
+      path.join(__dirname, '../../renderer/components/DesktopUpdateButton.tsx'),
+      'utf8'
+    );
+    const combinedRendererSource = `${appSource}\n${rightPaneSource}\n${settingsModalSource}\n${connectAgentsModalSource}\n${updateButtonSource}`;
 
     for (const step of TOUR_STEPS) {
       expect(step.points.length).toBeGreaterThan(0);
@@ -981,6 +1017,17 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
 
     expect(readmeSource).toContain('https://bentito.github.io/free-legal-assist/#tour');
     expect(docsHtmlSource).toContain('WEB_TOUR_STEPS');
+
+    // Verify adaptive mobile & tablet capabilities in docs/index.html
+    expect(docsHtmlSource).toContain('id="mobile-nav-drawer"');
+    expect(docsHtmlSource).toContain('id="web-mobile-pane-bar"');
+    expect(docsHtmlSource).toContain('id="web-pane-docket"');
+    expect(docsHtmlSource).toContain('id="web-pane-main"');
+    expect(docsHtmlSource).toContain('id="web-pane-inspector"');
+    expect(docsHtmlSource).toContain('switchMobileWorkspacePane');
+    expect(docsHtmlSource).toContain('detectPaneForSelector');
+    expect(docsHtmlSource).toContain('toggleMobileStageScaleMode');
+    expect(docsHtmlSource).toContain('setupTouchSwipeGestures');
 
     for (const step of TOUR_STEPS) {
       expect(docsHtmlSource).toContain(`id: '${step.id}'`);
@@ -1096,5 +1143,240 @@ describe('LexHarness: Practitioner Profiles, Matter Settings, Legal MCP Toolsets
     const versions = db.listDocumentVersions('matter-shelby-test-2');
     expect(versions.length).toBeGreaterThanOrEqual(1);
     expect(versions[0].content).toContain('WHEREFORE');
+  });
+
+  it('parses T3-style compact release notes, manages in-app update state transitions, throttles download progress, and tracks unapplied install records', async () => {
+    const {
+      extractReleaseNoteItems,
+      extractReleaseNoteSummary,
+      normalizeDesktopUpdateReleaseNotes,
+    } = await import('../updates/releaseNotesParser');
+    const {
+      createInitialDesktopUpdateState,
+      reduceDesktopUpdateStateOnCheckFailure,
+      reduceDesktopUpdateStateOnCheckStart,
+      reduceDesktopUpdateStateOnDownloadComplete,
+      reduceDesktopUpdateStateOnDownloadFailure,
+      reduceDesktopUpdateStateOnDownloadProgress,
+      reduceDesktopUpdateStateOnDownloadStart,
+      reduceDesktopUpdateStateOnNoUpdate,
+      reduceDesktopUpdateStateOnUpdateAvailable,
+      resolveNotAppliedInstallVersion,
+      shouldBroadcastDownloadProgress,
+    } = await import('../updates/updateMachine');
+    const {
+      DesktopUpdaterService,
+      isMissingUpdateMetadataError,
+      sanitizeUpdaterErrorMessage,
+    } = await import('../updates/DesktopUpdaterService');
+    const { shouldShowReleaseNotesPopover } = await import(
+      '../../renderer/components/DesktopUpdateButton'
+    );
+
+    // 1. Verify T3-style release notes summary extraction (matches image.png layout)
+    const t3StyleNote = [
+      'v0.1.11 · 67 changes from 25 contributors',
+      '',
+      '- **Review drafts.** Pending pull request comments and review summaries now survive a reload or window close. (#412)',
+      '- **Settings edits.** Text entered in Settings is now saved when you leave using Navigation: Back. (#418, #419)',
+      '- **Diff comments.** IME composition no longer discards a diff comment draft or sends it unfinished.',
+      '- **Worktree cleanup.** Storage cleanup can now remove large linked worktrees that take longer than 30 seconds to inspect.',
+      '',
+      '### Plus 59 more bug fixes.',
+      '',
+      '<details>',
+      '<summary>Full changelog</summary>',
+      '- Internal commit 1',
+      '- Internal commit 2',
+      '</details>',
+    ].join('\n');
+
+    const summaryParsed = extractReleaseNoteItems(t3StyleNote);
+    expect(summaryParsed.items).toHaveLength(4);
+    expect(summaryParsed.items[0]).toBe(
+      '**Review drafts.** Pending pull request comments and review summaries now survive a reload or window close.'
+    );
+    expect(summaryParsed.items[1]).toBe(
+      '**Settings edits.** Text entered in Settings is now saved when you leave using Navigation: Back.'
+    );
+    expect(summaryParsed.footer).toBe('Plus 59 more bug fixes.');
+    expect(summaryParsed.stats).toBe('67 changes from 25 contributors');
+
+    // Verify multi-release normalization & MAX_RELEASE_NOTE_GROUPS (3) cap
+    const multiRelease = normalizeDesktopUpdateReleaseNotes(
+      [
+        { version: 'v0.9.3', note: t3StyleNote, releaseDate: '2026-11-24T10:00:00Z' },
+        { version: 'v0.9.2', note: '- **Fast citations.** Verified VT citations.' },
+        { version: 'v0.9.1', note: '- **Redline export.** Improved Word tables.' },
+        { version: 'v0.9.0', note: '- **Mobile tour.** Added adaptive mobile panes.' },
+      ],
+      '0.9.3',
+      '2026-11-24T10:00:00Z'
+    );
+    expect(multiRelease.releaseNotes).toHaveLength(3);
+    expect(multiRelease.omittedReleaseCount).toBe(1);
+    expect(multiRelease.releaseNotes[0].version).toBe('0.9.3');
+    expect(multiRelease.releaseNotes[0].releasedAt).toBe('2026-11-24');
+
+    // Verify direct extractReleaseNoteSummary auto-computes footer when > 4 bullets are present
+    const sixBulletSummary = extractReleaseNoteSummary(
+      [
+        '- **One.** First item.',
+        '- **Two.** Second item.',
+        '- **Three.** Third item.',
+        '- **Four.** Fourth item.',
+        '- **Five.** Fifth item.',
+        '- **Six.** Sixth item.',
+      ].join('\n')
+    );
+    expect(sixBulletSummary.items).toHaveLength(4);
+    expect(sixBulletSummary.footer).toBe('Plus 2 more improvements.');
+
+    // 2. Verify updateMachine state transitions, 10% download throttling, and downloaded preservation
+    const initial = createInitialDesktopUpdateState('0.9.0', {
+      hostArch: 'arm64',
+      appArch: 'arm64',
+      runningUnderArm64Translation: false,
+    });
+    const checking = reduceDesktopUpdateStateOnCheckStart(
+      { ...initial, enabled: true, status: 'idle' },
+      '2026-11-24T11:00:00Z'
+    );
+    expect(checking.status).toBe('checking');
+
+    const available = reduceDesktopUpdateStateOnUpdateAvailable(
+      checking,
+      'v0.9.1',
+      '2026-11-24T11:00:01Z',
+      multiRelease.releaseNotes,
+      multiRelease.omittedReleaseCount
+    );
+    expect(available.status).toBe('available');
+    expect(available.availableVersion).toBe('0.9.1');
+    expect(available.releaseNotes).toHaveLength(3);
+
+    const downloading = reduceDesktopUpdateStateOnDownloadStart(available);
+    expect(downloading.status).toBe('downloading');
+    expect(downloading.downloadPercent).toBe(0);
+
+    // 0% -> 4% stays in same 10% bucket (no broadcast), 0% -> 12% crosses 10% milestone (broadcasts)
+    expect(shouldBroadcastDownloadProgress(downloading, 4)).toBe(false);
+    expect(shouldBroadcastDownloadProgress(downloading, 12)).toBe(true);
+
+    const prog12 = reduceDesktopUpdateStateOnDownloadProgress(downloading, 12);
+    expect(shouldBroadcastDownloadProgress(prog12, 18)).toBe(false);
+    expect(shouldBroadcastDownloadProgress(prog12, 21)).toBe(true);
+    expect(shouldBroadcastDownloadProgress(prog12, 100)).toBe(true);
+
+    const dlFailed = reduceDesktopUpdateStateOnDownloadFailure(
+      prog12,
+      'Network disconnected'
+    );
+    expect(dlFailed.status).toBe('available');
+    expect(dlFailed.errorContext).toBe('download');
+    expect(dlFailed.canRetry).toBe(true);
+
+    const downloaded = reduceDesktopUpdateStateOnDownloadComplete(
+      prog12,
+      '0.9.1'
+    );
+    expect(downloaded.status).toBe('downloaded');
+    expect(downloaded.downloadedVersion).toBe('0.9.1');
+    expect(downloaded.downloadPercent).toBe(100);
+
+    // Subsequent offline check failure or no-update check must preserve already-downloaded update
+    const afterFailedRecheck = reduceDesktopUpdateStateOnCheckFailure(
+      downloaded,
+      'Offline',
+      '2026-11-24T12:00:00Z'
+    );
+    expect(afterFailedRecheck.status).toBe('downloaded');
+    expect(afterFailedRecheck.downloadedVersion).toBe('0.9.1');
+
+    const afterNoUpdateRecheck = reduceDesktopUpdateStateOnNoUpdate(
+      downloaded,
+      '2026-11-24T12:05:00Z'
+    );
+    expect(afterNoUpdateRecheck.status).toBe('downloaded');
+    expect(afterNoUpdateRecheck.downloadedVersion).toBe('0.9.1');
+
+    // 3. Verify install record detection when an update did not apply
+    expect(
+      resolveNotAppliedInstallVersion(
+        { fromVersion: '0.9.0', targetVersion: '0.9.1' },
+        '0.9.0'
+      )
+    ).toBe('0.9.1');
+    expect(
+      resolveNotAppliedInstallVersion(
+        { fromVersion: '0.9.0', targetVersion: '0.9.1' },
+        '0.9.1'
+      )
+    ).toBeNull();
+
+    // 4. Verify DesktopUpdaterService install record persistence & recovery
+    const prevMock = process.env.LEXHARNESS_MOCK_UPDATES;
+    process.env.LEXHARNESS_MOCK_UPDATES = '1';
+    try {
+      const service1 = new DesktopUpdaterService({
+        userDataDir: tmpDir,
+        currentVersion: '0.9.0',
+        isPackaged: false,
+        isDevelopment: true,
+      });
+      const checkRes = await service1.checkForUpdates();
+      expect(checkRes.checked).toBe(true);
+      expect(checkRes.state.status).toBe('downloaded');
+      expect(checkRes.state.downloadedVersion).toBe('0.9.1');
+      expect(checkRes.state.releaseNotes.length).toBeGreaterThan(0);
+
+      const installRes = await service1.installUpdate();
+      expect(installRes.accepted).toBe(true);
+
+      // Simulate relaunch still on 0.9.0 -> detects notAppliedVersion === '0.9.1'
+      const service2 = new DesktopUpdaterService({
+        userDataDir: tmpDir,
+        currentVersion: '0.9.0',
+        isPackaged: false,
+        isDevelopment: true,
+      });
+      expect(service2.getState().notAppliedVersion).toBe('0.9.1');
+    } finally {
+      if (prevMock === undefined) {
+        delete process.env.LEXHARNESS_MOCK_UPDATES;
+      } else {
+        process.env.LEXHARNESS_MOCK_UPDATES = prevMock;
+      }
+    }
+
+    // 5. Regression: missing latest-mac.yml / 404 stack trace is detected, sanitized, and popover is hidden on idle/up-to-date/error without update
+    const raw404Error =
+      'Cannot find latest-mac.yml in the latest release artifacts (https://github.com/bentito/free-legal-assist/releases/download/v0.9.0/latest-mac.yml): HttpError: 404 "method: GET url: https://github.com/bentito/free-legal-assist/releases/download/v0.9.0/latest-mac.yml\\n\\nPlease double check that your authentication token is correct." Headers: { "cache-control": "no-cache" } at createHttpError (/Users/btofel/app.asar/httpExecutor.js:53:12)';
+    expect(isMissingUpdateMetadataError(raw404Error)).toBe(true);
+    const sanitized = sanitizeUpdaterErrorMessage(raw404Error);
+    expect(sanitized).toBe(
+      'Update metadata is not available for the latest GitHub release yet.'
+    );
+    expect(sanitized).not.toContain('Headers:');
+    expect(sanitized).not.toContain('httpExecutor.js');
+
+    // Verify popover is ONLY shown when an update is available, downloading, or downloaded (matching T3 Code MU(showUpdateDetails, state))
+    expect(shouldShowReleaseNotesPopover(initial)).toBe(false);
+    expect(
+      shouldShowReleaseNotesPopover(
+        reduceDesktopUpdateStateOnNoUpdate(initial, '2026-11-24T12:00:00Z')
+      )
+    ).toBe(false);
+    expect(
+      shouldShowReleaseNotesPopover(
+        reduceDesktopUpdateStateOnCheckFailure(
+          initial,
+          sanitized,
+          '2026-11-24T12:00:00Z'
+        )
+      )
+    ).toBe(false);
+    expect(shouldShowReleaseNotesPopover(available)).toBe(true);
+    expect(shouldShowReleaseNotesPopover(downloaded)).toBe(true);
   });
 });

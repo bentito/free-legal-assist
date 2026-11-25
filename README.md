@@ -30,8 +30,8 @@ LexHarness is a desktop application for Mac and Windows. It comes pre-loaded wit
 | Platform | Recommended Installer | Alternative |
 | :--- | :--- | :--- |
 | **Web Browser** (No Install) | [**🧭 Launch Interactive Web Tour & UI Demo**](https://bentito.github.io/free-legal-assist/#tour) | [Read All 7 Tutorial Cards](https://bentito.github.io/free-legal-assist/#tour-guide) |
-| **macOS** (Apple Silicon / M1, M2, M3, M4) | [**📥 Download `.dmg` Installer**](https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness-0.8.2-arm64.dmg) | [Portable `.zip`](https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness-0.8.2-arm64-mac.zip) |
-| **Windows 10 / 11** (64-bit) | [**📥 Download `.exe` Installer**](https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness.Setup.0.8.2.exe) | [Portable `.zip`](https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness-0.8.2-win.zip) |
+| **macOS** (Apple Silicon / M1, M2, M3, M4) | [**📥 Download `.dmg` Installer**](https://github.com/bentito/free-legal-assist/releases/download/v0.9.1/LexHarness-0.9.1-arm64.dmg) | [Portable `.zip`](https://github.com/bentito/free-legal-assist/releases/download/v0.9.1/LexHarness-0.9.1-arm64-mac.zip) |
+| **Windows 10 / 11** (64-bit) | [**📥 Download `.exe` Installer**](https://github.com/bentito/free-legal-assist/releases/download/v0.9.1/LexHarness.Setup.0.9.1.exe) | [Portable `.zip`](https://github.com/bentito/free-legal-assist/releases/download/v0.9.1/LexHarness-0.9.1-win.zip) |
 
 👉 *Looking for older versions or release notes? View all releases on the [Releases page](https://github.com/bentito/free-legal-assist/releases).*
 

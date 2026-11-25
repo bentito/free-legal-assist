@@ -1,4 +1,7 @@
-import { LegalDatabase } from '../../db/database';
+import {
+  LegalDatabase,
+  migrateLegacyDirectProviderId,
+} from '../../db/database';
 import {
   AdversarialObjection,
   LLMProviderId,
@@ -25,32 +28,47 @@ export interface CriticStructuredVerdict {
 export class MultiLLMClient {
   constructor(private db: LegalDatabase) {}
 
-  private isCliAgentProvider(
+  private resolveBaseCliDriver(
     provider: LLMProviderId
-  ): provider is 'agy-acp' | 'codex-cli' | 'claude-cli' {
-    return (
-      provider === 'agy-acp' ||
-      provider === 'codex-cli' ||
-      provider === 'claude-cli'
-    );
+  ): 'agy-acp' | 'codex-cli' | 'claude-cli' | null {
+    if (provider === 'agy-acp') return 'agy-acp';
+    if (provider === 'codex-cli') return 'codex-cli';
+    if (provider === 'claude-cli') return 'claude-cli';
+    const overrides = this.db.getCliOverrides()[provider];
+    if (overrides?.driverKind === 'codex-cli') return 'codex-cli';
+    if (overrides?.driverKind === 'claude-agent-cli') return 'claude-cli';
+    if (overrides?.driverKind === 'antigravity-acp') return 'agy-acp';
+    if (provider.startsWith('codex_')) return 'codex-cli';
+    if (provider.startsWith('claude_')) return 'claude-cli';
+    if (provider.startsWith('antigravity_') || provider.startsWith('agy_')) {
+      return 'agy-acp';
+    }
+    return null;
   }
 
   hasLiveCredentials(provider: LLMProviderId): boolean {
     if (provider === 'legal-simulator') return false;
-    if (!this.isCliAgentProvider(provider) && this.db.hasStoredApiKey(provider)) {
+    const normalized = migrateLegacyDirectProviderId(provider);
+    if (this.db.hasStoredApiKey(normalized) || this.db.hasStoredApiKey(provider)) {
       return true;
     }
     if (process.env.VITEST && !process.env.TEST_LIVE_CLI) return false;
-    if (this.isCliAgentProvider(provider)) {
-      const overrides = this.db.getCliOverrides()[provider];
+    const baseCli = this.resolveBaseCliDriver(normalized);
+    if (baseCli) {
+      const overrides =
+        this.db.getCliOverrides()[provider] ??
+        this.db.getCliOverrides()[normalized];
       const status = CliAgentDriverManager.probeProviderStatusSync(
-        provider,
+        baseCli,
         overrides?.binaryPath
       );
-      const key = this.db.getDecryptedApiKey(provider);
+      const key =
+        this.db.getDecryptedApiKey(provider) ||
+        this.db.getDecryptedApiKey(normalized) ||
+        this.db.getDecryptedApiKey(baseCli);
       return status.installed && (status.authenticated || Boolean(key));
     }
-    const key = this.db.getDecryptedApiKey(provider);
+    const key = this.db.getDecryptedApiKey(normalized);
     return Boolean(key && key.trim().length > 0);
   }
 
@@ -60,16 +78,27 @@ export class MultiLLMClient {
     providerUsed: LLMProviderId;
     modelUsed: string;
   }> {
-    if (this.isCliAgentProvider(req.provider)) {
-      if (this.hasLiveCredentials(req.provider)) {
+    const targetProvider = migrateLegacyDirectProviderId(req.provider);
+    const baseCli = this.resolveBaseCliDriver(targetProvider);
+    if (baseCli) {
+      const overrides =
+        this.db.getCliOverrides()[req.provider] ??
+        this.db.getCliOverrides()[targetProvider];
+      const canRunCliProcess =
+        (!process.env.VITEST || Boolean(process.env.TEST_LIVE_CLI)) &&
+        CliAgentDriverManager.probeProviderStatusSync(
+          baseCli,
+          overrides?.binaryPath
+        ).installed;
+
+      if (canRunCliProcess && this.hasLiveCredentials(targetProvider)) {
         const effectiveCliModel =
-          req.provider === 'claude-cli' || req.provider === 'agy-acp'
+          baseCli === 'claude-cli' || baseCli === 'agy-acp'
             ? MultiLLMClient.normalizeAnthropicModelId(req.model)
             : req.model;
         try {
-          const overrides = this.db.getCliOverrides()[req.provider];
           const cliText = await CliAgentDriverManager.runCliTurn({
-            providerId: req.provider,
+            providerId: baseCli,
             model: effectiveCliModel,
             systemPrompt: req.systemPrompt,
             userPrompt: req.userPrompt,
@@ -80,43 +109,54 @@ export class MultiLLMClient {
           return {
             text: cliText,
             usedLiveApi: true,
-            providerUsed: req.provider,
+            providerUsed: targetProvider,
             modelUsed: effectiveCliModel,
           };
         } catch (err) {
           throw new Error(
-            `[${req.provider.toUpperCase()} CLI Harness Error (${effectiveCliModel})]: ${(err as Error).message}`
+            `[${targetProvider.toUpperCase()} Agent Error (${effectiveCliModel})]: ${(err as Error).message}`
           );
         }
       }
     }
 
-    const apiKey = this.db.getDecryptedApiKey(req.provider);
+    const apiKey =
+      this.db.getDecryptedApiKey(targetProvider) ||
+      this.db.getDecryptedApiKey(req.provider);
 
     if (
-      req.provider !== 'legal-simulator' &&
-      !this.isCliAgentProvider(req.provider) &&
+      targetProvider !== 'legal-simulator' &&
+      (this.db.hasStoredApiKey(targetProvider) ||
+        this.db.hasStoredApiKey(req.provider)) &&
       apiKey &&
       apiKey.trim().length > 0
     ) {
       const effectiveModel =
-        req.provider === 'anthropic'
+        targetProvider === 'claude-cli'
           ? MultiLLMClient.normalizeAnthropicModelId(req.model)
           : req.model;
+      const httpTransportProvider: LLMProviderId =
+        targetProvider === 'claude-cli'
+          ? 'anthropic'
+          : targetProvider === 'codex-cli'
+            ? 'openai'
+            : targetProvider === 'agy-acp'
+              ? 'gemini'
+              : req.provider;
       try {
         const liveText = await this.callLiveProvider(
-          { ...req, model: effectiveModel },
+          { ...req, provider: httpTransportProvider, model: effectiveModel },
           apiKey.trim()
         );
         return {
           text: liveText,
           usedLiveApi: true,
-          providerUsed: req.provider,
+          providerUsed: targetProvider,
           modelUsed: effectiveModel,
         };
       } catch (err) {
         throw new Error(
-          `[${req.provider.toUpperCase()} API Error (${req.model})]: ${(err as Error).message}`
+          `[${targetProvider.toUpperCase()} Agent Error (${req.model})]: ${(err as Error).message}`
         );
       }
     }
@@ -124,7 +164,7 @@ export class MultiLLMClient {
     return {
       text: '',
       usedLiveApi: false,
-      providerUsed: req.provider,
+      providerUsed: targetProvider,
       modelUsed: `${req.model} (Local Legal Test Harness)`,
     };
   }

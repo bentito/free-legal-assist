@@ -247,8 +247,8 @@ export const DEFAULT_ADVERSARIAL_CONFIG: AdversarialConfig = {
   primaryModel: 'gpt-6-luna',
   citationAuditorProvider: 'agy-acp',
   citationAuditorModel: 'gemini-4-argon',
-  opposingCounselProvider: 'openai',
-  opposingCounselModel: 'o3-mini',
+  opposingCounselProvider: 'claude-cli',
+  opposingCounselModel: 'claude-sonnet-5-5',
   maxRevisionRounds: 2,
 };
 
@@ -564,7 +564,7 @@ export const SEEDED_MESSAGES: LegalMessage[] = [
     id: 'msg-vt-assistant-1',
     matterId: 'matter-vt-state-v-thorne',
     role: 'assistant',
-    primaryProvider: 'anthropic',
+    primaryProvider: 'claude-cli',
     primaryModel: 'claude-sonnet-5-5',
     reviewModeUsed: 'multi_llm_default',
     revisionRoundsCompleted: 1,
@@ -653,8 +653,8 @@ Because suppression of the contents of the locked console leaves the State with 
         round: 1,
         criticRole: 'CITATION_AUDITOR',
         criticTitle: 'Vermont Citation & Discovery Record Auditor',
-        provider: 'gemini',
-        model: 'gemini-2.5-pro',
+        provider: 'agy-acp',
+        model: 'gemini-4-argon',
         verdict: 'REVISE',
         severity: 'CRITICAL',
         objections: [
@@ -685,8 +685,8 @@ Because suppression of the contents of the locked console leaves the State with 
         round: 1,
         criticRole: 'OPPOSING_COUNSEL',
         criticTitle: 'Deputy State’s Attorney & Criminal Division Judge Critic',
-        provider: 'openai',
-        model: 'o3-mini',
+        provider: 'codex-cli',
+        model: 'gpt-6-luna',
         verdict: 'REVISE',
         severity: 'MEDIUM',
         objections: [

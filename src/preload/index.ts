@@ -9,6 +9,9 @@ import {
   AppBootstrapState,
   ChronologyFact,
   CustomLegalMcpServer,
+  DesktopUpdateActionResult,
+  DesktopUpdateCheckResult,
+  DesktopUpdateState,
   DocumentCategory,
   ExportDocxPayload,
   FolderSyncResult,
@@ -112,13 +115,43 @@ export interface LexHarnessBridge {
   ): Promise<AppBootstrapState>;
   saveProviderCredential(payload: {
     providerId: LLMProviderId;
+    enabled?: boolean;
+    name?: string;
+    accentColor?: string;
     apiKey?: string;
     baseUrl?: string;
     defaultModel?: string;
     binaryPath?: string;
+    homePath?: string;
+    shadowHomePath?: string;
     customArgs?: string;
+    autoCompactWindow?: string;
+    idleCompaction?: 'default' | 'onReturn' | 'beforeCacheExpires' | 'off';
+    authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+    gcpProject?: string;
+    gcpLocation?: string;
+    environmentVars?: { name: string; value: string; sensitive?: boolean }[];
+    favoriteModels?: string[];
+    hiddenModels?: string[];
+    customModels?: { id: string; label: string }[];
     reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
     runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
+  }): Promise<AppBootstrapState>;
+  addProviderInstance(payload: {
+    driverKind: 'codex-cli' | 'claude-agent-cli' | 'antigravity-acp';
+    name: string;
+    instanceId?: string;
+    accentColor?: string;
+    binaryPath?: string;
+    homePath?: string;
+    shadowHomePath?: string;
+    customArgs?: string;
+    authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+    gcpProject?: string;
+    gcpLocation?: string;
+  }): Promise<{ state: AppBootstrapState; createdId: LLMProviderId }>;
+  deleteProviderInstance(payload: {
+    providerId: LLMProviderId;
   }): Promise<AppBootstrapState>;
   completeAgentOnboarding(): Promise<AppBootstrapState>;
   refreshAgentConnections(): Promise<AppBootstrapState>;
@@ -199,6 +232,12 @@ export interface LexHarnessBridge {
     providerId: LLMProviderId;
     modelId: string;
   }): Promise<AppBootstrapState>;
+  getUpdateState(): Promise<DesktopUpdateState>;
+  checkForUpdate(): Promise<DesktopUpdateCheckResult>;
+  downloadUpdate(): Promise<DesktopUpdateActionResult>;
+  installUpdate(): Promise<DesktopUpdateActionResult>;
+  openReleaseNotesUrl(payload: { url: string }): Promise<boolean>;
+  onUpdateState(callback: (state: DesktopUpdateState) => void): () => void;
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
   onAgentSetupTerminal(callback: (event: AgentSetupTerminalEvent) => void): () => void;
   onMatterFolderSynced(
@@ -240,6 +279,10 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.invoke('legal:save-adversarial-config', updated),
   saveProviderCredential: (payload) =>
     ipcRenderer.invoke('legal:save-provider-credential', payload),
+  addProviderInstance: (payload) =>
+    ipcRenderer.invoke('legal:add-provider-instance', payload),
+  deleteProviderInstance: (payload) =>
+    ipcRenderer.invoke('legal:delete-provider-instance', payload),
   completeAgentOnboarding: () =>
     ipcRenderer.invoke('legal:complete-agent-onboarding'),
   refreshAgentConnections: () =>
@@ -288,6 +331,19 @@ const bridge: LexHarnessBridge = {
     ipcRenderer.invoke('legal:refresh-ancillary-model-registry'),
   repickAncillaryModel: (payload) =>
     ipcRenderer.invoke('legal:repick-ancillary-model', payload),
+  getUpdateState: () => ipcRenderer.invoke('legal:get-update-state'),
+  checkForUpdate: () => ipcRenderer.invoke('legal:check-for-update'),
+  downloadUpdate: () => ipcRenderer.invoke('legal:download-update'),
+  installUpdate: () => ipcRenderer.invoke('legal:install-update'),
+  openReleaseNotesUrl: (payload) =>
+    ipcRenderer.invoke('legal:open-release-notes-url', payload),
+  onUpdateState: (callback) => {
+    const listener = (_event: unknown, data: DesktopUpdateState) => callback(data);
+    ipcRenderer.on('legal:update-state-changed', listener);
+    return () => {
+      ipcRenderer.removeListener('legal:update-state-changed', listener);
+    };
+  },
   onAgentProgress: (callback) => {
     const listener = (_event: unknown, data: AgentProgressEvent) => callback(data);
     ipcRenderer.on('legal:agent-progress', listener);

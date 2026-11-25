@@ -21,6 +21,7 @@ import {
 } from './components/RightWorkspacePane';
 import { TutorialOverlay } from './components/TutorialOverlay';
 import { RoutingDebugDrawer } from './components/RoutingDebugDrawer';
+import { DesktopUpdateButton } from './components/DesktopUpdateButton';
 import {
   AlertTriangle,
   Archive,
@@ -828,12 +829,7 @@ export const App: React.FC = () => {
     if (!p) return 'Agent';
     if (p.id === 'agy-acp') return 'Antigravity';
     if (p.id === 'claude-cli') return 'Claude';
-    if (p.id === 'codex-cli') return 'OpenAI Codex';
-    if (p.id === 'anthropic') return 'Claude (API)';
-    if (p.id === 'openai') return 'OpenAI';
-    if (p.id === 'gemini') return 'Gemini';
-    if (p.id === 'openrouter') return 'OpenRouter';
-    if (p.id === 'legal-simulator') return 'Built-In Assistant';
+    if (p.id === 'codex-cli') return 'Codex';
     return p.name;
   };
 
@@ -1688,6 +1684,8 @@ export const App: React.FC = () => {
               <Compass className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          <DesktopUpdateButton />
         </div>
       </aside>
 
@@ -2509,10 +2507,10 @@ export const App: React.FC = () => {
                       {state.providers
                         .filter(
                           (p) =>
-                            p.id === 'legal-simulator' ||
-                            p.hasApiKey ||
-                            Boolean(p.runtimeStatus?.installed) ||
-                            p.id === turnProvider
+                            p.id !== 'legal-simulator' &&
+                            (p.hasApiKey ||
+                              Boolean(p.runtimeStatus?.installed) ||
+                              p.id === turnProvider)
                         )
                         .map((p) => (
                           <option
@@ -3014,6 +3012,10 @@ export const App: React.FC = () => {
         isOpen={isStudioOpen}
         initialTab={studioInitialTab}
         onClose={() => setIsStudioOpen(false)}
+        onOpenConnectAgents={() => {
+          setIsStudioOpen(false);
+          setIsConnectAgentsOpen(true);
+        }}
         promptSettings={state.promptSettings}
         adversarialConfig={state.adversarialConfig}
         providers={state.providers}
@@ -3048,6 +3050,15 @@ export const App: React.FC = () => {
         }}
         onSaveProviderCredential={async (payload) => {
           const next = await ipcBridge.saveProviderCredential(payload);
+          setState(next);
+        }}
+        onAddProviderInstance={async (payload) => {
+          const res = await ipcBridge.addProviderInstance(payload);
+          setState(res.state);
+          return res.createdId;
+        }}
+        onDeleteProviderInstance={async (providerId) => {
+          const next = await ipcBridge.deleteProviderInstance(providerId);
           setState(next);
         }}
         onUpdateMatterJurisdiction={async (payload) => {

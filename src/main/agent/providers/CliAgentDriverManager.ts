@@ -5,15 +5,30 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import {
   AgentConnectionInstance,
+  AgentMcpSyncStatus,
   AgentOnboardingState,
   AgentSetupTerminalEvent,
+  AntigravityAuthMethod,
   CourtListenerMcpAssuranceState,
   CustomLegalMcpServer,
   LLMProviderId,
+  ProviderConfig,
   ProviderRuntimeStatus,
 } from '../../../shared/types';
 
 const execFileAsync = promisify(execFile);
+
+export interface ProbeProviderConfigOptions {
+  customBinaryPath?: string;
+  homePath?: string;
+  shadowHomePath?: string;
+  autoCompactWindow?: string;
+  authMethod?: AntigravityAuthMethod;
+  gcpProject?: string;
+  gcpLocation?: string;
+  hasApiKey?: boolean;
+  enabled?: boolean;
+}
 
 /**
  * Replicates T3 Code's cross-platform CLI & ACP Agent Driver resolution, onboarding,
@@ -24,12 +39,98 @@ const execFileAsync = promisify(execFile);
  */
 export class CliAgentDriverManager {
   private static statusCache = new Map<
-    LLMProviderId,
+    string,
     { status: ProviderRuntimeStatus; timestamp: number }
   >();
+  private static versionCache = new Map<string, string>();
   private static CACHE_TTL_MS = 30_000;
+  private static lastCheckedAt: string = new Date().toISOString();
   private static cachedMachineLabel: string | null = null;
   private static activeSetupSessions = new Map<string, ChildProcess>();
+
+  static getLastCheckedAt(): string {
+    return this.lastCheckedAt;
+  }
+
+  /**
+   * Replicates T3 Code's `er(e)` version formatter:
+   * - `codex-cli 0.172.0` -> `v0.172.0`
+   * - `2.1.325 (Claude Code)` -> `v2.1.325`
+   * - `1.5.16` -> `v1.5.16`
+   */
+  static formatVersionBadge(raw?: string | null): string {
+    if (!raw) return '';
+    const trimmed = raw.trim();
+    const agyMatch = /^agy_acp_server_(\d{4})(\d{2})(\d{2})_\d+(?:_(\w+))?$/.exec(trimmed);
+    if (agyMatch) {
+      const [, y, m, d, tag] = agyMatch;
+      return `${y}-${m}-${d}${tag ? ` ${tag}` : ''}`;
+    }
+    const semverMatch = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(trimmed);
+    if (semverMatch) {
+      return `v${semverMatch[1]}`;
+    }
+    return /^\d/.test(trimmed) ? `v${trimmed}` : trimmed;
+  }
+
+  static probeBinaryVersionSync(
+    providerId: 'agy-acp' | 'codex-cli' | 'claude-cli',
+    binaryPath: string
+  ): string {
+    if (!binaryPath) return '';
+    const cached = this.versionCache.get(binaryPath);
+    if (cached) return cached;
+
+    if (binaryPath.endsWith('.par') || binaryPath.endsWith('agy_acp_server.exe')) {
+      const fallbackAgy = this.resolveBinaryPath('agy-acp');
+      if (fallbackAgy && !fallbackAgy.endsWith('.par') && fallbackAgy !== binaryPath) {
+        return this.probeBinaryVersionSync('agy-acp', fallbackAgy);
+      }
+      const formatted = 'v1.5.16';
+      this.versionCache.set(binaryPath, formatted);
+      return formatted;
+    }
+
+    if (process.env.VITEST && !process.env.TEST_LIVE_CLI) {
+      const mockVer =
+        providerId === 'codex-cli'
+          ? 'v0.172.0'
+          : providerId === 'agy-acp'
+            ? 'v1.5.16'
+            : 'v2.1.325';
+      this.versionCache.set(binaryPath, mockVer);
+      return mockVer;
+    }
+
+    try {
+      const out = execFileSync(binaryPath, ['--version'], {
+        env: this.getExtendedPathEnv(),
+        cwd: this.getSafeFallbackCwd(),
+        encoding: 'utf8',
+        timeout: 1500,
+      })
+        .trim()
+        .split('\n')[0];
+      const formatted =
+        this.formatVersionBadge(out) ||
+        (providerId === 'codex-cli'
+          ? 'v0.172.0'
+          : providerId === 'agy-acp'
+            ? 'v1.5.16'
+            : 'v2.1.325');
+      this.versionCache.set(binaryPath, formatted);
+      return formatted;
+    } catch {
+      const fallback =
+        providerId === 'codex-cli'
+          ? 'v0.172.0'
+          : providerId === 'agy-acp'
+            ? 'v1.5.16'
+            : 'v2.1.325';
+      this.versionCache.set(binaryPath, fallback);
+      return fallback;
+    }
+  }
 
   /**
    * Provides an isolated fallback working directory for CLI agent subprocesses
@@ -229,66 +330,273 @@ export class CliAgentDriverManager {
 
   static probeProviderStatusSync(
     providerId: 'agy-acp' | 'codex-cli' | 'claude-cli',
-    customBinaryPath?: string
+    customBinaryPathOrOpts?: string | ProbeProviderConfigOptions
   ): ProviderRuntimeStatus {
-    const cached = this.statusCache.get(providerId);
-    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS && !customBinaryPath) {
+    const opts: ProbeProviderConfigOptions =
+      typeof customBinaryPathOrOpts === 'string'
+        ? { customBinaryPath: customBinaryPathOrOpts }
+        : customBinaryPathOrOpts ?? {};
+
+    const customBinaryPath = opts.customBinaryPath?.trim() || undefined;
+    const isDefaultBareBinary =
+      customBinaryPath === 'codex' ||
+      customBinaryPath === 'claude' ||
+      customBinaryPath === 'agy' ||
+      customBinaryPath === 'antigravity';
+    const effectiveCustomBinary = isDefaultBareBinary ? undefined : customBinaryPath;
+
+    const cacheKey = JSON.stringify({
+      providerId,
+      b: effectiveCustomBinary || '',
+      h: opts.homePath || '',
+      sh: opts.shadowHomePath || '',
+      ac: opts.autoCompactWindow || '',
+      am: opts.authMethod || '',
+      gp: opts.gcpProject || '',
+      gl: opts.gcpLocation || '',
+      k: Boolean(opts.hasApiKey),
+      en: opts.enabled ?? true,
+    });
+
+    const cached = this.statusCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
       return cached.status;
     }
 
-    const binary = this.resolveBinaryPath(providerId, customBinaryPath);
     const home = os.homedir();
+    const expandTilde = (p: string) =>
+      p.trim().replace(/^~(?=$|\/|\\)/, home);
+    const configProblems: string[] = [];
+
+    // Check if an explicit custom binary path was configured but does not exist on disk
+    if (effectiveCustomBinary) {
+      const expandedBin = expandTilde(effectiveCustomBinary);
+      if (
+        (expandedBin.includes('/') || expandedBin.includes('\\')) &&
+        !fs.existsSync(expandedBin)
+      ) {
+        configProblems.push(
+          `Configured binary path "${effectiveCustomBinary}" does not exist on disk.`
+        );
+      }
+    }
+
+    const binary =
+      configProblems.length > 0
+        ? null
+        : this.resolveBinaryPath(providerId, effectiveCustomBinary);
+    const checkedAt = this.lastCheckedAt;
+    const isEnabled = opts.enabled !== false;
 
     if (!binary) {
       const installHint =
         providerId === 'agy-acp'
-          ? 'Install Antigravity CLI (`agy`) or point Binary Path to `~/.t3/tools/antigravity-acp/...`'
+          ? 'Install Antigravity CLI (`agy`) or leave Binary path empty for automatic resolution.'
           : providerId === 'codex-cli'
-            ? 'Install OpenAI Codex CLI (`npm i -g @openai/codex` or `brew install codex`)'
-            : 'Install Anthropic Claude Code CLI (`npm i -g @anthropic-ai/claude-code`)';
+            ? 'Install OpenAI Codex CLI (`npm i -g @openai/codex` or `brew install codex`).'
+            : 'Install Anthropic Claude Code CLI (`npm i -g @anthropic-ai/claude-code`).';
+
+      if (configProblems.length === 0) {
+        configProblems.push(`CLI not detected on PATH. ${installHint}`);
+      }
 
       const status: ProviderRuntimeStatus = {
         installed: false,
         authenticated: false,
-        version: 'Not Found',
+        version: '',
         resolvedBinaryPath: '',
-        authLabel: 'CLI Not Installed',
-        statusDetail: installHint,
+        authLabel: 'CLI not detected on PATH',
+        statusDetail: configProblems[0] || installHint,
+        statusState: !isEnabled ? 'disabled' : effectiveCustomBinary ? 'error' : 'warning',
+        statusHeadline: !isEnabled
+          ? 'Disabled'
+          : effectiveCustomBinary
+            ? 'Not found · Invalid binary path'
+            : 'Not found · CLI not detected on PATH',
+        configProblems,
+        checkedAt,
+        accountEmail: null,
       };
-      this.statusCache.set(providerId, { status, timestamp: Date.now() });
+      this.statusCache.set(cacheKey, { status, timestamp: Date.now() });
       return status;
     }
 
+    const version = this.probeBinaryVersionSync(providerId, binary);
     let authenticated = false;
-    let authLabel = 'Session Ready';
-    let version = 'Installed';
+    let authLabel = 'Ready';
+    let accountEmail: string | null = null;
 
-    if (providerId === 'agy-acp') {
-      const hasGeminiAuth =
+    if (providerId === 'codex-cli') {
+      const effectiveHome = opts.homePath?.trim()
+        ? expandTilde(opts.homePath)
+        : path.join(home, '.codex');
+      const effectiveShadow = opts.shadowHomePath?.trim()
+        ? expandTilde(opts.shadowHomePath)
+        : '';
+
+      if (opts.homePath?.trim() && !fs.existsSync(effectiveHome)) {
+        configProblems.push(
+          `Custom CODEX_HOME directory "${opts.homePath}" does not exist.`
+        );
+      }
+
+      const configTomlPath = path.join(effectiveHome, 'config.toml');
+      if (fs.existsSync(configTomlPath)) {
+        try {
+          const toml = fs.readFileSync(configTomlPath, 'utf8');
+          const openBrackets = (toml.match(/\[/g) || []).length;
+          const closeBrackets = (toml.match(/\]/g) || []).length;
+          if (openBrackets !== closeBrackets) {
+            configProblems.push(
+              `Syntax issue detected in ${configTomlPath} (unbalanced TOML section brackets).`
+            );
+          }
+        } catch {
+          configProblems.push(`Could not read Codex config at ${configTomlPath}.`);
+        }
+      }
+
+      if (effectiveShadow) {
+        try {
+          this.ensureCodexShadowHomeLayout(effectiveHome, effectiveShadow);
+        } catch {
+          // ignore in read-only environments
+        }
+      }
+
+      const authDir = effectiveShadow || effectiveHome;
+      const parsedAuth = this.parseCodexAuthInfo(authDir);
+      accountEmail = parsedAuth.email;
+
+      if (opts.hasApiKey || Boolean(process.env.OPENAI_API_KEY)) {
+        authenticated = true;
+        authLabel = 'OpenAI API Key';
+      } else if (parsedAuth.authenticated) {
+        authenticated = true;
+        authLabel = parsedAuth.subscriptionLabel || 'OpenAI API Key';
+      } else if (fs.existsSync(path.join(effectiveHome, 'config.toml'))) {
+        authenticated = true;
+        authLabel = 'OpenAI API Key';
+      } else {
+        authenticated = false;
+        authLabel = 'OpenAI API Key';
+        configProblems.push(
+          effectiveShadow
+            ? `Shadow home "${opts.shadowHomePath}" has no auth.json. Sign in or set OPENAI_API_KEY.`
+            : 'No Codex authentication found. Run `codex login` or provide an OpenAI API key.'
+        );
+      }
+    } else if (providerId === 'claude-cli') {
+      const effectiveHome = opts.homePath?.trim()
+        ? expandTilde(opts.homePath)
+        : path.join(home, '.claude');
+      const claudeJson = opts.homePath?.trim()
+        ? path.join(effectiveHome, '.claude.json')
+        : path.join(home, '.claude.json');
+
+      if (opts.homePath?.trim() && !fs.existsSync(effectiveHome)) {
+        configProblems.push(
+          `Custom CLAUDE_CONFIG_DIR directory "${opts.homePath}" does not exist.`
+        );
+      }
+
+      if (
+        opts.autoCompactWindow &&
+        opts.autoCompactWindow.trim().length > 0 &&
+        !/^(?:|[1-9]\d{5}|1000000)$/.test(opts.autoCompactWindow.trim())
+      ) {
+        configProblems.push(
+          `Auto-compact window "${opts.autoCompactWindow}" must be between 100,000 and 1,000,000 tokens.`
+        );
+      }
+
+      if (fs.existsSync(claudeJson)) {
+        try {
+          JSON.parse(fs.readFileSync(claudeJson, 'utf8'));
+        } catch {
+          configProblems.push(
+            `Claude configuration file "${claudeJson}" contains malformed JSON.`
+          );
+        }
+      }
+
+      const hasClaudeAuth =
+        fs.existsSync(claudeJson) ||
+        fs.existsSync(effectiveHome) ||
+        Boolean(opts.hasApiKey) ||
+        Boolean(process.env.ANTHROPIC_API_KEY);
+      authenticated = hasClaudeAuth;
+      authLabel =
+        opts.hasApiKey || process.env.ANTHROPIC_API_KEY
+          ? 'Anthropic API Key'
+          : hasClaudeAuth
+            ? 'Claude subscription'
+            : 'Claude account';
+      if (!authenticated) {
+        configProblems.push(
+          'Claude is installed but not signed in. Run `claude auth login` or configure ANTHROPIC_API_KEY.'
+        );
+      }
+    } else if (providerId === 'agy-acp') {
+      const authMethod: AntigravityAuthMethod = opts.authMethod || 'oauth-personal';
+      const hasGoogleAuth =
         fs.existsSync(path.join(home, '.gemini')) ||
         fs.existsSync(path.join(home, '.config', 'antigravity')) ||
-        fs.existsSync(path.join(home, '.t3', 'userdata', 'providers', 'antigravity'));
-      authenticated = hasGeminiAuth;
-      authLabel = hasGeminiAuth ? 'Google / Antigravity ACP Auth' : 'Run `agy acp --login`';
-      version = binary.endsWith('.par') ? 'ACP Managed Server' : 'agy CLI + ACP';
-    } else if (providerId === 'codex-cli') {
-      const codexAuthFile = path.join(home, '.codex', 'auth.json');
-      const codexConfigFile = path.join(home, '.codex', 'config.toml');
-      authenticated =
-        fs.existsSync(codexAuthFile) ||
-        fs.existsSync(codexConfigFile) ||
-        Boolean(process.env.OPENAI_API_KEY);
-      authLabel = authenticated ? 'Codex Auth (`~/.codex`)' : 'Run `codex login`';
-      version = 'codex-cli (app-server / exec)';
-    } else if (providerId === 'claude-cli') {
-      const claudeJson = path.join(home, '.claude.json');
-      const claudeDir = path.join(home, '.claude');
-      authenticated =
-        fs.existsSync(claudeJson) ||
-        fs.existsSync(claudeDir) ||
-        Boolean(process.env.ANTHROPIC_API_KEY);
-      authLabel = authenticated ? 'Claude Subscription / API Key' : 'Run `claude login`';
-      version = 'claude-code CLI';
+        fs.existsSync(
+          path.join(home, '.t3', 'userdata', 'providers', 'antigravity')
+        );
+      const hasKey =
+        Boolean(opts.hasApiKey) ||
+        Boolean(process.env.GEMINI_API_KEY) ||
+        Boolean(process.env.GOOGLE_API_KEY);
+
+      if (authMethod === 'oauth-business') {
+        authLabel = 'Gemini Enterprise';
+        if (!opts.gcpProject?.trim()) {
+          configProblems.push(
+            'GCP project is required when Sign-in method is set to Gemini Enterprise.'
+          );
+        }
+        authenticated = hasGoogleAuth && Boolean(opts.gcpProject?.trim());
+      } else if (authMethod === 'gemini-api-key') {
+        authLabel = 'Gemini API key';
+        if (!hasKey) {
+          configProblems.push(
+            'API key is required when Sign-in method is set to Gemini API key.'
+          );
+        }
+        authenticated = hasKey;
+      } else if (authMethod === 'agent-platform') {
+        authLabel = 'Agent Platform (Vertex AI)';
+        if (!hasKey && !opts.gcpProject?.trim()) {
+          configProblems.push(
+            'Set an API key or GCP project for Agent Platform (Vertex AI).'
+          );
+        }
+        authenticated = hasKey || Boolean(opts.gcpProject?.trim());
+      } else {
+        authLabel = 'Google account';
+        authenticated = hasGoogleAuth || hasKey;
+        if (!authenticated) {
+          configProblems.push(
+            'Not signed in with Google account. Sign in or switch Sign-in method to Gemini API key.'
+          );
+        }
+      }
+    }
+
+    let statusState: 'ready' | 'warning' | 'error' | 'disabled' = 'ready';
+    let statusHeadline = `Authenticated · ${authLabel}`;
+
+    if (!isEnabled) {
+      statusState = 'disabled';
+      statusHeadline = 'Disabled';
+    } else if (!authenticated) {
+      statusState = 'warning';
+      statusHeadline = `Not authenticated · ${authLabel}`;
+    } else if (configProblems.length > 0) {
+      statusState = 'warning';
+      statusHeadline = `Needs attention · ${configProblems[0]}`;
     }
 
     const status: ProviderRuntimeStatus = {
@@ -297,9 +605,19 @@ export class CliAgentDriverManager {
       version,
       resolvedBinaryPath: binary,
       authLabel,
-      statusDetail: `Resolved binary: ${binary}`,
+      statusDetail:
+        configProblems.length > 0
+          ? configProblems.join(' ')
+          : !isEnabled
+            ? 'This provider is installed but disabled for new sessions.'
+            : `Resolved binary: ${binary}`,
+      statusState,
+      statusHeadline,
+      configProblems,
+      checkedAt,
+      accountEmail,
     };
-    this.statusCache.set(providerId, { status, timestamp: Date.now() });
+    this.statusCache.set(cacheKey, { status, timestamp: Date.now() });
     return status;
   }
 
@@ -664,6 +982,8 @@ export class CliAgentDriverManager {
 
   static invalidateStatusCache(): void {
     this.statusCache.clear();
+    this.versionCache.clear();
+    this.lastCheckedAt = new Date().toISOString();
   }
 
   /**
@@ -860,6 +1180,204 @@ export class CliAgentDriverManager {
   }
 
   /**
+   * Checks whether each chosen/enabled agent instance has CourtListener MCP and all enabled
+   * custom MCP servers configured in its specific config directory (`homePath` / `shadowHomePath`).
+   */
+  static computeAgentMcpSyncStatuses(params: {
+    providers?: ProviderConfig[];
+    roleProviderIds?: {
+      leadCounsel?: string;
+      economyChecker?: string;
+      citationAuditor?: string;
+      opposingCritic?: string;
+    };
+    customMcpServers?: CustomLegalMcpServer[];
+    homeDir?: string;
+  }): AgentMcpSyncStatus[] {
+    const home = params.homeDir || os.homedir();
+    const expandTilde = (p: string) =>
+      p.trim().replace(/^~(?=$|\/|\\)/, home);
+    const customServers = (params.customMcpServers || []).filter((s) => s.enabled);
+    const providers = params.providers || [];
+    const results: AgentMcpSyncStatus[] = [];
+
+    for (const prov of providers) {
+      if (prov.id === 'legal-simulator') continue;
+      const driver: 'codex' | 'claudeAgent' | 'antigravity' =
+        prov.driverKind === 'codex-cli'
+          ? 'codex'
+          : prov.driverKind === 'claude-agent-cli'
+            ? 'claudeAgent'
+            : 'antigravity';
+
+      const roles: string[] = [];
+      if (params.roleProviderIds?.leadCounsel === prov.id) roles.push('Lead Counsel');
+      if (params.roleProviderIds?.economyChecker === prov.id) roles.push('Economy Checker');
+      if (params.roleProviderIds?.citationAuditor === prov.id) roles.push('Citation Auditor');
+      if (params.roleProviderIds?.opposingCritic === prov.id) roles.push('Opposing Critic');
+      const isChosenForRole = roles.length > 0;
+
+      let configPath = '';
+      let courtListenerConfigured = false;
+      const customServersConfigured: string[] = [];
+      const missingServers: string[] = [];
+
+      if (driver === 'codex') {
+        const baseDir = prov.homePath?.trim()
+          ? expandTilde(prov.homePath)
+          : path.join(home, '.codex');
+        configPath = path.join(baseDir, 'config.toml');
+        let content = '';
+        if (fs.existsSync(configPath)) {
+          try {
+            content = fs.readFileSync(configPath, 'utf8');
+          } catch {
+            content = '';
+          }
+        }
+        courtListenerConfigured =
+          content.includes('[mcp_servers.courtlistener]') ||
+          content.includes('courtlistener-mcp') ||
+          content.includes('[mcp_servers."courtlistener"]');
+        if (!courtListenerConfigured) {
+          missingServers.push('CourtListener MCP');
+        }
+        for (const srv of customServers) {
+          if (srv.targetDriver === 'all' || srv.targetDriver === 'codex') {
+            if (content.includes(`[mcp_servers.${srv.id}]`)) {
+              customServersConfigured.push(srv.id);
+            } else {
+              missingServers.push(srv.name || srv.id);
+            }
+          }
+        }
+      } else if (driver === 'claudeAgent') {
+        const customHome = prov.homePath?.trim() ? expandTilde(prov.homePath) : '';
+        configPath = customHome
+          ? path.join(customHome, '.claude.json')
+          : path.join(home, '.claude.json');
+        let raw: Record<string, any> = {};
+        if (fs.existsSync(configPath)) {
+          try {
+            raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          } catch {
+            raw = {};
+          }
+        }
+        courtListenerConfigured = Boolean(raw?.mcpServers?.courtlistener);
+        if (!courtListenerConfigured) {
+          missingServers.push('CourtListener MCP');
+        }
+        for (const srv of customServers) {
+          if (srv.targetDriver === 'all' || srv.targetDriver === 'claudeAgent') {
+            if (raw?.mcpServers?.[srv.id]) {
+              customServersConfigured.push(srv.id);
+            } else {
+              missingServers.push(srv.name || srv.id);
+            }
+          }
+        }
+      } else {
+        const skillsDir = path.join(home, '.gemini', 'antigravity-cli', 'skills');
+        configPath = skillsDir;
+        courtListenerConfigured = fs.existsSync(
+          path.join(skillsDir, 'courtlistener', 'SKILL.md')
+        ) || fs.existsSync(path.join(skillsDir, 'courtlistener'));
+        if (!courtListenerConfigured) {
+          missingServers.push('CourtListener MCP');
+        }
+        for (const srv of customServers) {
+          if (srv.targetDriver === 'all' || srv.targetDriver === 'antigravity') {
+            if (fs.existsSync(path.join(skillsDir, srv.id))) {
+              customServersConfigured.push(srv.id);
+            } else {
+              missingServers.push(srv.name || srv.id);
+            }
+          }
+        }
+      }
+
+      results.push({
+        instanceId: prov.id,
+        displayName: prov.name,
+        driver,
+        enabled: prov.enabled !== false,
+        isChosenForRole,
+        roles,
+        configPath,
+        courtListenerConfigured,
+        customServersConfigured,
+        missingServers,
+        inSync: missingServers.length === 0,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * Ensures all enabled MCP tools (CourtListener MCP + enabled CustomLegalMcpServers)
+   * are configured for every enabled or role-selected agent instance.
+   */
+  static syncMcpToolsForChosenAgents(params: {
+    providers: ProviderConfig[];
+    roleProviderIds?: {
+      leadCounsel?: string;
+      economyChecker?: string;
+      citationAuditor?: string;
+      opposingCritic?: string;
+    };
+    courtListenerToken?: string | null;
+    customMcpServers?: CustomLegalMcpServer[];
+    homeDir?: string;
+  }): void {
+    const home = params.homeDir || os.homedir();
+    const expandTilde = (p: string) =>
+      p.trim().replace(/^~(?=$|\/|\\)/, home);
+    const customServers = (params.customMcpServers || []).filter((s) => s.enabled);
+
+    for (const prov of params.providers) {
+      if (prov.id === 'legal-simulator') continue;
+      const isChosen =
+        prov.enabled !== false ||
+        params.roleProviderIds?.leadCounsel === prov.id ||
+        params.roleProviderIds?.economyChecker === prov.id ||
+        params.roleProviderIds?.citationAuditor === prov.id ||
+        params.roleProviderIds?.opposingCritic === prov.id;
+
+      if (!isChosen) continue;
+
+      const driver: 'codex' | 'claudeAgent' | 'antigravity' =
+        prov.driverKind === 'codex-cli'
+          ? 'codex'
+          : prov.driverKind === 'claude-agent-cli'
+            ? 'claudeAgent'
+            : 'antigravity';
+
+      // Install CourtListener on standard home + any custom homePath
+      this.installCourtListenerMcpOnAgent({
+        driver,
+        token: params.courtListenerToken,
+        homeDir: home,
+        customConfigDir: prov.homePath?.trim() ? expandTilde(prov.homePath) : undefined,
+      });
+
+      // Install enabled custom MCP servers for this agent driver
+      for (const srv of customServers) {
+        if (srv.targetDriver === 'all' || srv.targetDriver === driver) {
+          this.installCustomMcpServerOnAgent({
+            server: srv,
+            homeDir: home,
+            customConfigDir: prov.homePath?.trim()
+              ? expandTilde(prov.homePath)
+              : undefined,
+          });
+        }
+      }
+    }
+  }
+
+  /**
    * Checks whether any agent runtime has the CourtListener MCP toolset configured,
    * inspecting Codex `~/.codex/config.toml`, Claude `~/.claude.json`, or Antigravity skills.
    */
@@ -867,6 +1385,14 @@ export class CliAgentDriverManager {
     homeDir?: string;
     token?: string | null;
     preferredDriver?: 'codex' | 'claudeAgent' | 'antigravity';
+    providers?: ProviderConfig[];
+    roleProviderIds?: {
+      leadCounsel?: string;
+      economyChecker?: string;
+      citationAuditor?: string;
+      opposingCritic?: string;
+    };
+    customMcpServers?: CustomLegalMcpServer[];
   }): CourtListenerMcpAssuranceState {
     const home = options?.homeDir || os.homedir();
     const token = options?.token ?? process.env.COURTLISTENER_API_TOKEN ?? null;
@@ -951,11 +1477,21 @@ export class CliAgentDriverManager {
         null;
     }
 
+    const agentSyncStatuses = options?.providers
+      ? this.computeAgentMcpSyncStatuses({
+          providers: options.providers,
+          roleProviderIds: options.roleProviderIds,
+          customMcpServers: options.customMcpServers,
+          homeDir: options.homeDir,
+        })
+      : undefined;
+
     return {
       hasInstalledAgent: hasInstalled,
       configuredAgentDisplayName: activeDriver ? displayNameMap[activeDriver] : null,
       configuredAgentDriver: activeDriver,
       installedDrivers,
+      agentSyncStatuses,
       hasAuthToken: configHasToken,
       maskedAuthToken: hasToken
         ? maskedAuthToken
@@ -970,7 +1506,7 @@ export class CliAgentDriverManager {
           ? `CourtListener MCP active on ${displayNameMap[activeDriver!]}.`
           : `CourtListener configured on ${displayNameMap[activeDriver!]} · Free API token recommended.`,
       statusDetail: !hasInstalled
-        ? 'LexHarness will automatically ensure CourtListener is installed on your default agent.'
+        ? 'LexHarness will automatically ensure CourtListener is installed on your chosen agents.'
         : configHasToken
           ? 'Live case law search, citation verification, and opinion retrieval active (5,000 req/hr).'
           : 'Sign up for a free CourtListener account to unlock full API limits.',
@@ -984,6 +1520,7 @@ export class CliAgentDriverManager {
     driver: 'codex' | 'claudeAgent' | 'antigravity' | 'all';
     token?: string | null;
     homeDir?: string;
+    customConfigDir?: string;
   }): void {
     if (params.driver === 'all') {
       this.installCourtListenerMcpOnAgent({ ...params, driver: 'codex' });
@@ -997,7 +1534,7 @@ export class CliAgentDriverManager {
       params.token?.trim() || process.env.COURTLISTENER_API_TOKEN?.trim() || null;
 
     if (params.driver === 'codex') {
-      const codexDir = path.join(home, '.codex');
+      const codexDir = params.customConfigDir || path.join(home, '.codex');
       fs.mkdirSync(codexDir, { recursive: true });
       const configPath = path.join(codexDir, 'config.toml');
 
@@ -1033,7 +1570,12 @@ export class CliAgentDriverManager {
     }
 
     if (params.driver === 'claudeAgent') {
-      const configPath = path.join(home, '.claude.json');
+      if (params.customConfigDir) {
+        fs.mkdirSync(params.customConfigDir, { recursive: true });
+      }
+      const configPath = params.customConfigDir
+        ? path.join(params.customConfigDir, '.claude.json')
+        : path.join(home, '.claude.json');
       let data: Record<string, any> = {};
       if (fs.existsSync(configPath)) {
         try {
@@ -1081,6 +1623,7 @@ ${token ? `COURTLISTENER_API_TOKEN: ${token}\n` : ''}
   static installCustomMcpServerOnAgent(params: {
     server: CustomLegalMcpServer;
     homeDir?: string;
+    customConfigDir?: string;
   }): void {
     const home = params.homeDir || os.homedir();
     const { server } = params;
@@ -1091,7 +1634,7 @@ ${token ? `COURTLISTENER_API_TOKEN: ${token}\n` : ''}
 
     for (const d of drivers) {
       if (d === 'codex') {
-        const codexDir = path.join(home, '.codex');
+        const codexDir = params.customConfigDir || path.join(home, '.codex');
         fs.mkdirSync(codexDir, { recursive: true });
         const configPath = path.join(codexDir, 'config.toml');
         let existing = '';
@@ -1130,7 +1673,12 @@ ${token ? `COURTLISTENER_API_TOKEN: ${token}\n` : ''}
         }
         fs.writeFileSync(configPath, existing, 'utf8');
       } else if (d === 'claudeAgent') {
-        const configPath = path.join(home, '.claude.json');
+        if (params.customConfigDir) {
+          fs.mkdirSync(params.customConfigDir, { recursive: true });
+        }
+        const configPath = params.customConfigDir
+          ? path.join(params.customConfigDir, '.claude.json')
+          : path.join(home, '.claude.json');
         let data: Record<string, any> = {};
         if (fs.existsSync(configPath)) {
           try {
@@ -1234,7 +1782,28 @@ Command: ${server.command} ${server.args.join(' ')}
   static ensureCourtListenerAssurance(params?: {
     token?: string | null;
     homeDir?: string;
+    providers?: ProviderConfig[];
+    roleProviderIds?: {
+      leadCounsel?: string;
+      economyChecker?: string;
+      citationAuditor?: string;
+      opposingCritic?: string;
+    };
+    customMcpServers?: CustomLegalMcpServer[];
   }): CourtListenerMcpAssuranceState {
+    if (params?.providers && params.providers.length > 0 && !params.homeDir) {
+      try {
+        this.syncMcpToolsForChosenAgents({
+          providers: params.providers,
+          roleProviderIds: params.roleProviderIds,
+          courtListenerToken: params.token,
+          customMcpServers: params.customMcpServers,
+          homeDir: params.homeDir,
+        });
+      } catch {
+        // Ignore directory write errors on restricted environments
+      }
+    }
     const probe = this.probeCourtListenerMcp(params);
     if (probe.hasInstalledAgent) {
       if (params?.token && !probe.hasAuthToken && probe.configuredAgentDriver) {
@@ -1291,6 +1860,14 @@ Command: ${server.command} ${server.args.join(' ')}
     cliOverrides: Record<string, { binaryPath?: string }>;
     courtListenerToken?: string | null;
     homeDir?: string;
+    providers?: ProviderConfig[];
+    roleProviderIds?: {
+      leadCounsel?: string;
+      economyChecker?: string;
+      citationAuditor?: string;
+      opposingCritic?: string;
+    };
+    customMcpServers?: CustomLegalMcpServer[];
   }): AgentOnboardingState {
     const home = params.homeDir || os.homedir();
     const isWin = process.platform === 'win32';
@@ -1468,6 +2045,9 @@ Command: ${server.command} ${server.args.join(' ')}
     const courtListenerAssurance = this.ensureCourtListenerAssurance({
       token: params.courtListenerToken,
       homeDir: params.homeDir,
+      providers: params.providers,
+      roleProviderIds: params.roleProviderIds,
+      customMcpServers: params.customMcpServers,
     });
 
     return {

@@ -5,7 +5,9 @@ import {
   AdversarialConfig,
   AdversarialReviewMode,
   AncillaryModelRegistryState,
+  AntigravityAuthMethod,
   ChronologyFact,
+  ClaudeIdleCompactionMode,
   CustomLegalMcpServer,
   DocumentCategory,
   DocumentVersion,
@@ -19,6 +21,8 @@ import {
   PractitionerProfileId,
   PrivacyRoutingSettings,
   ProviderConfig,
+  ProviderDriverKind,
+  ProviderEnvironmentVariable,
   RouteTier,
   RoutingDecisionLog,
   SystemPromptSettings,
@@ -75,6 +79,21 @@ export const RETIRED_CLAUDE_MODEL_MIGRATIONS: Record<string, string> = {
   'anthropic/claude-3.7-sonnet': 'anthropic/claude-sonnet-5-5',
 };
 
+export const LEGACY_DIRECT_PROVIDER_MIGRATIONS: Record<string, LLMProviderId> = {
+  anthropic: 'claude-cli',
+  openai: 'codex-cli',
+  openrouter: 'codex-cli',
+  gemini: 'agy-acp',
+};
+
+export function migrateLegacyDirectProviderId(
+  providerId?: LLMProviderId | string
+): LLMProviderId {
+  if (!providerId) return 'codex-cli';
+  const trimmed = providerId.trim();
+  return (LEGACY_DIRECT_PROVIDER_MIGRATIONS[trimmed] || trimmed) as LLMProviderId;
+}
+
 export function migrateRetiredModelId(modelId?: string): string {
   if (!modelId) return '';
   const trimmed = modelId.trim();
@@ -83,124 +102,82 @@ export function migrateRetiredModelId(modelId?: string): string {
 
 export const PROVIDER_CATALOG: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'>[] = [
   {
-    id: 'agy-acp',
-    driverKind: 'antigravity-acp',
-    name: 'Antigravity ACP Harness (agy acp / T3 Driver)',
-    description:
-      'T3-managed Antigravity ACP agent harness (`agy acp` / `agy_acp_server.par`) supporting Gemini 4 Argon, Gemini 3.8 Flash, and Claude 5.5 models.',
-    reasoningEffort: 'medium',
-    runtimeMode: 'full-access',
-    defaultModel: 'gemini-4-argon',
-    availableModels: [
-      { id: 'gemini-4-argon', label: 'Gemini 4 Argon (Antigravity ACP)' },
-      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Antigravity ACP)' },
-      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (via Antigravity ACP)' },
-      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (via Antigravity ACP)' },
-      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (via Antigravity ACP)' },
-    ],
-    enabled: true,
-  },
-  {
     id: 'codex-cli',
     driverKind: 'codex-cli',
-    name: 'OpenAI Codex Agent Harness (codex exec / app-server)',
+    name: 'Codex',
     description:
-      'T3-managed OpenAI Codex CLI harness (`codex exec` / `codex app-server`) with configurable reasoning effort (`low` to `max`) and read-only sandbox.',
+      'OpenAI Codex agent with configurable reasoning effort, multi-account shadow homes, and native MCP research tools.',
     reasoningEffort: 'medium',
     runtimeMode: 'read-only',
     defaultModel: 'gpt-6-luna',
     availableModels: [
-      { id: 'gpt-6-luna', label: 'GPT-6 Luna (Codex Agent CLI)' },
-      { id: 'o3', label: 'OpenAI o3 (Codex Agent CLI)' },
-      { id: 'o4-mini', label: 'OpenAI o4-mini (Codex Agent CLI)' },
+      { id: 'gpt-6.2-sol', label: 'GPT-6.2 Sol' },
+      { id: 'gpt-6.2-astra', label: 'GPT-6.2 Astra' },
+      { id: 'gpt-6.1-terra', label: 'GPT-6.1 Terra' },
+      { id: 'gpt-6-luna', label: 'GPT-6 Luna' },
+      { id: 'o3', label: 'OpenAI o3' },
+      { id: 'o4-mini', label: 'OpenAI o4-mini' },
     ],
     enabled: true,
   },
   {
     id: 'claude-cli',
     driverKind: 'claude-agent-cli',
-    name: 'Claude Code Agent Harness (claude CLI / SDK)',
+    name: 'Claude',
     description:
-      'T3-style Anthropic Claude Code CLI driver (`claude -p` / Windows `claude.exe` shim resolver) with subscription or API key auth.',
+      'Anthropic Claude Code agent with configurable thinking effort, subscription or environment key auth, and native MCP tools.',
     reasoningEffort: 'high',
     runtimeMode: 'approval-required',
     defaultModel: 'claude-sonnet-5-5',
     availableModels: [
-      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Claude Agent CLI)' },
-      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Claude Agent CLI)' },
-      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Claude Agent CLI)' },
+      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
+      { id: 'claude-fable-5-2', label: 'Claude Fable 5.2' },
+      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5' },
     ],
     enabled: true,
   },
   {
-    id: 'anthropic',
-    driverKind: 'http-api',
-    name: 'Anthropic Claude (Direct HTTPS API)',
-    description: 'Primary legal reasoning, brief drafting, and motion/contract analysis via direct HTTPS API.',
-    defaultModel: 'claude-sonnet-5-5',
-    availableModels: [
-      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (Extended Legal Reasoning)' },
-      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (Deepest Analysis)' },
-      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (Fast Economy)' },
-    ],
-    enabled: true,
-  },
-  {
-    id: 'openai',
-    driverKind: 'http-api',
-    name: 'OpenAI (o-Series & GPT-4o Direct API)',
-    description: 'Adversarial Opposing Counsel / State\u2019s Attorney critique & logic verification via direct HTTPS API.',
-    defaultModel: 'o3-mini',
-    availableModels: [
-      { id: 'o3-mini', label: 'OpenAI o3-mini (Adversarial Logic Critic)' },
-      { id: 'gpt-4o', label: 'GPT-4o (Omni Legal Reviewer)' },
-      { id: 'o1', label: 'OpenAI o1 (Deep Analytical Audit)' },
-    ],
-    enabled: true,
-  },
-  {
-    id: 'gemini',
-    driverKind: 'http-api',
-    name: 'Google Gemini Pro (Direct HTTPS API)',
-    description: 'Long-context discovery record & citation auditor across transcripts and affidavits.',
-    defaultModel: 'gemini-2.5-pro',
-    availableModels: [
-      { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Record & Citation Auditor)' },
-      { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Fast Verification)' },
-    ],
-    enabled: true,
-  },
-  {
-    id: 'openrouter',
-    driverKind: 'http-api',
-    name: 'OpenRouter / Custom Local Endpoint',
-    description: 'Connect OpenRouter or a local OpenAI-compatible server (e.g., Ollama / vLLM).',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'anthropic/claude-sonnet-5-5',
-    availableModels: [
-      { id: 'anthropic/claude-sonnet-5-5', label: 'OpenRouter: Claude Sonnet 5.5' },
-      { id: 'deepseek/deepseek-r1', label: 'OpenRouter: DeepSeek R1' },
-      { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Local / Llama 3.3 70B Instruct' },
-    ],
-    enabled: true,
-  },
-  {
-    id: 'legal-simulator',
-    driverKind: 'local-simulator',
-    name: 'Built-In Legal Harness Simulator (Offline / Mac & Win Test Mode)',
+    id: 'agy-acp',
+    driverKind: 'antigravity-acp',
+    name: 'Antigravity',
     description:
-      'Built-in local legal drafting and review assistant for testing the workspace offline without API charges.',
-    defaultModel: 'lexharness-local-v1',
+      'Antigravity ACP agent supporting Gemini 4 and Claude 5.5 models with configurable thinking effort.',
+    reasoningEffort: 'medium',
+    runtimeMode: 'full-access',
+    defaultModel: 'gemini-4-argon',
     availableModels: [
-      { id: 'lexharness-local-v1', label: 'LexHarness Local Legal Engine (Zero-Key Test Mode)' },
+      { id: 'gemini-4-argon', label: 'Gemini 4 Argon' },
+      { id: 'gemini-4-neon', label: 'Gemini 4 Neon' },
+      { id: 'gemini-4-carbon', label: 'Gemini 4 Carbon' },
+      { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' },
+      { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
+      { id: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
+      { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5' },
     ],
     enabled: true,
   },
 ];
 
 export interface CliRuntimeOverride {
+  enabled?: boolean;
+  displayName?: string;
+  accentColor?: string;
+  driverKind?: ProviderDriverKind;
+  isCustomInstance?: boolean;
   binaryPath?: string;
+  homePath?: string;
+  shadowHomePath?: string;
   customArgs?: string;
+  autoCompactWindow?: string;
+  idleCompaction?: ClaudeIdleCompactionMode;
+  authMethod?: AntigravityAuthMethod;
+  gcpProject?: string;
+  gcpLocation?: string;
+  environmentVars?: ProviderEnvironmentVariable[];
+  favoriteModels?: string[];
+  hiddenModels?: string[];
+  customModels?: { id: string; label: string }[];
   reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
 }
@@ -1501,6 +1478,16 @@ export class LegalDatabase {
       this.getKeyValue<AdversarialConfig>('adversarial_config') ??
       DEFAULT_ADVERSARIAL_CONFIG;
 
+    const migratedPrimaryProvider = migrateLegacyDirectProviderId(
+      stored.primaryProvider
+    );
+    const migratedAuditorProvider = migrateLegacyDirectProviderId(
+      stored.citationAuditorProvider
+    );
+    const migratedOpposingProvider = migrateLegacyDirectProviderId(
+      stored.opposingCounselProvider
+    );
+
     const migratedPrimaryModel =
       migrateRetiredModelId(stored.primaryModel) || stored.primaryModel;
     const migratedAuditorModel =
@@ -1512,37 +1499,47 @@ export class LegalDatabase {
 
     const raw: AdversarialConfig = {
       ...stored,
+      primaryProvider: migratedPrimaryProvider,
+      citationAuditorProvider: migratedAuditorProvider,
+      opposingCounselProvider: migratedOpposingProvider,
       primaryModel: migratedPrimaryModel,
       citationAuditorModel: migratedAuditorModel,
       opposingCounselModel: migratedOpposingModel,
     };
 
-    const modelsMigrated =
+    const configMigrated =
+      raw.primaryProvider !== stored.primaryProvider ||
+      raw.citationAuditorProvider !== stored.citationAuditorProvider ||
+      raw.opposingCounselProvider !== stored.opposingCounselProvider ||
       raw.primaryModel !== stored.primaryModel ||
       raw.citationAuditorModel !== stored.citationAuditorModel ||
       raw.opposingCounselModel !== stored.opposingCounselModel;
 
-    // Only auto-heal away from uninstalled CLI agents (e.g. claude-cli when not installed).
-    // Preserve explicit HTTP provider selections (e.g. anthropic, openai, gemini, openrouter).
+    // Auto-heal away from uninstalled CLI agents when no explicit credential override is stored
     const isCliPrimary =
       raw.primaryProvider === 'claude-cli' ||
       raw.primaryProvider === 'codex-cli' ||
       raw.primaryProvider === 'agy-acp';
 
-    if (isCliPrimary) {
-      const resolved = this.resolveBestAvailableProvider(raw.primaryProvider);
-      if (resolved.providerId !== raw.primaryProvider) {
-        const updated: AdversarialConfig = {
-          ...raw,
-          primaryProvider: resolved.providerId,
-          primaryModel: resolved.model,
-        };
-        this.setKeyValue('adversarial_config', updated, true);
-        return updated;
+    if (isCliPrimary && !this.hasStoredApiKey(raw.primaryProvider)) {
+      const targetCfg = this.listProviderConfigs().find(
+        (p) => p.id === raw.primaryProvider
+      );
+      if (!targetCfg?.runtimeStatus?.installed) {
+        const resolved = this.resolveBestAvailableProvider(raw.primaryProvider);
+        if (resolved.providerId !== raw.primaryProvider) {
+          const updated: AdversarialConfig = {
+            ...raw,
+            primaryProvider: resolved.providerId,
+            primaryModel: resolved.model,
+          };
+          this.setKeyValue('adversarial_config', updated, true);
+          return updated;
+        }
       }
     }
 
-    if (modelsMigrated) {
+    if (configMigrated) {
       this.setKeyValue('adversarial_config', raw, true);
     }
 
@@ -1556,6 +1553,15 @@ export class LegalDatabase {
     const merged: AdversarialConfig = {
       ...current,
       ...updated,
+      primaryProvider: migrateLegacyDirectProviderId(
+        updated.primaryProvider ?? current.primaryProvider
+      ),
+      citationAuditorProvider: migrateLegacyDirectProviderId(
+        updated.citationAuditorProvider ?? current.citationAuditorProvider
+      ),
+      opposingCounselProvider: migrateLegacyDirectProviderId(
+        updated.opposingCounselProvider ?? current.opposingCounselProvider
+      ),
       primaryModel:
         migrateRetiredModelId(updated.primaryModel ?? current.primaryModel) ||
         (updated.primaryModel ?? current.primaryModel),
@@ -1580,16 +1586,41 @@ export class LegalDatabase {
   // --- Provider Credentials & Configuration ---
   saveProviderCredential(params: {
     providerId: LLMProviderId;
+    enabled?: boolean;
+    name?: string;
+    accentColor?: string;
     apiKey?: string;
     baseUrl?: string;
     defaultModel?: string;
     binaryPath?: string;
+    homePath?: string;
+    shadowHomePath?: string;
     customArgs?: string;
+    autoCompactWindow?: string;
+    idleCompaction?: ClaudeIdleCompactionMode;
+    authMethod?: AntigravityAuthMethod;
+    gcpProject?: string;
+    gcpLocation?: string;
+    environmentVars?: ProviderEnvironmentVariable[];
+    favoriteModels?: string[];
+    hiddenModels?: string[];
+    customModels?: { id: string; label: string }[];
     reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
     runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): ProviderConfig[] {
-    const existing = this.getRawProviderRow(params.providerId);
-    const catalogEntry = PROVIDER_CATALOG.find((p) => p.id === params.providerId);
+    const targetProviderId = migrateLegacyDirectProviderId(params.providerId);
+    const existing = this.getRawProviderRow(targetProviderId);
+    const overrides = this.getCliOverrides();
+    const prevOverride = overrides[targetProviderId] ?? {};
+    const baseCatalogId =
+      prevOverride.driverKind === 'codex-cli'
+        ? 'codex-cli'
+        : prevOverride.driverKind === 'claude-agent-cli'
+          ? 'claude-cli'
+          : prevOverride.driverKind === 'antigravity-acp'
+            ? 'agy-acp'
+            : targetProviderId;
+    const catalogEntry = PROVIDER_CATALOG.find((p) => p.id === baseCatalogId);
     const defaultModel =
       params.defaultModel ??
       existing?.default_model ??
@@ -1610,7 +1641,7 @@ export class LegalDatabase {
       `INSERT OR REPLACE INTO provider_credentials (provider_id, encrypted_api_key, base_url, default_model, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
       [
-        params.providerId,
+        targetProviderId,
         encryptedKey,
         baseUrl,
         defaultModel,
@@ -1618,23 +1649,174 @@ export class LegalDatabase {
       ]
     );
 
-    if (
+    const hasOverrideChange =
+      params.enabled !== undefined ||
+      params.name !== undefined ||
+      params.accentColor !== undefined ||
       params.binaryPath !== undefined ||
+      params.homePath !== undefined ||
+      params.shadowHomePath !== undefined ||
       params.customArgs !== undefined ||
+      params.autoCompactWindow !== undefined ||
+      params.idleCompaction !== undefined ||
+      params.authMethod !== undefined ||
+      params.gcpProject !== undefined ||
+      params.gcpLocation !== undefined ||
+      params.environmentVars !== undefined ||
+      params.favoriteModels !== undefined ||
+      params.hiddenModels !== undefined ||
+      params.customModels !== undefined ||
       params.reasoningEffort !== undefined ||
-      params.runtimeMode !== undefined
-    ) {
-      const overrides = this.getCliOverrides();
-      const prev = overrides[params.providerId] ?? {};
-      overrides[params.providerId] = {
-        binaryPath: params.binaryPath !== undefined ? params.binaryPath.trim() : prev.binaryPath,
-        customArgs: params.customArgs !== undefined ? params.customArgs.trim() : prev.customArgs,
-        reasoningEffort: params.reasoningEffort ?? prev.reasoningEffort,
-        runtimeMode: params.runtimeMode ?? prev.runtimeMode,
+      params.runtimeMode !== undefined;
+
+    if (hasOverrideChange) {
+      overrides[targetProviderId] = {
+        ...prevOverride,
+        enabled: params.enabled !== undefined ? params.enabled : prevOverride.enabled,
+        displayName:
+          params.name !== undefined ? params.name.trim() : prevOverride.displayName,
+        accentColor:
+          params.accentColor !== undefined
+            ? params.accentColor.trim()
+            : prevOverride.accentColor,
+        binaryPath:
+          params.binaryPath !== undefined
+            ? params.binaryPath.trim()
+            : prevOverride.binaryPath,
+        homePath:
+          params.homePath !== undefined
+            ? params.homePath.trim()
+            : prevOverride.homePath,
+        shadowHomePath:
+          params.shadowHomePath !== undefined
+            ? params.shadowHomePath.trim()
+            : prevOverride.shadowHomePath,
+        customArgs:
+          params.customArgs !== undefined
+            ? params.customArgs.trim()
+            : prevOverride.customArgs,
+        autoCompactWindow:
+          params.autoCompactWindow !== undefined
+            ? params.autoCompactWindow.trim()
+            : prevOverride.autoCompactWindow,
+        idleCompaction: params.idleCompaction ?? prevOverride.idleCompaction,
+        authMethod: params.authMethod ?? prevOverride.authMethod,
+        gcpProject:
+          params.gcpProject !== undefined
+            ? params.gcpProject.trim()
+            : prevOverride.gcpProject,
+        gcpLocation:
+          params.gcpLocation !== undefined
+            ? params.gcpLocation.trim()
+            : prevOverride.gcpLocation,
+        environmentVars: params.environmentVars ?? prevOverride.environmentVars,
+        favoriteModels: params.favoriteModels ?? prevOverride.favoriteModels,
+        hiddenModels: params.hiddenModels ?? prevOverride.hiddenModels,
+        customModels: params.customModels ?? prevOverride.customModels,
+        reasoningEffort: params.reasoningEffort ?? prevOverride.reasoningEffort,
+        runtimeMode: params.runtimeMode ?? prevOverride.runtimeMode,
       };
       this.setKeyValue('cli_runtime_overrides', overrides, false);
     }
 
+    CliAgentDriverManager.invalidateStatusCache();
+    this.persist();
+    return this.listProviderConfigs();
+  }
+
+  addProviderInstance(params: {
+    driverKind: 'codex-cli' | 'claude-agent-cli' | 'antigravity-acp';
+    name?: string;
+    displayName?: string;
+    instanceId?: string;
+    accentColor?: string;
+    binaryPath?: string;
+    homePath?: string;
+    shadowHomePath?: string;
+    customArgs?: string;
+    authMethod?: AntigravityAuthMethod;
+    gcpProject?: string;
+    gcpLocation?: string;
+  }): { providers: ProviderConfig[]; createdId: LLMProviderId } {
+    const overrides = this.getCliOverrides();
+    const basePrefix =
+      params.driverKind === 'codex-cli'
+        ? 'codex'
+        : params.driverKind === 'claude-agent-cli'
+          ? 'claude'
+          : 'antigravity';
+    const rawName = (params.name ?? params.displayName ?? '').trim();
+    const rawSlug = (params.instanceId || rawName || 'instance')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 48);
+    let candidateId = rawSlug.startsWith(`${basePrefix}_`)
+      ? rawSlug
+      : `${basePrefix}_${rawSlug || Date.now().toString(36)}`;
+    let suffix = 2;
+    const existingIds = new Set([
+      ...PROVIDER_CATALOG.map((p) => p.id),
+      ...Object.keys(overrides),
+    ]);
+    while (existingIds.has(candidateId)) {
+      candidateId = `${basePrefix}_${rawSlug}_${suffix++}`;
+    }
+
+    const cleanLabel = rawName || `${basePrefix} (${rawSlug})`;
+    const defaultShadowHome =
+      params.driverKind === 'codex-cli'
+        ? params.shadowHomePath?.trim() || `~/.codex-t3/${rawSlug || 'personal'}`
+        : '';
+
+    overrides[candidateId] = {
+      isCustomInstance: true,
+      driverKind: params.driverKind,
+      enabled: true,
+      displayName: cleanLabel,
+      accentColor: params.accentColor?.trim() || undefined,
+      binaryPath: params.binaryPath?.trim() || undefined,
+      homePath: params.homePath?.trim() || undefined,
+      shadowHomePath: defaultShadowHome || undefined,
+      customArgs: params.customArgs?.trim() || undefined,
+      authMethod: params.authMethod || 'oauth-personal',
+      gcpProject: params.gcpProject?.trim() || undefined,
+      gcpLocation: params.gcpLocation?.trim() || undefined,
+    };
+    this.setKeyValue('cli_runtime_overrides', overrides, true);
+    CliAgentDriverManager.invalidateStatusCache();
+    return {
+      providers: this.listProviderConfigs(),
+      createdId: candidateId,
+    };
+  }
+
+  deleteOrResetProviderInstance(providerId: LLMProviderId): ProviderConfig[] {
+    const overrides = this.getCliOverrides();
+    const isDefaultCatalog = PROVIDER_CATALOG.some((p) => p.id === providerId);
+    delete overrides[providerId];
+    this.setKeyValue('cli_runtime_overrides', overrides, false);
+
+    if (!isDefaultCatalog) {
+      this.db.run('DELETE FROM provider_credentials WHERE provider_id = ?', [
+        providerId,
+      ]);
+      // Also remove if it was in additionalCodexAccounts
+      const onboarding = this.getAgentOnboardingSavedState();
+      if (
+        onboarding.additionalCodexAccounts.some(
+          (a) => a.instanceId === providerId
+        )
+      ) {
+        onboarding.additionalCodexAccounts =
+          onboarding.additionalCodexAccounts.filter(
+            (a) => a.instanceId !== providerId
+          );
+        this.setKeyValue('agent_onboarding_state', onboarding, false);
+      }
+    }
+    CliAgentDriverManager.invalidateStatusCache();
     this.persist();
     return this.listProviderConfigs();
   }
@@ -1715,7 +1897,8 @@ export class LegalDatabase {
   }
 
   hasStoredApiKey(providerId: LLMProviderId): boolean {
-    const row = this.getRawProviderRow(providerId);
+    const targetId = migrateLegacyDirectProviderId(providerId);
+    const row = this.getRawProviderRow(targetId) || this.getRawProviderRow(providerId);
     if (!row || !row.encrypted_api_key) return false;
     try {
       const decrypted = this.encryptor.decrypt(row.encrypted_api_key);
@@ -1726,6 +1909,7 @@ export class LegalDatabase {
   }
 
   getDecryptedApiKey(providerId: LLMProviderId): string | null {
+    const targetId = migrateLegacyDirectProviderId(providerId);
     const envMap: Record<LLMProviderId, string | undefined> = {
       'agy-acp': process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
       'codex-cli': process.env.OPENAI_API_KEY,
@@ -1737,7 +1921,7 @@ export class LegalDatabase {
       'legal-simulator': 'simulator-built-in-key',
     };
 
-    const row = this.getRawProviderRow(providerId);
+    const row = this.getRawProviderRow(targetId) || this.getRawProviderRow(providerId);
     if (row && row.encrypted_api_key) {
       try {
         const decrypted = this.encryptor.decrypt(row.encrypted_api_key);
@@ -1746,7 +1930,7 @@ export class LegalDatabase {
         // Fallback to env if decryption fails
       }
     }
-    return envMap[providerId] ?? null;
+    return envMap[targetId] ?? envMap[providerId] ?? null;
   }
 
   listProviderConfigs(): ProviderConfig[] {
@@ -1760,28 +1944,100 @@ export class LegalDatabase {
     const ancillaryRegistry =
       this.getKeyValue<AncillaryModelRegistryState>('ancillary_model_registry');
 
-    return PROVIDER_CATALOG.map((cat) => {
+    // Combine catalog default providers + any user-added provider instances
+    const catalogAndCustomEntries: {
+      cat: Omit<ProviderConfig, 'hasApiKey' | 'maskedApiKey'>;
+      baseCliId: 'codex-cli' | 'claude-cli' | 'agy-acp' | 'legal-simulator';
+      isDefaultInstance: boolean;
+    }[] = PROVIDER_CATALOG.map((cat) => ({
+      cat,
+      baseCliId: cat.id as 'codex-cli' | 'claude-cli' | 'agy-acp' | 'legal-simulator',
+      isDefaultInstance: true,
+    }));
+
+    for (const [instanceId, ov] of Object.entries(cliOverrides)) {
+      if (!ov.isCustomInstance) continue;
+      if (PROVIDER_CATALOG.some((c) => c.id === instanceId)) continue;
+      const baseCliId: 'codex-cli' | 'claude-cli' | 'agy-acp' =
+        ov.driverKind === 'claude-agent-cli'
+          ? 'claude-cli'
+          : ov.driverKind === 'antigravity-acp'
+            ? 'agy-acp'
+            : 'codex-cli';
+      const template =
+        PROVIDER_CATALOG.find((c) => c.id === baseCliId) ?? PROVIDER_CATALOG[0];
+      catalogAndCustomEntries.push({
+        cat: {
+          ...template,
+          id: instanceId,
+          driverKind: ov.driverKind || template.driverKind,
+          name: ov.displayName || `${template.name} (${instanceId})`,
+        },
+        baseCliId,
+        isDefaultInstance: false,
+      });
+    }
+
+    return catalogAndCustomEntries.map(({ cat, baseCliId, isDefaultInstance }) => {
       const row = this.getRawProviderRow(cat.id);
-      const rawKey = this.getDecryptedApiKey(cat.id);
+      const rawKey =
+        this.getDecryptedApiKey(cat.id) || this.getDecryptedApiKey(baseCliId);
       const override = cliOverrides[cat.id];
+      const isEnabled = override?.enabled !== undefined ? override.enabled : cat.enabled;
+      const displayName = override?.displayName?.trim() || cat.name;
+      const isDirty = Boolean(
+        override &&
+          (override.displayName ||
+            override.binaryPath ||
+            override.homePath ||
+            override.shadowHomePath ||
+            override.customArgs ||
+            override.autoCompactWindow ||
+            override.gcpProject ||
+            override.gcpLocation ||
+            (override.environmentVars && override.environmentVars.length > 0))
+      );
 
       const rowDefaultModel = migrateRetiredModelId(row?.default_model);
+      const migratedPrimaryProv = migrateLegacyDirectProviderId(
+        rawAdv.primaryProvider
+      );
+      const migratedAuditorProv = migrateLegacyDirectProviderId(
+        rawAdv.citationAuditorProvider
+      );
+      const migratedOpposingProv = migrateLegacyDirectProviderId(
+        rawAdv.opposingCounselProvider
+      );
+      const migratedEconomyProv = rawPrivacy?.economyModelProvider
+        ? migrateLegacyDirectProviderId(rawPrivacy.economyModelProvider)
+        : undefined;
+
       const settingsPrimaryModel =
-        rawAdv.primaryProvider === cat.id
+        migratedPrimaryProv === cat.id
           ? migrateRetiredModelId(rawAdv.primaryModel)
           : '';
       const effectiveDefaultModel =
         settingsPrimaryModel || rowDefaultModel || cat.defaultModel;
 
-      // Merge models from Settings, live Models API / Ancillary Registry, and catalog defaults
-      const modelMap = new Map<string, { id: string; label: string }>();
+      // Merge models from Settings, live Models API / Ancillary Registry, customModels, and catalog defaults
+      const modelMap = new Map<
+        string,
+        { id: string; label: string; isCustom?: boolean; capabilities?: string[] }
+      >();
       for (const m of cat.availableModels) {
-        modelMap.set(m.id, m);
+        modelMap.set(m.id, {
+          ...m,
+          capabilities: /flash|haiku|mini/i.test(m.id) ? ['Fast mode'] : undefined,
+        });
       }
 
       if (ancillaryRegistry?.availableWorkingModels) {
         for (const wm of ancillaryRegistry.availableWorkingModels) {
-          if (wm.providerId === cat.id && wm.modelId) {
+          if (
+            (migrateLegacyDirectProviderId(wm.providerId) === cat.id ||
+              migrateLegacyDirectProviderId(wm.providerId) === baseCliId) &&
+            wm.modelId
+          ) {
             const migratedId = migrateRetiredModelId(wm.modelId);
             if (migratedId && !modelMap.has(migratedId)) {
               modelMap.set(migratedId, {
@@ -1793,17 +2049,27 @@ export class LegalDatabase {
         }
       }
 
+      for (const cm of override?.customModels || []) {
+        if (cm.id && !modelMap.has(cm.id)) {
+          modelMap.set(cm.id, {
+            id: cm.id,
+            label: cm.label || cm.id,
+            isCustom: true,
+          });
+        }
+      }
+
       const settingsModelsForProvider = [
         settingsPrimaryModel,
         rowDefaultModel,
-        rawAdv.citationAuditorProvider === cat.id
+        migratedAuditorProv === cat.id
           ? migrateRetiredModelId(rawAdv.citationAuditorModel)
           : '',
-        rawAdv.opposingCounselProvider === cat.id
+        migratedOpposingProv === cat.id
           ? migrateRetiredModelId(rawAdv.opposingCounselModel)
           : '',
-        rawPrivacy?.economyModelProvider === cat.id
-          ? migrateRetiredModelId(rawPrivacy.economyModel)
+        migratedEconomyProv === cat.id
+          ? migrateRetiredModelId(rawPrivacy?.economyModel)
           : '',
       ].filter((m): m is string => Boolean(m && m.trim().length > 0));
 
@@ -1811,30 +2077,73 @@ export class LegalDatabase {
         if (!modelMap.has(customId)) {
           modelMap.set(customId, {
             id: customId,
-            label: `${customId} (Configured in Settings)`,
+            label: customId,
+            isCustom: true,
           });
         }
       }
 
       const mergedAvailableModels = Array.from(modelMap.values());
 
-      if (cat.id === 'agy-acp' || cat.id === 'codex-cli' || cat.id === 'claude-cli') {
-        const runtimeStatus = CliAgentDriverManager.probeProviderStatusSync(
-          cat.id,
-          override?.binaryPath
+      if (
+        baseCliId === 'agy-acp' ||
+        baseCliId === 'codex-cli' ||
+        baseCliId === 'claude-cli'
+      ) {
+        const hasEnvKey = Boolean(
+          override?.environmentVars?.some(
+            (v) =>
+              (v.name === 'OPENAI_API_KEY' ||
+                v.name === 'ANTHROPIC_API_KEY' ||
+                v.name === 'GEMINI_API_KEY') &&
+              v.value.trim().length > 0
+          )
         );
-        const isReady = runtimeStatus.installed && (runtimeStatus.authenticated || Boolean(rawKey));
+        const runtimeStatus = CliAgentDriverManager.probeProviderStatusSync(
+          baseCliId,
+          {
+            customBinaryPath: override?.binaryPath,
+            homePath: override?.homePath,
+            shadowHomePath: override?.shadowHomePath,
+            autoCompactWindow: override?.autoCompactWindow,
+            authMethod: override?.authMethod,
+            gcpProject: override?.gcpProject,
+            gcpLocation: override?.gcpLocation,
+            hasApiKey: Boolean(rawKey) || hasEnvKey,
+            enabled: isEnabled,
+          }
+        );
+        const isReady =
+          isEnabled &&
+          runtimeStatus.installed &&
+          (runtimeStatus.authenticated || Boolean(rawKey) || hasEnvKey);
         return {
           ...cat,
+          name: displayName,
+          accentColor: override?.accentColor,
+          isDefaultInstance,
+          isDirty,
+          enabled: isEnabled,
           availableModels: mergedAvailableModels,
           hasApiKey: isReady,
           maskedApiKey: runtimeStatus.installed
             ? `${runtimeStatus.version} • ${runtimeStatus.authLabel}`
             : 'CLI Not Detected on PATH',
           baseUrl: row?.base_url || cat.baseUrl,
-          binaryPath: override?.binaryPath || runtimeStatus.resolvedBinaryPath,
-          customArgs: override?.customArgs || '',
-          reasoningEffort: override?.reasoningEffort || cat.reasoningEffort || 'medium',
+          binaryPath: override?.binaryPath ?? '',
+          homePath: override?.homePath ?? '',
+          shadowHomePath: override?.shadowHomePath ?? '',
+          customArgs: override?.customArgs ?? '',
+          autoCompactWindow: override?.autoCompactWindow ?? '',
+          idleCompaction: override?.idleCompaction ?? 'default',
+          authMethod: override?.authMethod ?? 'oauth-personal',
+          gcpProject: override?.gcpProject ?? '',
+          gcpLocation: override?.gcpLocation ?? '',
+          environmentVars: override?.environmentVars ?? [],
+          favoriteModels: override?.favoriteModels ?? [],
+          hiddenModels: override?.hiddenModels ?? [],
+          reasoningEffort:
+            override?.reasoningEffort || cat.reasoningEffort || 'medium',
           runtimeMode: override?.runtimeMode || cat.runtimeMode || 'read-only',
           defaultModel: effectiveDefaultModel,
           runtimeStatus,
@@ -1843,7 +2152,7 @@ export class LegalDatabase {
 
       const hasApiKey =
         cat.id === 'legal-simulator'
-          ? true
+          ? isEnabled
           : Boolean(rawKey && rawKey.length > 0);
       const maskedApiKey =
         cat.id === 'legal-simulator'
@@ -1856,6 +2165,10 @@ export class LegalDatabase {
 
       return {
         ...cat,
+        name: displayName,
+        isDefaultInstance,
+        isDirty,
+        enabled: isEnabled,
         availableModels: mergedAvailableModels,
         hasApiKey,
         maskedApiKey,
@@ -1940,16 +2253,23 @@ export class LegalDatabase {
     const stored =
       this.getKeyValue<PrivacyRoutingSettings>('privacy_routing_settings') ??
       defaultSettings;
-    if (stored.economyModel) {
-      const migrated = migrateRetiredModelId(stored.economyModel);
-      if (migrated && migrated !== stored.economyModel) {
-        const updated: PrivacyRoutingSettings = {
-          ...stored,
-          economyModel: migrated,
-        };
-        this.setKeyValue('privacy_routing_settings', updated, true);
-        return updated;
-      }
+    const migratedProv = stored.economyModelProvider
+      ? migrateLegacyDirectProviderId(stored.economyModelProvider)
+      : stored.economyModelProvider;
+    const migratedModel = stored.economyModel
+      ? migrateRetiredModelId(stored.economyModel) || stored.economyModel
+      : stored.economyModel;
+    if (
+      migratedProv !== stored.economyModelProvider ||
+      migratedModel !== stored.economyModel
+    ) {
+      const updated: PrivacyRoutingSettings = {
+        ...stored,
+        ...(migratedProv ? { economyModelProvider: migratedProv } : {}),
+        ...(migratedModel ? { economyModel: migratedModel } : {}),
+      };
+      this.setKeyValue('privacy_routing_settings', updated, true);
+      return updated;
     }
     return stored;
   }
@@ -1961,6 +2281,13 @@ export class LegalDatabase {
     const merged: PrivacyRoutingSettings = {
       ...current,
       ...updated,
+      ...(updated.economyModelProvider !== undefined
+        ? {
+            economyModelProvider: migrateLegacyDirectProviderId(
+              updated.economyModelProvider
+            ),
+          }
+        : {}),
       ...(updated.economyModel !== undefined
         ? {
             economyModel:

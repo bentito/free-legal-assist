@@ -97,7 +97,7 @@ export const TOUR_STEPS: TourStep[] = [
         cardPlacement: 'bottom-corner-right',
       },
       {
-        text: 'Setting Up Your Coding Agents: Connect your OpenAI Codex, Claude Code, or Antigravity account here in one click—or use the built-in offline legal simulator to explore immediately.',
+        text: 'Setting Up Your Coding Agents: Connect your OpenAI Codex, Claude Code, or Antigravity account here in one click.',
         targetSelector: '#tour-connect-agents-list',
         openDialog: 'connect_agents',
         cardPlacement: 'bottom-right',
@@ -318,7 +318,7 @@ export const TOUR_STEPS: TourStep[] = [
         cardPlacement: 'bottom-corner-right',
       },
       {
-        text: 'CourtListener & Legal MCP Tools: Equip your connected coding agents with live CourtListener caselaw verification and custom Model Context Protocol (MCP) research servers.',
+        text: 'MCP Setup & CourtListener Tools: Equip your chosen agents with live CourtListener caselaw verification and custom Model Context Protocol (MCP) servers, with automatic per-agent config verification.',
         targetSelector: '#tour-settings-mcp-panel',
         openDialog: 'settings',
         settingsTab: 'legal_mcp',
@@ -334,6 +334,12 @@ export const TOUR_STEPS: TourStep[] = [
       {
         text: 'Workspace Controls: Open Settings, Connected Assistants, the PII & Routing Inspector (Cmd+Shift+D), or this Guided Tour anytime.',
         targetSelector: '#tour-top-button',
+        openDialog: 'none',
+        cardPlacement: 'center',
+      },
+      {
+        text: 'In-App Version Updates & What’s New: Hover or click the update control in the bottom-left footer to preview release highlights and install new versions in one click.',
+        targetSelector: '#tour-update-button',
         openDialog: 'none',
         cardPlacement: 'center',
       },
@@ -510,15 +516,15 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({
   const getCardContainerAlignment = (placement: TourCardPlacement): string => {
     switch (placement) {
       case 'top-left':
-        return 'items-start justify-center pt-16';
+        return 'items-start justify-center pt-6 sm:pt-16';
       case 'top-right':
-        return 'items-center justify-end pr-12';
+        return 'items-center justify-end sm:pr-12';
       case 'bottom-left':
-        return 'items-center justify-start pl-72';
+        return 'items-center justify-center lg:justify-start lg:pl-72';
       case 'bottom-right':
-        return 'items-end justify-center pb-8';
+        return 'items-end justify-center pb-4 sm:pb-8';
       case 'bottom-corner-right':
-        return 'items-end justify-end pr-8 pb-6';
+        return 'items-end justify-end sm:pr-8 pb-4 sm:pb-6';
       case 'center':
       default:
         return 'items-center justify-center';
@@ -549,11 +555,11 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({
 
       {/* Floating Tutorial Card positioned away from the highlighted target */}
       <div
-        className={`absolute inset-0 flex p-6 pointer-events-none ${getCardContainerAlignment(
+        className={`absolute inset-0 flex p-3 sm:p-6 pointer-events-none ${getCardContainerAlignment(
           activeCardPlacement
         )}`}
       >
-        <div className="pointer-events-auto w-full max-w-lg rounded-2xl bg-[#121216]/95 border border-amber-500/40 shadow-2xl p-6 text-slate-100 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="pointer-events-auto w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl bg-[#121216]/95 border border-amber-500/40 shadow-2xl p-4 sm:p-6 text-slate-100 flex flex-col gap-3 sm:gap-4 animate-in fade-in zoom-in-95 duration-200">
           {/* Card Top Navigation & Metadata */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2.5">

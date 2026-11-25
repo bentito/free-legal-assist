@@ -8,6 +8,9 @@ import {
   AppBootstrapState,
   ChronologyFact,
   CustomLegalMcpServer,
+  DesktopUpdateActionResult,
+  DesktopUpdateCheckResult,
+  DesktopUpdateState,
   DocumentCategory,
   ExportDocxPayload,
   FolderSyncResult,
@@ -113,13 +116,43 @@ declare global {
       ): Promise<AppBootstrapState>;
       saveProviderCredential(payload: {
         providerId: LLMProviderId;
+        enabled?: boolean;
+        name?: string;
+        accentColor?: string;
         apiKey?: string;
         baseUrl?: string;
         defaultModel?: string;
         binaryPath?: string;
+        homePath?: string;
+        shadowHomePath?: string;
         customArgs?: string;
+        autoCompactWindow?: string;
+        idleCompaction?: 'default' | 'onReturn' | 'beforeCacheExpires' | 'off';
+        authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+        gcpProject?: string;
+        gcpLocation?: string;
+        environmentVars?: { name: string; value: string; sensitive?: boolean }[];
+        favoriteModels?: string[];
+        hiddenModels?: string[];
+        customModels?: { id: string; label: string }[];
         reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
         runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
+      }): Promise<AppBootstrapState>;
+      addProviderInstance(payload: {
+        driverKind: 'codex-cli' | 'claude-agent-cli' | 'antigravity-acp';
+        name: string;
+        instanceId?: string;
+        accentColor?: string;
+        binaryPath?: string;
+        homePath?: string;
+        shadowHomePath?: string;
+        customArgs?: string;
+        authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+        gcpProject?: string;
+        gcpLocation?: string;
+      }): Promise<{ state: AppBootstrapState; createdId: LLMProviderId }>;
+      deleteProviderInstance(payload: {
+        providerId: LLMProviderId;
       }): Promise<AppBootstrapState>;
       completeAgentOnboarding(): Promise<AppBootstrapState>;
       refreshAgentConnections(): Promise<AppBootstrapState>;
@@ -209,6 +242,12 @@ declare global {
         providerId: LLMProviderId;
         modelId: string;
       }): Promise<AppBootstrapState>;
+      getUpdateState(): Promise<DesktopUpdateState>;
+      checkForUpdate(): Promise<DesktopUpdateCheckResult>;
+      downloadUpdate(): Promise<DesktopUpdateActionResult>;
+      installUpdate(): Promise<DesktopUpdateActionResult>;
+      openReleaseNotesUrl(payload: { url: string }): Promise<boolean>;
+      onUpdateState(callback: (state: DesktopUpdateState) => void): () => void;
       onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void;
       onAgentSetupTerminal(
         callback: (event: AgentSetupTerminalEvent) => void
@@ -383,15 +422,51 @@ export const ipcBridge = {
 
   async saveProviderCredential(payload: {
     providerId: LLMProviderId;
+    enabled?: boolean;
+    name?: string;
+    accentColor?: string;
     apiKey?: string;
     baseUrl?: string;
     defaultModel?: string;
     binaryPath?: string;
+    homePath?: string;
+    shadowHomePath?: string;
     customArgs?: string;
+    autoCompactWindow?: string;
+    idleCompaction?: 'default' | 'onReturn' | 'beforeCacheExpires' | 'off';
+    authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+    gcpProject?: string;
+    gcpLocation?: string;
+    environmentVars?: { name: string; value: string; sensitive?: boolean }[];
+    favoriteModels?: string[];
+    hiddenModels?: string[];
+    customModels?: { id: string; label: string }[];
     reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
     runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   }): Promise<AppBootstrapState> {
     return window.lexharness!.saveProviderCredential(payload);
+  },
+
+  async addProviderInstance(payload: {
+    driverKind: 'codex-cli' | 'claude-agent-cli' | 'antigravity-acp';
+    name: string;
+    instanceId?: string;
+    accentColor?: string;
+    binaryPath?: string;
+    homePath?: string;
+    shadowHomePath?: string;
+    customArgs?: string;
+    authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+    gcpProject?: string;
+    gcpLocation?: string;
+  }): Promise<{ state: AppBootstrapState; createdId: LLMProviderId }> {
+    return window.lexharness!.addProviderInstance(payload);
+  },
+
+  async deleteProviderInstance(
+    providerId: LLMProviderId
+  ): Promise<AppBootstrapState> {
+    return window.lexharness!.deleteProviderInstance({ providerId });
   },
 
   async completeAgentOnboarding(): Promise<AppBootstrapState> {
@@ -560,6 +635,48 @@ export const ipcBridge = {
     modelId: string;
   }): Promise<AppBootstrapState> {
     return window.lexharness!.repickAncillaryModel(payload);
+  },
+
+  async getUpdateState(): Promise<DesktopUpdateState | null> {
+    if (window.lexharness?.getUpdateState) {
+      return window.lexharness.getUpdateState();
+    }
+    return null;
+  },
+
+  async checkForUpdate(): Promise<DesktopUpdateCheckResult | null> {
+    if (window.lexharness?.checkForUpdate) {
+      return window.lexharness.checkForUpdate();
+    }
+    return null;
+  },
+
+  async downloadUpdate(): Promise<DesktopUpdateActionResult | null> {
+    if (window.lexharness?.downloadUpdate) {
+      return window.lexharness.downloadUpdate();
+    }
+    return null;
+  },
+
+  async installUpdate(): Promise<DesktopUpdateActionResult | null> {
+    if (window.lexharness?.installUpdate) {
+      return window.lexharness.installUpdate();
+    }
+    return null;
+  },
+
+  async openReleaseNotesUrl(url: string): Promise<boolean> {
+    if (window.lexharness?.openReleaseNotesUrl) {
+      return window.lexharness.openReleaseNotesUrl({ url });
+    }
+    return false;
+  },
+
+  onUpdateState(callback: (state: DesktopUpdateState) => void): () => void {
+    if (window.lexharness?.onUpdateState) {
+      return window.lexharness.onUpdateState(callback);
+    }
+    return () => {};
   },
 
   onAgentProgress(callback: (event: AgentProgressEvent) => void): () => void {

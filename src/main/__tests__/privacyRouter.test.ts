@@ -414,14 +414,14 @@ describe('Phase 2 Item 7: LocalPrivacyModelRouter, PiiScrubberVault & RoutingDeb
       const turnRes = await loop.runTurn({
         matterId: tnMatter.id,
         userPrompt: 'Please draft a Complaint for TN Circuit Court using the attached demand letter.',
-        overridePrimaryProvider: 'anthropic',
+        overridePrimaryProvider: 'claude-cli',
         overridePrimaryModel: 'claude-sonnet-5-5',
       });
 
       // Must route to FRONTIER_REASONING and preserve Claude Sonnet 5.5 (NOT downgrade to Fast Economy)
       expect(turnRes.assistantMessage.routeTier).toBe('FRONTIER_REASONING');
       expect(turnRes.assistantMessage.primaryModel).toBe('claude-sonnet-5-5');
-      expect(turnRes.assistantMessage.primaryProvider).toBe('anthropic');
+      expect(turnRes.assistantMessage.primaryProvider).toBe('claude-cli');
 
       // Output and peer-review notes must use the uploaded demand letter and TN Circuit Court matter, NEVER Apex / Abry Partners / MSA 8.2
       expect(turnRes.assistantMessage.content).toContain('Cumberland Contractors LLC');

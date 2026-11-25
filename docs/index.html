@@ -2,7 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>LexHarness — Repurposing Coding Agents for Legal Work | Interactive Web Tour & Downloads</title>
   <meta name="description" content="LexHarness repurposes software engineering coding agents (OpenAI Codex, Claude Code, Antigravity) for legal work using layered system prompts, Bates-indexed discovery, and parallel peer review. Try the interactive web tour in your browser." />
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" />
@@ -19,6 +19,9 @@
   <meta name="twitter:image" content="https://raw.githubusercontent.com/bentito/free-legal-assist/main/docs/assets/social-preview.png" />
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Floating UI for collision-aware tour card positioning on desktop/tablet -->
+  <script src="https://cdn.jsdelivr.net/npm/@floating-ui/core@1.6.8"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@floating-ui/dom@1.6.12"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -38,12 +41,79 @@
     }
   </script>
   <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button, a, select {
+      touch-action: manipulation;
+    }
+
+    /* Hide scrollbars on horizontal pill strips while keeping touch scrolling */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Subtle custom dark scrollbar for workspace panes */
+    .workspace-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .workspace-scroll::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .workspace-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 9999px;
+    }
+
     #web-tour-spotlight {
-      transition: top 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-                  left 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-                  width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-                  height 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+      transition: top 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+                  left 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+                  width 0.26s cubic-bezier(0.16, 1, 0.3, 1),
+                  height 0.26s cubic-bezier(0.16, 1, 0.3, 1),
                   opacity 0.2s ease;
+      animation: spotlightPulse 2.4s infinite ease-in-out;
+    }
+
+    @keyframes spotlightPulse {
+      0%, 100% {
+        border-color: rgba(251, 191, 36, 1);
+      }
+      50% {
+        border-color: rgba(253, 224, 71, 0.85);
+      }
+    }
+
+    /* Mobile Scaled 3-Pane Overview Mode (< 1024px when user toggles Desktop Overview) */
+    @media (max-width: 1023px) {
+      #web-workspace-stage.mobile-scaled-desktop {
+        width: 1140px !important;
+        min-height: 680px !important;
+        flex-direction: row !important;
+        transform-origin: top left;
+      }
+      #web-workspace-stage.mobile-scaled-desktop > #web-pane-docket {
+        display: flex !important;
+        width: 248px !important;
+      }
+      #web-workspace-stage.mobile-scaled-desktop > #web-pane-main {
+        display: flex !important;
+        flex: 1 1 0% !important;
+      }
+      #web-workspace-stage.mobile-scaled-desktop > #web-pane-inspector {
+        display: flex !important;
+        width: 310px !important;
+      }
     }
   </style>
 </head>
@@ -51,50 +121,95 @@
 
   <!-- Navigation -->
   <nav class="border-b border-slate-800/80 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <img src="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" alt="LexHarness" class="w-9 h-9 rounded-lg" />
-        <span class="text-xl font-bold tracking-tight text-white">LexHarness</span>
-        <span class="hidden sm:inline-block px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full">v0.8.2 Free & Open Source</span>
-      </div>
-      <div class="flex items-center space-x-4 text-sm font-medium">
+    <div class="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2">
+      <a href="#" class="flex items-center space-x-2.5 min-w-0">
+        <img src="https://raw.githubusercontent.com/bentito/free-legal-assist/main/public/favicon.png" alt="LexHarness" class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg shrink-0" />
+        <span class="text-lg sm:text-xl font-bold tracking-tight text-white truncate">LexHarness</span>
+        <span class="hidden sm:inline-block px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full shrink-0">v0.9.1 Free &amp; Open Source</span>
+      </a>
+
+      <!-- Desktop Nav Links -->
+      <div class="hidden md:flex items-center space-x-5 text-sm font-medium">
         <a href="#tour" class="text-amber-400 hover:text-amber-300 font-semibold transition">Interactive Tour</a>
-        <a href="#tour-guide" class="hidden md:inline text-slate-400 hover:text-slate-200 transition">7-Step Guide</a>
-        <a href="#comparison" class="hidden sm:inline text-slate-400 hover:text-slate-200 transition">Agents vs. Chatbots</a>
+        <a href="#tour-guide" class="text-slate-400 hover:text-slate-200 transition">7-Step Guide</a>
+        <a href="#features" class="text-slate-400 hover:text-slate-200 transition">Why Agents</a>
+        <a href="#comparison" class="text-slate-400 hover:text-slate-200 transition">Agents vs. Chatbots</a>
         <a href="#downloads" class="text-slate-400 hover:text-slate-200 transition">Downloads</a>
         <a href="https://github.com/bentito/free-legal-assist" target="_blank" rel="noopener" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition">
           <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
           <span>GitHub</span>
         </a>
       </div>
+
+      <!-- Mobile Quick Actions + Hamburger Button -->
+      <div class="flex md:hidden items-center gap-2">
+        <a href="#tour" class="px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/35 text-amber-300 text-xs font-semibold">
+          Tour
+        </a>
+        <a href="https://github.com/bentito/free-legal-assist" target="_blank" rel="noopener" aria-label="GitHub Repository" class="p-2 rounded-lg bg-slate-800/90 text-slate-200 border border-slate-700">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        </a>
+        <button
+          id="mobile-nav-toggle"
+          type="button"
+          onclick="toggleMobileNav()"
+          aria-label="Toggle navigation menu"
+          aria-expanded="false"
+          class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+        >
+          <svg id="mobile-nav-icon-open" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          <svg id="mobile-nav-icon-close" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible Mobile Navigation Drawer -->
+    <div id="mobile-nav-drawer" class="hidden md:hidden border-t border-slate-800/80 bg-slate-950/95 px-4 py-3 space-y-2 text-sm">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
+        <span class="text-xs font-mono text-amber-400">v0.9.1 Free &amp; Open Source</span>
+        <span class="text-[11px] text-slate-400">Apache 2.0</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <a href="#tour" onclick="closeMobileNav()" class="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 font-semibold text-xs">🧭 Interactive Tour</a>
+        <a href="#tour-guide" onclick="closeMobileNav()" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs">📖 7-Step Guide</a>
+        <a href="#features" onclick="closeMobileNav()" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs">⚖️ Why Agents</a>
+        <a href="#comparison" onclick="closeMobileNav()" class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs">📊 vs. Chatbots</a>
+      </div>
+      <a href="#downloads" onclick="closeMobileNav()" class="block w-full text-center px-3 py-2 rounded-xl bg-amber-400 text-slate-950 font-semibold text-xs">
+        ⬇ Desktop Downloads (macOS &amp; Windows)
+      </a>
     </div>
   </nav>
 
   <!-- Hero Section -->
-  <header class="relative overflow-hidden pt-12 pb-14 md:pt-16 md:pb-20 border-b border-slate-900">
+  <header class="relative overflow-hidden pt-8 pb-10 sm:pt-12 sm:pb-14 md:pt-16 md:pb-20 border-b border-slate-900">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-      <div class="inline-flex items-center space-x-2 px-3 py-1 mb-6 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold uppercase tracking-wider">
+      <div class="inline-flex items-center space-x-2 px-3 py-1 mb-5 sm:mb-6 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">
         <span>⚖️ Repurposing Coding Agents for Legal Work</span>
       </div>
-      <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight">
+      <h1 class="text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight">
         Coding agents are built for task work. <br class="hidden sm:inline" />
         <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500">Put them to work on your case file.</span>
       </h1>
-      <p class="mt-5 text-base sm:text-lg text-slate-300 max-w-3xl mx-auto leading-relaxed">
+      <p class="mt-4 sm:mt-5 text-sm sm:text-lg text-slate-300 max-w-3xl mx-auto leading-relaxed">
         Chatbots generate single-shot replies from memory. Coding agents (<strong class="text-white">OpenAI Codex</strong>, <strong class="text-white">Claude Code</strong>, and <strong class="text-white">Antigravity</strong>) are engineered to search file repositories, verify exact line citations, and iteratively revise drafts. LexHarness repurposes them from software engineering to legal practice using layered system prompts in Settings—shipping today with <strong class="text-amber-300">Vermont Criminal Defense</strong> and <strong class="text-amber-300">General Legal Practice</strong> profiles, with many more locales and practice areas coming soon.
       </p>
 
       <!-- 1-Click Download & Web Tour Buttons -->
-      <div id="downloads" class="mt-8 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3.5">
+      <div id="downloads" class="mt-6 sm:mt-8 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
         <a href="#tour" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl shadow-lg transition">
           <span class="mr-2">🧭</span>
           Try Interactive Web Tour Below
         </a>
-        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness-0.8.2-arm64.dmg" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-lg shadow-amber-500/20 transition transform hover:-translate-y-0.5">
+        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.9.1/LexHarness-0.9.1-arm64.dmg" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl shadow-lg shadow-amber-500/20 transition transform hover:-translate-y-0.5">
           <svg class="w-4 h-4 mr-2 fill-current" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.63-.77 1.06-1.85.94-2.93-.91.04-2.02.61-2.67 1.37-.58.67-.99 1.77-.96 2.84 1.02.08 2.06-.51 2.69-1.28z"/></svg>
           Download for Mac (.dmg)
         </a>
-        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.8.2/LexHarness.Setup.0.8.2.exe" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
+        <a href="https://github.com/bentito/free-legal-assist/releases/download/v0.9.1/LexHarness.Setup.0.9.1.exe" class="w-full sm:w-auto inline-flex items-center justify-center px-5 py-3 text-sm font-semibold text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl shadow-lg transition transform hover:-translate-y-0.5">
           <svg class="w-4 h-4 mr-2 fill-current text-sky-400" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/></svg>
           Download for Windows (.exe)
         </a>
@@ -108,23 +223,32 @@
   <!-- ===================================================================== -->
   <!-- INTERACTIVE WEB TUTORIAL & LIVE WORKSPACE SIMULATOR                   -->
   <!-- ===================================================================== -->
-  <section id="tour" class="py-12 border-b border-slate-900 bg-[#07070a]">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
-      <!-- Section Header & Quick Card Selector Bar -->
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+  <section id="tour" class="py-8 sm:py-12 border-b border-slate-900 bg-[#07070a]">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-4">
+      <!-- Section Header & Quick Controls -->
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div>
           <div class="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">
             <span>🧭 Interactive Guided Tour (No Download Needed)</span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-1">
+          <h2 class="text-xl sm:text-3xl font-bold text-white tracking-tight mt-1">
             Step Through the Live LexHarness Workspace
           </h2>
           <p class="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Click <strong class="text-amber-300">Next Point</strong> (or press <kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">→</kbd>) to spotlight each control and open the live Settings &amp; Agent Setup dialogs.
+            Tap <strong class="text-amber-300">Next Point</strong> (or swipe / press <kbd class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono">→</kbd>) to spotlight each control and open the live Settings &amp; Agent Setup dialogs.
           </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
+          <!-- Mobile/Tablet Layout Mode Switcher (Adaptive Panes vs Scaled 3-Pane Desktop) -->
+          <button
+            id="web-mobile-layout-mode-btn"
+            type="button"
+            onclick="toggleMobileStageScaleMode()"
+            class="lg:hidden px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
+          >
+            🖥️ Switch to 3-Pane Desktop Overview
+          </button>
           <button
             id="web-tour-toggle-btn"
             type="button"
@@ -143,606 +267,68 @@
         </div>
       </div>
 
-      <!-- 7 Card Quick-Jump Pills -->
-      <div id="web-tour-card-pills" class="flex flex-wrap items-center gap-1.5"></div>
+      <!-- 7 Card Quick-Jump Pills (Horizontally scrollable strip on mobile, wrapped on desktop) -->
+      <div id="web-tour-card-pills" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:flex-wrap"></div>
 
-      <!-- Simulated macOS Desktop Window -->
-      <div id="web-workspace-stage" class="relative rounded-2xl border border-slate-800 bg-[#0b0b0e] shadow-2xl overflow-hidden min-h-[680px] flex select-none">
+      <!-- ================================================================= -->
+      <!-- TOUR WORKSPACE CONTAINER (DOCKED CARD ABOVE ON MOBILE, FLOATING ON DESKTOP) -->
+      <!-- ================================================================= -->
+      <div id="web-tour-experience-root" class="relative flex flex-col gap-3">
 
-        <!-- LEFT SIDEBAR: Matters, Case Issues & Settled Drawer -->
-        <aside class="w-[248px] shrink-0 bg-[#09090b] border-r border-white/[0.06] flex flex-col justify-between">
-          <div>
-            <!-- macOS traffic lights + App Title -->
-            <div class="h-9 px-3 flex items-center justify-between border-b border-white/[0.04]">
-              <div class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
-                <span class="w-2.5 h-2.5 rounded-full bg-amber-400/80"></span>
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
-                <span class="ml-2 text-xs font-semibold text-zinc-200">LexHarness</span>
-              </div>
-              <span class="text-[10px] font-mono text-amber-400/90">VT-Defense</span>
-            </div>
-
-            <!-- Search & New Matter / New Issue Buttons -->
-            <div class="p-2 flex items-center gap-1">
-              <div class="flex-1 px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-500">
-                Search matters...
-              </div>
-              <button
-                id="tour-new-matter-btn"
-                type="button"
-                title="Create New Matter"
-                class="p-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 text-xs"
-              >
-                📁+
-              </button>
-              <button
-                id="tour-new-issue-btn"
-                type="button"
-                title="New Case Issue in Active Matter"
-                class="p-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 text-xs"
-              >
-                ✏️
-              </button>
-            </div>
-          </div>
-
-          <!-- Active Matters & Nested Case Issues -->
-          <div id="tour-matter-overview" class="flex-1 px-2 py-1 space-y-1.5 overflow-y-auto">
-            <div class="p-2.5 rounded-xl bg-[#18181d] border border-white/[0.08] text-left space-y-1">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-1.5">
-                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">JD</span>
-                  <span class="text-[11px] text-zinc-400">John Doe (Sample)</span>
-                </div>
-                <span class="text-[10px] text-emerald-400 font-mono">Active</span>
-              </div>
-              <div class="text-xs font-semibold text-zinc-100">John Doe v. State of Vermont</div>
-              <div class="flex items-center justify-between text-[10px] text-zinc-500">
-                <span>Suppression &amp; Art. 11</span>
-                <span class="font-mono">25-CR-00123</span>
-              </div>
-            </div>
-
-            <!-- Nested Case Issue 1 -->
-            <div class="ml-3 pl-2.5 pr-2 py-2 rounded-xl border-l-2 border-amber-400/70 bg-white/[0.02] space-y-0.5">
-              <div class="flex items-center justify-between text-[10px] text-zinc-500">
-                <span>Case Issue • Impeachment</span>
-                <span class="font-mono text-amber-300">Open</span>
-              </div>
-              <div class="text-[11.5px] font-medium text-zinc-200">
-                Trooper Keller BWC Impeachment Matrix
-              </div>
-            </div>
-
-            <!-- Nested Case Issue 2 -->
-            <div class="ml-3 pl-2.5 pr-2 py-2 rounded-xl border-l border-white/[0.1] bg-white/[0.01] space-y-0.5">
-              <div class="flex items-center justify-between text-[10px] text-zinc-500">
-                <span>Case Issue • Art. 11</span>
-                <span class="font-mono text-zinc-400">Open</span>
-              </div>
-              <div class="text-[11.5px] font-medium text-zinc-300">
-                Bauder Locked Console Warrantless Search
-              </div>
-            </div>
-
-            <!-- Secondary Matter -->
-            <div class="p-2.5 rounded-xl hover:bg-white/[0.03] text-left space-y-1 opacity-75">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-1.5">
-                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">AB</span>
-                  <span class="text-[11px] text-zinc-400">Apex Biometrics</span>
-                </div>
-                <span class="text-[10px] text-zinc-500">2d</span>
-              </div>
-              <div class="text-xs font-medium text-zinc-300 truncate">Apex Biometrics v. Meridian Cloud</div>
-            </div>
-          </div>
-
-          <!-- Settled Drawer -->
-          <div id="tour-settled-drawer" class="border-t border-white/[0.06] px-3 py-2 space-y-1">
-            <div class="flex items-center justify-between text-[11px] text-zinc-400 font-medium">
-              <span>Settled</span>
-              <span class="font-mono text-zinc-500">2 ▾</span>
-            </div>
-            <div class="text-[11px] text-zinc-500 truncate py-0.5">
-              • Rule 15 Deposition Notice (Synthesized)
-            </div>
-            <div class="text-[11px] text-zinc-500 truncate py-0.5">
-              • Initial Arraignment Conditions (§ 7554)
-            </div>
-          </div>
-
-          <!-- Bottom Left Utility Bar -->
-          <div class="h-10 px-3 border-t border-white/[0.06] flex items-center justify-between text-zinc-400">
-            <div class="flex items-center gap-1.5">
-              <button
-                id="tour-settings-button"
-                type="button"
-                onclick="openSimulatedDialog('settings', 'layer1_core')"
-                title="Settings &amp; Practitioner Profiles"
-                class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-amber-300 text-xs cursor-pointer"
-              >
-                ⚙️
-              </button>
-              <button
-                id="tour-agents-button"
-                type="button"
-                onclick="openSimulatedDialog('connect_agents')"
-                title="Connected Coding Agents"
-                class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-emerald-300 text-xs cursor-pointer"
-              >
-                🔌
-              </button>
-              <button
-                id="tour-routing-button"
-                type="button"
-                onclick="openSimulatedDialog('settings', 'privacy_routing')"
-                title="PII Shield &amp; Routing Inspector"
-                class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-emerald-300 text-xs cursor-pointer"
-              >
-                📊
-              </button>
-              <button
-                id="tour-top-button"
-                type="button"
-                onclick="resetWebTour()"
-                title="Interactive Guided Tour"
-                class="p-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs cursor-pointer"
-              >
-                🧭
-              </button>
-            </div>
-            <span class="text-[10px] font-mono text-zinc-500">v0.8.2</span>
-          </div>
-        </aside>
-
-        <!-- CENTER WORKSPACE: Grounded Legal Stream & Composer -->
-        <main class="flex-1 flex flex-col justify-between min-w-0 bg-[#0b0b0e]">
-          <!-- Breadcrumb Header -->
-          <div class="h-10 px-5 border-b border-white/[0.06] flex items-center justify-between">
-            <div class="flex items-center gap-2 text-xs">
-              <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">JD</span>
-              <span class="text-zinc-400">John Doe</span>
-              <span class="text-zinc-600">/</span>
-              <span class="font-medium text-zinc-100">John Doe v. State of Vermont (25-CR-00123)</span>
-            </div>
-            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[10px] text-emerald-300 font-mono">
-              PII Shield Active
-            </span>
-          </div>
-
-          <!-- Conversation & Peer-Reviewed Work Product -->
-          <div class="flex-1 p-5 space-y-4 overflow-y-auto">
-            <!-- User Prompt -->
-            <div class="flex justify-end">
-              <div class="max-w-lg px-3.5 py-2 rounded-2xl bg-[#1c1c22] border border-white/[0.07] text-xs text-zinc-200">
-                Draft a V.R.Cr.P. 12(b)(3) Motion to Suppress challenging Trooper Keller's exit order under Chapter I, Article 11 and the warrantless console search, cross-referencing his affidavit against the body-camera transcript.
-              </div>
-            </div>
-
-            <!-- Assistant Response with Adversarial Peer Review Gate -->
-            <div id="tour-review-gate" class="space-y-2.5 p-3.5 rounded-2xl bg-[#111116] border border-white/[0.07]">
-              <!-- Trace & Action Bar -->
-              <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/[0.06]">
-                <button
-                  id="tour-trace-summary-btn"
-                  type="button"
-                  onclick="toggleWebTraceDrawer()"
-                  class="inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 cursor-pointer"
-                >
-                  <span>Worked for 4s</span>
-                  <span>•</span>
-                  <span>4 corpus searches</span>
-                  <span>•</span>
-                  <span class="text-emerald-400 font-medium">Peer Reviewed (2 checks, 2 cured)</span>
-                  <span>•</span>
-                  <span class="text-emerald-400 font-medium">PII Protected (3)</span>
-                  <span id="web-trace-chevron">▸</span>
-                </button>
-
-                <div class="flex items-center gap-1.5">
-                  <button
-                    id="tour-spin-off-issue-btn"
-                    type="button"
-                    class="px-2 py-0.5 rounded bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[10.5px] text-zinc-300"
-                  >
-                    + Spin Off Issue
-                  </button>
-                  <button
-                    id="tour-export-docx-msg-btn"
-                    type="button"
-                    class="px-2 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-[10.5px] text-amber-300 font-medium"
-                  >
-                    ⬇ Export .docx
-                  </button>
-                </div>
-              </div>
-
-              <!-- Collapsible Peer Review Trace Drawer -->
-              <div id="web-trace-drawer" class="hidden grid-cols-1 sm:grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-black/40 border border-white/[0.06] text-[11px]">
-                <div class="p-2.5 rounded-lg bg-white/[0.02] border border-emerald-500/20 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="font-semibold text-emerald-300">Citation &amp; Record Auditor</span>
-                    <span class="text-[10px] font-mono text-emerald-400">1 Cured</span>
-                  </div>
-                  <p class="text-zinc-400">Verified BWC timestamp <code class="text-sky-300">02:14:38</code> in <code class="text-sky-300">STATE-BWC-0009</code> contradicts Affidavit ¶ 5 (<code class="text-sky-300">STATE-0002</code>).</p>
-                </div>
-                <div class="p-2.5 rounded-lg bg-white/[0.02] border border-amber-500/20 space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="font-semibold text-amber-300">Opposing Counsel Review</span>
-                    <span class="text-[10px] font-mono text-emerald-400">1 Cured</span>
-                  </div>
-                  <p class="text-zinc-400">Flagged State's inevitable-discovery rejoinder; cured by adding <em>State v. Bauder</em>, 2007 VT 16, ¶ 22 warrant requirement.</p>
-                </div>
-              </div>
-
-              <!-- Motion Body Preview -->
-              <div class="space-y-2 text-xs text-zinc-200 leading-relaxed">
-                <div class="font-semibold text-zinc-100 tracking-wide">
-                  STATE OF VERMONT • CHITTENDEN CRIMINAL DIVISION • DOCKET NO. 25-CR-00123
-                </div>
-                <div class="font-semibold text-amber-300/95">
-                  DEFENDANT'S MOTION TO SUPPRESS EVIDENCE &amp; DISMISS (V.R.Cr.P. 12(b)(3) &amp; 12(d))
-                </div>
-                <p>
-                  1. <strong>Unlawful Exit Order Under Chapter I, Article 11:</strong> Unlike federal Fourth Amendment doctrine under <em>Pennsylvania v. Mimms</em>, Vermont Constitution Chapter I, Article 11 requires objective, particularized facts of criminal activity or danger before ordering a motorist from a vehicle (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">2003 VT 20</code>, <em>State v. Sprague</em>).
-                </p>
-                <p>
-                  2. <strong>Record Contradiction in Discovery Exhibits:</strong> While Trooper Keller's Affidavit ¶ 5 (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">STATE-0002</code>) alleges "furtive movement toward the center console prior to the exit command," the Body-Worn Camera transcript (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">STATE-BWC-0009</code> at 02:14:12–02:14:38) and Rule 15 Deposition (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">DEF-DEP-0018</code>, p. 14:6–19) confirm Mr. Doe's hands remained visible on the steering wheel.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bottom Composer -->
-          <div id="tour-composer" class="p-4 border-t border-white/[0.06] bg-[#0d0d11]">
-            <div class="rounded-2xl bg-[#131317] border border-white/[0.09] p-3 space-y-2.5">
-              <div class="text-xs text-zinc-400">
-                Draft a motion, audit discovery exhibits, or check citations with OpenAI Codex...
-              </div>
-              <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/[0.05]">
-                <div class="flex items-center gap-1.5">
-                  <button
-                    id="tour-sample-prompts-btn"
-                    type="button"
-                    class="px-2 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[11px] text-zinc-300"
-                    title="Sample Legal Prompts"
-                  >
-                    📜 Prompts
-                  </button>
-                  <span
-                    id="tour-task-selector"
-                    class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] text-amber-300 font-medium"
-                  >
-                    Suppression &amp; Art. 11 ▾
-                  </span>
-                </div>
-
-                <div id="tour-model-selector" class="flex items-center gap-1.5">
-                  <span class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] text-zinc-200">
-                    OpenAI Codex ▾
-                  </span>
-                  <span class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] font-mono text-sky-300">
-                    gpt-5.4 ▾
-                  </span>
-                  <span class="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[10.5px] text-emerald-300">
-                    Peer Review ▾
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-
-        <!-- RIGHT PANE: Context, Case Issues Lineage, Exhibits & Redline Inspector -->
-        <aside class="w-[310px] shrink-0 bg-[#09090b] border-l border-white/[0.06] flex flex-col justify-between p-3 space-y-3">
-          <!-- Case Issues & Master Brief Synthesis Card -->
-          <div id="tour-case-issues-lineage" class="p-3 rounded-xl bg-[#121217] border border-white/[0.07] space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-semibold text-zinc-200">Case Issues (2 Open)</span>
-              <span class="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-[10px] text-amber-300 font-semibold">
-                ✨ Synthesize Master Brief
-              </span>
-            </div>
-            <p class="text-[10.5px] text-zinc-400">
-              Incorporate findings from individual Case Issues or synthesize all open issues into a consolidated pleading.
-            </p>
-          </div>
-
-          <!-- Right Pane Tab Bar -->
-          <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#121217] border border-white/[0.06] text-[11px] font-medium">
-            <button
-              id="web-tab-redline"
-              type="button"
-              onclick="switchSimulatedRightTab('redline')"
-              class="py-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 transition cursor-pointer"
-            >
-              Redline
-            </button>
-            <button
-              id="tour-corpus-tab"
-              type="button"
-              onclick="switchSimulatedRightTab('corpus')"
-              class="py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
-            >
-              Exhibits (5)
-            </button>
-            <button
-              id="web-tab-chronology"
-              type="button"
-              onclick="switchSimulatedRightTab('chronology')"
-              class="py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
-            >
-              Chronology
-            </button>
-          </div>
-
-          <!-- TAB 1: REDLINE PANE -->
-          <div id="tour-redline-pane" class="flex-1 flex flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2.5 overflow-y-auto">
-            <div id="tour-redline-version-bar" class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
-              <span class="text-[11px] font-mono text-emerald-300">v2 (Peer-Reviewed Cure) ▾</span>
-              <div class="flex items-center gap-1">
-                <span class="px-1.5 py-0.5 rounded bg-white/[0.05] text-[10px] text-zinc-300">Edit</span>
-                <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-[10px] text-amber-300">.docx</span>
-              </div>
-            </div>
-
-            <div class="space-y-2 text-[11px] leading-relaxed text-zinc-300 font-mono">
-              <div class="p-2 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-200">
-                + Added pinpoint citation to STATE-BWC-0009 (02:14:12–02:14:38) and Rule 15 Deposition DEF-DEP-0018 p. 14:6–19.
-              </div>
-              <div class="p-2 rounded bg-rose-500/10 border border-rose-500/25 text-rose-300 line-through">
-                - Removed unverified paraphrase of officer stop rationale.
-              </div>
-              <div class="p-2 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-200">
-                + Added State v. Bauder, 2007 VT 16, ¶ 22 warrantless vehicle search standard under Art. 11.
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 2: EXHIBITS / CORPUS PANE (Hidden until selected by tour or user) -->
-          <div id="web-corpus-pane" class="hidden flex-1 flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2.5 overflow-y-auto">
-            <div class="flex items-center justify-between gap-1.5 pb-2 border-b border-white/[0.06]">
-              <button
-                id="tour-import-file-btn"
-                type="button"
-                class="flex-1 py-1.5 px-2 rounded-lg bg-amber-500/15 border border-amber-500/35 text-[10.5px] text-amber-300 font-medium"
-              >
-                + Import File (.docx/.pdf/.xlsx)
-              </button>
-              <button
-                id="tour-sync-folder-btn"
-                type="button"
-                class="py-1.5 px-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-[10.5px] text-zinc-300"
-              >
-                🔄 Sync Folder
-              </button>
-            </div>
-
-            <div class="space-y-1.5 text-[11px]">
-              <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-                <div class="flex justify-between font-mono text-[10px] text-sky-300">
-                  <span>STATE-0001 to STATE-0005</span>
-                  <span>PDF</span>
-                </div>
-                <div class="font-medium text-zinc-200 mt-0.5">Affidavit of Probable Cause — Trp. Keller</div>
-              </div>
-              <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-                <div class="flex justify-between font-mono text-[10px] text-sky-300">
-                  <span>STATE-BWC-0009</span>
-                  <span>DOCX</span>
-                </div>
-                <div class="font-medium text-zinc-200 mt-0.5">Body-Worn Camera Transcript (Unit 44)</div>
-              </div>
-              <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-                <div class="flex justify-between font-mono text-[10px] text-sky-300">
-                  <span>DEF-DEP-0018</span>
-                  <span>DOCX</span>
-                </div>
-                <div class="font-medium text-zinc-200 mt-0.5">Rule 15 Deposition of Trooper B. Keller</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TAB 3: CHRONOLOGY PANE -->
-          <div id="web-chronology-pane" class="hidden flex-1 flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2 overflow-y-auto text-[11px]">
-            <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-              <div class="font-mono text-[10px] text-amber-300">02:11:04 • STATE-0001</div>
-              <div class="text-zinc-200 mt-0.5">Traffic stop initiated on I-89 Southbound.</div>
-            </div>
-            <div class="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30">
-              <div class="font-mono text-[10px] text-rose-300">02:14:38 • DISPUTED (STATE-BWC-0009)</div>
-              <div class="text-zinc-200 mt-0.5">BWC shows hands on wheel; contradicts Affidavit ¶ 5 claim of furtive console movement.</div>
-            </div>
-          </div>
-        </aside>
-
-        <!-- ================================================================= -->
-        <!-- SIMULATED MODAL 1: SETTINGS & PROMPT GOVERNANCE                   -->
-        <!-- ================================================================= -->
-        <div id="web-sim-settings-modal" class="hidden absolute inset-0 z-30 bg-black/75 items-start justify-center p-4 pt-5">
-          <div class="w-full max-w-5xl rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden text-xs">
-            <!-- Header -->
-            <div class="px-5 py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-              <div class="flex items-center gap-2.5">
-                <span class="px-2 py-1 rounded bg-amber-500/15 border border-amber-500/35 text-amber-300 font-semibold">⚖️ Settings</span>
-                <span class="text-slate-400">Repurposing coding agents for legal work via layered system prompts</span>
-              </div>
-              <button type="button" onclick="openSimulatedDialog('none')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">✕ Close</button>
-            </div>
-
-            <!-- Practitioner Profile Selector Bar -->
-            <div id="tour-settings-profile-bar" class="px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
-              <div class="flex items-center gap-2">
-                <span class="font-semibold text-amber-300">Practitioner Profile:</span>
-                <select class="px-3 py-1 rounded-lg bg-slate-950 border border-amber-500/40 text-slate-100 font-semibold">
-                  <option>1. Vermont Criminal Defense Lawyer (Default)</option>
-                  <option>2. General Legal Practice (Civil, Contracts, Regulatory)</option>
-                  <option disabled>── More locales &amp; practice areas coming soon ──</option>
-                </select>
-              </div>
-              <span class="text-[11px] text-slate-400">
-                Supplies constitutional primacy, forum citation rules, and adversarial reviewer roles.
-              </span>
-            </div>
-
-            <!-- Settings Body -->
-            <div class="flex min-h-[250px]">
-              <!-- Left Nav -->
-              <div class="w-56 bg-slate-950/70 border-r border-slate-800 p-2.5 space-y-1">
-                <div id="tour-settings-prompt-layers" class="space-y-1">
-                  <div class="px-3 py-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
-                    1. Core Legal Principles
-                  </div>
-                  <div class="px-3 py-2 rounded-lg text-slate-400">
-                    2. Practice Task Presets
-                  </div>
-                  <div class="px-3 py-2 rounded-lg text-slate-400">
-                    3. Matter &amp; Forum Rules
-                  </div>
-                  <div class="px-3 py-2 rounded-lg text-slate-400">
-                    4. Reviewers &amp; Opposing Counsel
-                  </div>
-                </div>
-                <div class="pt-2 border-t border-slate-800 space-y-1">
-                  <div id="web-settings-nav-mcp" class="px-3 py-2 rounded-lg text-slate-400">
-                    🔧 Legal Research (MCP)
-                  </div>
-                  <div id="web-settings-nav-privacy" class="px-3 py-2 rounded-lg text-slate-400">
-                    🛡️ Privacy &amp; Local Routing
-                  </div>
-                </div>
-              </div>
-
-              <!-- Right Content Area -->
-              <div class="flex-1 p-4 space-y-3">
-                <div id="web-settings-pane-core" class="space-y-2">
-                  <div class="font-semibold text-slate-200">
-                    Layer 1–4 System Prompts (Converting Coding Agents into Legal Specialists)
-                  </div>
-                  <pre class="p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed">MANDATORY LEGAL HARNESS DIRECTIVES (VERMONT CRIMINAL DEFENSE PROFILE):
-1. GROUNDING IN DISCOVERY RECORD: Anchor every factual claim to exact Bates stamps (e.g., STATE-0001, STATE-BWC-0009) and deposition page:line citations.
-2. STATE CONSTITUTIONAL PRIMACY: Assert Vt. Const. ch. I, art. 11 &amp; 10 independent of federal Fourth/Fifth Amendment floors (citing State v. Sprague, 2003 VT 20; State v. Bauder, 2007 VT 16).
-3. ADVERSARIAL SECOND-CHAIR GATE: Cure all Citation Auditor &amp; Deputy State's Attorney objections prior to delivery.</pre>
-                </div>
-
-                <div id="tour-settings-mcp-panel" class="hidden p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
-                  <div class="flex items-center justify-between">
-                    <span class="font-semibold text-amber-300">CourtListener Legal Research MCP &amp; Custom Servers</span>
-                    <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px]">Active on OpenAI Codex &amp; Claude Code</span>
-                  </div>
-                  <p class="text-slate-400">
-                    Automatically configures <code class="text-sky-300">npx -y courtlistener-mcp</code> across your installed coding agents for live federal &amp; state caselaw verification.
-                  </p>
-                </div>
-
-                <div id="tour-settings-privacy-panel" class="hidden grid-cols-3 gap-2.5">
-                  <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/40 space-y-1">
-                    <div class="font-semibold text-amber-300">Dynamic Smart Routing</div>
-                    <p class="text-[10.5px] text-slate-300">ONNX complexity triage + full local PII scrubbing before cloud dispatch.</p>
-                  </div>
-                  <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <div class="font-semibold text-indigo-300">Force Frontier Reasoning</div>
-                    <p class="text-[10.5px] text-slate-400">Routes every turn to top frontier models while masking client PII locally.</p>
-                  </div>
-                  <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-                    <div class="font-semibold text-cyan-300">Strict Local-Only (Air-Gapped)</div>
-                    <p class="text-[10.5px] text-slate-400">Zero external network calls; runs 100% on-device.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ================================================================= -->
-        <!-- SIMULATED MODAL 2: CONNECT YOUR CODING AGENTS                     -->
-        <!-- ================================================================= -->
-        <div id="web-sim-agents-modal" class="hidden absolute inset-0 z-30 bg-black/75 items-start justify-center p-4 pt-6">
-          <div class="w-full max-w-xl rounded-2xl bg-[#111113] border border-neutral-800 shadow-2xl p-5 space-y-3 text-xs">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-base font-semibold text-white">Connect your agents</h3>
-                <p class="text-neutral-400 text-[11.5px]">
-                  Connect a coding agent—LexHarness repurposes it for legal research, drafting, and peer review via your active Practitioner Profile.
-                </p>
-              </div>
-              <button type="button" onclick="openSimulatedDialog('none')" class="px-2 py-1 rounded bg-neutral-800 text-neutral-300">✕</button>
-            </div>
-
-            <div id="tour-connect-agents-list" class="space-y-2">
-              <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex items-center justify-between">
-                <div>
-                  <div class="font-semibold text-white">OpenAI Codex <span class="font-mono text-[10px] text-neutral-400">v0.116.0</span></div>
-                  <div class="text-[11px] text-neutral-400">Repurposed via CLI harness • Multi-account ChatGPT sign-in supported</div>
-                </div>
-                <span class="text-emerald-400 font-semibold">✓ Ready</span>
-              </div>
-              <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex items-center justify-between">
-                <div>
-                  <div class="font-semibold text-white">Claude Code <span class="font-mono text-[10px] text-neutral-400">v2.1.0</span></div>
-                  <div class="text-[11px] text-neutral-400">Anthropic agent harness • One-click install &amp; OAuth sign-in</div>
-                </div>
-                <span class="px-2.5 py-1 rounded-lg bg-white text-neutral-950 font-semibold">Sign in</span>
-              </div>
-              <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex items-center justify-between">
-                <div>
-                  <div class="font-semibold text-white">Antigravity ACP <span class="font-mono text-[10px] text-neutral-400">v1.4.2</span></div>
-                  <div class="text-[11px] text-neutral-400">Gemini / Antigravity coding agent protocol</div>
-                </div>
-                <span class="text-emerald-400 font-semibold">✓ Ready</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ================================================================= -->
-        <!-- GOLDEN SPOTLIGHT RING + FLOATING INTERACTIVE TUTORIAL CARD        -->
-        <!-- ================================================================= -->
-        <div
-          id="web-tour-spotlight"
-          class=" absolute z-40 rounded-2xl border-2 border-amber-400 pointer-events-none"
-          style="top: 16px; left: 16px; width: 120px; height: 48px; box-shadow: 0 0 0 9999px rgba(9, 9, 11, 0.48), 0 0 28px rgba(245, 158, 11, 0.45);"
-        ></div>
-
+        <!-- TOUR CONTROLLER CARD: Docked above stage on <1024px so it NEVER covers the mobile workspace; floats inside stage on >=1024px -->
         <div
           id="web-tour-card-wrapper"
-          class="absolute inset-0 z-40 flex items-start justify-center pt-10 p-4 pointer-events-none"
+          class="w-full z-40 flex items-center justify-center lg:absolute lg:inset-0 lg:p-4 lg:pointer-events-none"
         >
-          <div class="pointer-events-auto w-full max-w-lg rounded-2xl bg-[#121216]/95 border border-amber-500/45 shadow-2xl p-5 text-slate-100 space-y-3.5">
+          <div
+            id="web-tour-card"
+            class="pointer-events-auto w-full lg:max-w-lg rounded-2xl bg-[#121216]/95 border border-amber-500/45 shadow-2xl p-3.5 sm:p-5 text-slate-100 space-y-2.5 sm:space-y-3.5 backdrop-blur-md"
+          >
             <!-- Card Header -->
-            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <div>
+            <div class="flex items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+              <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-1.5">
                   <span id="web-tour-category" class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-semibold">Why LexHarness?</span>
                   <span id="web-tour-card-badge" class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 font-mono">Card 1 of 7</span>
                   <span id="web-tour-point-badge" class="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-[10px] text-amber-300 font-mono">Point 1 of 5</span>
+                  <span id="web-tour-mobile-pane-badge" class="lg:hidden px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/30 text-[10px] text-sky-300 font-mono">⚖️ Legal Stream</span>
                 </div>
-                <h3 id="web-tour-title" class="text-base font-semibold text-white mt-0.5">Welcome to LexHarness</h3>
+                <h3 id="web-tour-title" class="text-sm sm:text-base font-semibold text-white mt-0.5 leading-snug">Welcome to LexHarness</h3>
               </div>
-              <button
-                type="button"
-                onclick="toggleWebTourOverlay()"
-                title="Hide tour overlay to click around workspace"
-                class="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-              >
-                ✕
-              </button>
+              <div class="flex items-center gap-1 shrink-0">
+                <!-- Mobile Compact/All Points Toggle -->
+                <button
+                  id="web-tour-compact-btn"
+                  type="button"
+                  onclick="toggleMobileCompactPoints()"
+                  class="lg:hidden px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 font-medium"
+                  title="Toggle all points vs. active point on mobile"
+                >
+                  All Points
+                </button>
+                <button
+                  type="button"
+                  onclick="toggleWebTourOverlay()"
+                  title="Hide tour overlay to click around workspace"
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
-            <p id="web-tour-subtitle" class="text-xs font-medium text-amber-300/90"></p>
+            <p id="web-tour-subtitle" class="text-[11px] sm:text-xs font-medium text-amber-300/90"></p>
 
             <!-- Interactive > Points List -->
-            <div id="web-tour-points" class="space-y-1.5 text-xs leading-relaxed"></div>
+            <div id="web-tour-points" class="space-y-1.5 text-xs leading-relaxed max-h-[260px] sm:max-h-none overflow-y-auto workspace-scroll pr-0.5"></div>
 
             <!-- Key Highlight -->
-            <div id="web-tour-highlight" class="p-2.5 rounded-xl bg-slate-950/90 border border-amber-500/30 text-[11px] text-amber-200/90"></div>
+            <div id="web-tour-highlight" class="p-2.5 rounded-xl bg-slate-950/90 border border-amber-500/30 text-[11px] text-amber-200/90 leading-relaxed"></div>
 
             <!-- Navigation Footer -->
-            <div class="flex items-center justify-between border-t border-slate-800 pt-2.5">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-2.5">
               <div id="web-tour-dots" class="flex items-center gap-1.5"></div>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 ml-auto">
                 <button
                   id="web-tour-back-btn"
                   type="button"
@@ -755,12 +341,683 @@
                   id="web-tour-next-btn"
                   type="button"
                   onclick="stepWebTour(1)"
-                  class="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold shadow cursor-pointer"
+                  class="px-3.5 sm:px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-semibold shadow cursor-pointer"
                 >
                   Next Point →
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- MOBILE / TABLET PANE SWITCHER BAR (< 1024px) -->
+        <div
+          id="web-mobile-pane-bar"
+          class="lg:hidden flex items-center justify-between gap-1.5 p-1.5 rounded-xl bg-[#111116] border border-slate-800 text-xs"
+        >
+          <div class="grid grid-cols-3 gap-1 flex-1">
+            <button
+              id="web-mobile-tab-docket"
+              type="button"
+              onclick="switchMobileWorkspacePane('docket', true)"
+              class="py-2 px-2 rounded-lg text-[11px] font-medium text-zinc-400 transition truncate"
+            >
+              📁 1. Docket
+            </button>
+            <button
+              id="web-mobile-tab-main"
+              type="button"
+              onclick="switchMobileWorkspacePane('main', true)"
+              class="py-2 px-2 rounded-lg text-[11px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30 transition truncate"
+            >
+              ⚖️ 2. Legal Stream
+            </button>
+            <button
+              id="web-mobile-tab-inspector"
+              type="button"
+              onclick="switchMobileWorkspacePane('inspector', true)"
+              class="py-2 px-2 rounded-lg text-[11px] font-medium text-zinc-400 transition truncate"
+            >
+              📑 3. Inspector
+            </button>
+          </div>
+          <div class="flex items-center gap-1 pl-1 border-l border-white/[0.08]">
+            <button
+              type="button"
+              onclick="openSimulatedDialog('settings', 'layer1_core')"
+              title="Open Settings Modal"
+              class="p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] text-amber-300 text-xs"
+            >
+              ⚙️
+            </button>
+            <button
+              type="button"
+              onclick="openSimulatedDialog('connect_agents')"
+              title="Open Connect Agents Modal"
+              class="p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.1] text-emerald-300 text-xs"
+            >
+              🔌
+            </button>
+          </div>
+        </div>
+
+        <!-- OUTER STAGE VIEWPORT (Handles scaled 3-pane desktop overview on mobile when toggled) -->
+        <div id="web-workspace-viewport" class="relative w-full overflow-hidden rounded-2xl">
+          <!-- Simulated macOS Desktop Window -->
+          <div
+            id="web-workspace-stage"
+            class="relative rounded-2xl border border-slate-800 bg-[#0b0b0e] shadow-2xl overflow-hidden min-h-[460px] lg:min-h-[680px] flex flex-col lg:flex-row select-none"
+          >
+
+            <!-- LEFT SIDEBAR: Matters, Case Issues & Settled Drawer -->
+            <aside
+              id="web-pane-docket"
+              class="hidden lg:flex w-full lg:w-[248px] shrink-0 bg-[#09090b] lg:border-r border-white/[0.06] flex-col justify-between"
+            >
+              <div>
+                <!-- macOS traffic lights + App Title -->
+                <div class="h-9 px-3 flex items-center justify-between border-b border-white/[0.04]">
+                  <div class="flex items-center gap-1.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400/80"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+                    <span class="ml-2 text-xs font-semibold text-zinc-200">LexHarness</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-amber-400/90">VT-Defense</span>
+                </div>
+
+                <!-- Search & New Matter / New Issue Buttons -->
+                <div class="p-2 flex items-center gap-1">
+                  <div class="flex-1 px-2.5 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-500">
+                    Search matters...
+                  </div>
+                  <button
+                    id="tour-new-matter-btn"
+                    type="button"
+                    title="Create New Matter"
+                    class="p-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 text-xs"
+                  >
+                    📁+
+                  </button>
+                  <button
+                    id="tour-new-issue-btn"
+                    type="button"
+                    title="New Case Issue in Active Matter"
+                    class="p-1.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] border border-white/[0.06] text-zinc-300 text-xs"
+                  >
+                    ✏️
+                  </button>
+                </div>
+              </div>
+
+              <!-- Active Matters & Nested Case Issues -->
+              <div id="tour-matter-overview" class="flex-1 px-2 py-1 space-y-1.5 overflow-y-auto">
+                <div class="p-2.5 rounded-xl bg-[#18181d] border border-white/[0.08] text-left space-y-1">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                      <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">JD</span>
+                      <span class="text-[11px] text-zinc-400">John Doe (Sample)</span>
+                    </div>
+                    <span class="text-[10px] text-emerald-400 font-mono">Active</span>
+                  </div>
+                  <div class="text-xs font-semibold text-zinc-100">John Doe v. State of Vermont</div>
+                  <div class="flex items-center justify-between text-[10px] text-zinc-500">
+                    <span>Suppression &amp; Art. 11</span>
+                    <span class="font-mono">25-CR-00123</span>
+                  </div>
+                </div>
+
+                <!-- Nested Case Issue 1 -->
+                <div class="ml-3 pl-2.5 pr-2 py-2 rounded-xl border-l-2 border-amber-400/70 bg-white/[0.02] space-y-0.5">
+                  <div class="flex items-center justify-between text-[10px] text-zinc-500">
+                    <span>Case Issue • Impeachment</span>
+                    <span class="font-mono text-amber-300">Open</span>
+                  </div>
+                  <div class="text-[11.5px] font-medium text-zinc-200">
+                    Trooper Keller BWC Impeachment Matrix
+                  </div>
+                </div>
+
+                <!-- Nested Case Issue 2 -->
+                <div class="ml-3 pl-2.5 pr-2 py-2 rounded-xl border-l border-white/[0.1] bg-white/[0.01] space-y-0.5">
+                  <div class="flex items-center justify-between text-[10px] text-zinc-500">
+                    <span>Case Issue • Art. 11</span>
+                    <span class="font-mono text-zinc-400">Open</span>
+                  </div>
+                  <div class="text-[11.5px] font-medium text-zinc-300">
+                    Bauder Locked Console Warrantless Search
+                  </div>
+                </div>
+
+                <!-- Secondary Matter -->
+                <div class="p-2.5 rounded-xl hover:bg-white/[0.03] text-left space-y-1 opacity-75">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                      <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">AB</span>
+                      <span class="text-[11px] text-zinc-400">Apex Biometrics</span>
+                    </div>
+                    <span class="text-[10px] text-zinc-500">2d</span>
+                  </div>
+                  <div class="text-xs font-medium text-zinc-300 truncate">Apex Biometrics v. Meridian Cloud</div>
+                </div>
+              </div>
+
+              <!-- Settled Drawer -->
+              <div id="tour-settled-drawer" class="border-t border-white/[0.06] px-3 py-2 space-y-1">
+                <div class="flex items-center justify-between text-[11px] text-zinc-400 font-medium">
+                  <span>Settled</span>
+                  <span class="font-mono text-zinc-500">2 ▾</span>
+                </div>
+                <div class="text-[11px] text-zinc-500 truncate py-0.5">
+                  • Rule 15 Deposition Notice (Synthesized)
+                </div>
+                <div class="text-[11px] text-zinc-500 truncate py-0.5">
+                  • Initial Arraignment Conditions (§ 7554)
+                </div>
+              </div>
+
+              <!-- Bottom Left Utility Bar -->
+              <div class="h-11 px-3 border-t border-white/[0.06] flex items-center justify-between text-zinc-400">
+                <div class="flex items-center gap-1.5">
+                  <button
+                    id="tour-settings-button"
+                    type="button"
+                    onclick="openSimulatedDialog('settings', 'layer1_core')"
+                    title="Settings &amp; Practitioner Profiles"
+                    class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-amber-300 text-xs cursor-pointer"
+                  >
+                    ⚙️
+                  </button>
+                  <button
+                    id="tour-agents-button"
+                    type="button"
+                    onclick="openSimulatedDialog('connect_agents')"
+                    title="Connected Coding Agents"
+                    class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-emerald-300 text-xs cursor-pointer"
+                  >
+                    🔌
+                  </button>
+                  <button
+                    id="tour-routing-button"
+                    type="button"
+                    onclick="openSimulatedDialog('settings', 'privacy_routing')"
+                    title="PII Shield &amp; Routing Inspector"
+                    class="p-1.5 rounded-lg hover:bg-white/[0.08] hover:text-emerald-300 text-xs cursor-pointer"
+                  >
+                    📊
+                  </button>
+                  <button
+                    id="tour-top-button"
+                    type="button"
+                    onclick="resetWebTour()"
+                    title="Interactive Guided Tour"
+                    class="p-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs cursor-pointer"
+                  >
+                    🧭
+                  </button>
+                </div>
+                <div class="relative group flex items-center gap-1.5">
+                  <span class="text-[10px] font-mono text-zinc-500">v0.9.1</span>
+                  <button
+                    id="tour-update-button"
+                    type="button"
+                    title="Update 0.9.1 downloaded. Click to restart and install."
+                    class="relative inline-flex w-7 h-7 items-center justify-center rounded-full bg-white/[0.08] text-zinc-100 hover:bg-white/[0.14] text-xs cursor-pointer"
+                  >
+                    <span>↻</span>
+                    <span class="absolute -right-0.5 -bottom-0.5 grid w-2.5 h-2.5 place-items-center rounded-full bg-zinc-100 text-[#09090b] text-[8px] font-bold">✓</span>
+                  </button>
+                  <!-- Compact Release Notes Popover on Hover -->
+                  <div class="hidden group-hover:block absolute bottom-9 left-0 z-50 w-72 sm:w-80 rounded-xl bg-[#111114] border border-white/[0.12] shadow-2xl p-3 text-left text-zinc-100">
+                    <div class="text-xs font-medium text-zinc-100">
+                      Update 0.9.1 downloaded. Click to restart and install.
+                    </div>
+                    <ul class="mt-2 space-y-1.5 pl-4 text-[11px] leading-4 text-zinc-300 list-disc">
+                      <li><strong class="text-zinc-100">Responsive guided tour.</strong> Tutorial spotlight cards now adapt cleanly across laptop, tablet, and mobile browsers.</li>
+                      <li><strong class="text-zinc-100">Complete draft safeguards.</strong> Long motion and brief drafts are verified for completeness before peer review.</li>
+                      <li><strong class="text-zinc-100">Formatted Word exports.</strong> Exported .docx pleadings preserve headings, blockquotes, and bullet lists.</li>
+                      <li><strong class="text-zinc-100">Elapsed turn timing.</strong> Completed turns display total elapsed time in the workspace stream.</li>
+                    </ul>
+                    <div class="mt-2 text-[11px] font-semibold text-zinc-100">
+                      Plus 10 more bug fixes and improvements.
+                    </div>
+                    <div class="mt-1 text-[11px] text-zinc-400">
+                      14 changes from 2 contributors ↗
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- CENTER WORKSPACE: Grounded Legal Stream & Composer -->
+            <main
+              id="web-pane-main"
+              class="flex lg:flex flex-1 flex-col justify-between min-w-0 bg-[#0b0b0e]"
+            >
+              <!-- Breadcrumb Header -->
+              <div class="min-h-[40px] px-3.5 sm:px-5 py-2 border-b border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-1.5 sm:gap-2 text-xs min-w-0">
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">JD</span>
+                  <span class="text-zinc-400 hidden sm:inline">John Doe</span>
+                  <span class="text-zinc-600 hidden sm:inline">/</span>
+                  <span class="font-medium text-zinc-100 truncate">John Doe v. State of Vermont (25-CR-00123)</span>
+                </div>
+                <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-[10px] text-emerald-300 font-mono shrink-0">
+                  PII Shield Active
+                </span>
+              </div>
+
+              <!-- Conversation & Peer-Reviewed Work Product -->
+              <div class="flex-1 p-3.5 sm:p-5 space-y-4 overflow-y-auto">
+                <!-- User Prompt -->
+                <div class="flex justify-end">
+                  <div class="max-w-lg px-3.5 py-2 rounded-2xl bg-[#1c1c22] border border-white/[0.07] text-xs text-zinc-200 leading-relaxed">
+                    Draft a V.R.Cr.P. 12(b)(3) Motion to Suppress challenging Trooper Keller's exit order under Chapter I, Article 11 and the warrantless console search, cross-referencing his affidavit against the body-camera transcript.
+                  </div>
+                </div>
+
+                <!-- Assistant Response with Adversarial Peer Review Gate -->
+                <div id="tour-review-gate" class="space-y-2.5 p-3 sm:p-3.5 rounded-2xl bg-[#111116] border border-white/[0.07]">
+                  <!-- Trace & Action Bar -->
+                  <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/[0.06]">
+                    <button
+                      id="tour-trace-summary-btn"
+                      type="button"
+                      onclick="toggleWebTraceDrawer()"
+                      class="inline-flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 cursor-pointer text-left"
+                    >
+                      <span>Worked for 4s</span>
+                      <span>•</span>
+                      <span>4 corpus searches</span>
+                      <span>•</span>
+                      <span class="text-emerald-400 font-medium">Peer Reviewed (2 checks, 2 cured)</span>
+                      <span>•</span>
+                      <span class="text-emerald-400 font-medium">PII Protected (3)</span>
+                      <span id="web-trace-chevron">▸</span>
+                    </button>
+
+                    <div class="flex items-center gap-1.5">
+                      <button
+                        id="tour-spin-off-issue-btn"
+                        type="button"
+                        class="px-2 py-1 rounded bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] text-[10.5px] text-zinc-300"
+                      >
+                        + Spin Off Issue
+                      </button>
+                      <button
+                        id="tour-export-docx-msg-btn"
+                        type="button"
+                        class="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-[10.5px] text-amber-300 font-medium"
+                      >
+                        ⬇ Export .docx
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Collapsible Peer Review Trace Drawer -->
+                  <div id="web-trace-drawer" class="hidden grid-cols-1 sm:grid-cols-2 gap-2.5 p-2.5 rounded-xl bg-black/40 border border-white/[0.06] text-[11px]">
+                    <div class="p-2.5 rounded-lg bg-white/[0.02] border border-emerald-500/20 space-y-1">
+                      <div class="flex items-center justify-between">
+                        <span class="font-semibold text-emerald-300">Citation &amp; Record Auditor</span>
+                        <span class="text-[10px] font-mono text-emerald-400">1 Cured</span>
+                      </div>
+                      <p class="text-zinc-400">Verified BWC timestamp <code class="text-sky-300">02:14:38</code> in <code class="text-sky-300">STATE-BWC-0009</code> contradicts Affidavit ¶ 5 (<code class="text-sky-300">STATE-0002</code>).</p>
+                    </div>
+                    <div class="p-2.5 rounded-lg bg-white/[0.02] border border-amber-500/20 space-y-1">
+                      <div class="flex items-center justify-between">
+                        <span class="font-semibold text-amber-300">Opposing Counsel Review</span>
+                        <span class="text-[10px] font-mono text-emerald-400">1 Cured</span>
+                      </div>
+                      <p class="text-zinc-400">Flagged State's inevitable-discovery rejoinder; cured by adding <em>State v. Bauder</em>, 2007 VT 16, ¶ 22 warrant requirement.</p>
+                    </div>
+                  </div>
+
+                  <!-- Motion Body Preview -->
+                  <div class="space-y-2 text-xs text-zinc-200 leading-relaxed">
+                    <div class="font-semibold text-zinc-100 tracking-wide">
+                      STATE OF VERMONT • CHITTENDEN CRIMINAL DIVISION • DOCKET NO. 25-CR-00123
+                    </div>
+                    <div class="font-semibold text-amber-300/95">
+                      DEFENDANT'S MOTION TO SUPPRESS EVIDENCE &amp; DISMISS (V.R.Cr.P. 12(b)(3) &amp; 12(d))
+                    </div>
+                    <p>
+                      1. <strong>Unlawful Exit Order Under Chapter I, Article 11:</strong> Unlike federal Fourth Amendment doctrine under <em>Pennsylvania v. Mimms</em>, Vermont Constitution Chapter I, Article 11 requires objective, particularized facts of criminal activity or danger before ordering a motorist from a vehicle (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">2003 VT 20</code>, <em>State v. Sprague</em>).
+                    </p>
+                    <p>
+                      2. <strong>Record Contradiction in Discovery Exhibits:</strong> While Trooper Keller's Affidavit ¶ 5 (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">STATE-0002</code>) alleges "furtive movement toward the center console prior to the exit command," the Body-Worn Camera transcript (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">STATE-BWC-0009</code> at 02:14:12–02:14:38) and Rule 15 Deposition (<code class="px-1 py-0.5 rounded bg-white/[0.06] text-sky-300 font-mono">DEF-DEP-0018</code>, p. 14:6–19) confirm Mr. Doe's hands remained visible on the steering wheel.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bottom Composer -->
+              <div id="tour-composer" class="p-3 sm:p-4 border-t border-white/[0.06] bg-[#0d0d11]">
+                <div class="rounded-2xl bg-[#131317] border border-white/[0.09] p-3 space-y-2.5">
+                  <div class="text-xs text-zinc-400">
+                    Draft a motion, audit discovery exhibits, or check citations with OpenAI Codex...
+                  </div>
+                  <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-white/[0.05]">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <button
+                        id="tour-sample-prompts-btn"
+                        type="button"
+                        class="px-2 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[11px] text-zinc-300"
+                        title="Sample Legal Prompts"
+                      >
+                        📜 Prompts
+                      </button>
+                      <span
+                        id="tour-task-selector"
+                        class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] text-amber-300 font-medium"
+                      >
+                        Suppression &amp; Art. 11 ▾
+                      </span>
+                    </div>
+
+                    <div id="tour-model-selector" class="flex flex-wrap items-center gap-1.5">
+                      <span class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] text-zinc-200">
+                        OpenAI Codex ▾
+                      </span>
+                      <span class="px-2 py-1 rounded-lg bg-white/[0.04] text-[11px] font-mono text-sky-300">
+                        gpt-5.4 ▾
+                      </span>
+                      <span class="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[10.5px] text-emerald-300">
+                        Peer Review ▾
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </main>
+
+            <!-- RIGHT PANE: Context, Case Issues Lineage, Exhibits & Redline Inspector -->
+            <aside
+              id="web-pane-inspector"
+              class="hidden lg:flex w-full lg:w-[310px] shrink-0 bg-[#09090b] lg:border-l border-white/[0.06] flex-col justify-between p-3 space-y-3"
+            >
+              <!-- Case Issues & Master Brief Synthesis Card -->
+              <div id="tour-case-issues-lineage" class="p-3 rounded-xl bg-[#121217] border border-white/[0.07] space-y-2">
+                <div class="flex flex-wrap items-center justify-between gap-1.5">
+                  <span class="text-[11px] font-semibold text-zinc-200">Case Issues (2 Open)</span>
+                  <span class="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/35 text-[10px] text-amber-300 font-semibold">
+                    ✨ Synthesize Master Brief
+                  </span>
+                </div>
+                <p class="text-[10.5px] text-zinc-400">
+                  Incorporate findings from individual Case Issues or synthesize all open issues into a consolidated pleading.
+                </p>
+              </div>
+
+              <!-- Right Pane Tab Bar -->
+              <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#121217] border border-white/[0.06] text-[11px] font-medium">
+                <button
+                  id="web-tab-redline"
+                  type="button"
+                  onclick="switchSimulatedRightTab('redline')"
+                  class="py-1.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 transition cursor-pointer"
+                >
+                  Redline
+                </button>
+                <button
+                  id="tour-corpus-tab"
+                  type="button"
+                  onclick="switchSimulatedRightTab('corpus')"
+                  class="py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                >
+                  Exhibits (5)
+                </button>
+                <button
+                  id="web-tab-chronology"
+                  type="button"
+                  onclick="switchSimulatedRightTab('chronology')"
+                  class="py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+                >
+                  Chronology
+                </button>
+              </div>
+
+              <!-- TAB 1: REDLINE PANE -->
+              <div id="tour-redline-pane" class="flex-1 flex flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2.5 overflow-y-auto">
+                <div id="tour-redline-version-bar" class="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                  <span class="text-[11px] font-mono text-emerald-300">v2 (Peer-Reviewed Cure) ▾</span>
+                  <div class="flex items-center gap-1">
+                    <span class="px-1.5 py-0.5 rounded bg-white/[0.05] text-[10px] text-zinc-300">Edit</span>
+                    <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-[10px] text-amber-300">.docx</span>
+                  </div>
+                </div>
+
+                <div class="space-y-2 text-[11px] leading-relaxed text-zinc-300 font-mono">
+                  <div class="p-2 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-200">
+                    + Added pinpoint citation to STATE-BWC-0009 (02:14:12–02:14:38) and Rule 15 Deposition DEF-DEP-0018 p. 14:6–19.
+                  </div>
+                  <div class="p-2 rounded bg-rose-500/10 border border-rose-500/25 text-rose-300 line-through">
+                    - Removed unverified paraphrase of officer stop rationale.
+                  </div>
+                  <div class="p-2 rounded bg-emerald-500/10 border border-emerald-500/25 text-emerald-200">
+                    + Added State v. Bauder, 2007 VT 16, ¶ 22 warrantless vehicle search standard under Art. 11.
+                  </div>
+                </div>
+              </div>
+
+              <!-- TAB 2: EXHIBITS / CORPUS PANE (Hidden until selected by tour or user) -->
+              <div id="web-corpus-pane" class="hidden flex-1 flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2.5 overflow-y-auto">
+                <div class="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-white/[0.06]">
+                  <button
+                    id="tour-import-file-btn"
+                    type="button"
+                    class="flex-1 py-1.5 px-2 rounded-lg bg-amber-500/15 border border-amber-500/35 text-[10.5px] text-amber-300 font-medium"
+                  >
+                    + Import File (.docx/.pdf/.xlsx)
+                  </button>
+                  <button
+                    id="tour-sync-folder-btn"
+                    type="button"
+                    class="py-1.5 px-2 rounded-lg bg-white/[0.05] border border-white/[0.08] text-[10.5px] text-zinc-300"
+                  >
+                    🔄 Sync Folder
+                  </button>
+                </div>
+
+                <div class="space-y-1.5 text-[11px]">
+                  <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <div class="flex justify-between font-mono text-[10px] text-sky-300">
+                      <span>STATE-0001 to STATE-0005</span>
+                      <span>PDF</span>
+                    </div>
+                    <div class="font-medium text-zinc-200 mt-0.5">Affidavit of Probable Cause — Trp. Keller</div>
+                  </div>
+                  <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <div class="flex justify-between font-mono text-[10px] text-sky-300">
+                      <span>STATE-BWC-0009</span>
+                      <span>DOCX</span>
+                    </div>
+                    <div class="font-medium text-zinc-200 mt-0.5">Body-Worn Camera Transcript (Unit 44)</div>
+                  </div>
+                  <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                    <div class="flex justify-between font-mono text-[10px] text-sky-300">
+                      <span>DEF-DEP-0018</span>
+                      <span>DOCX</span>
+                    </div>
+                    <div class="font-medium text-zinc-200 mt-0.5">Rule 15 Deposition of Trooper B. Keller</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TAB 3: CHRONOLOGY PANE -->
+              <div id="web-chronology-pane" class="hidden flex-1 flex-col justify-between rounded-xl bg-[#121217] border border-white/[0.07] p-3 space-y-2 overflow-y-auto text-[11px]">
+                <div class="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+                  <div class="font-mono text-[10px] text-amber-300">02:11:04 • STATE-0001</div>
+                  <div class="text-zinc-200 mt-0.5">Traffic stop initiated on I-89 Southbound.</div>
+                </div>
+                <div class="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30">
+                  <div class="font-mono text-[10px] text-rose-300">02:14:38 • DISPUTED (STATE-BWC-0009)</div>
+                  <div class="text-zinc-200 mt-0.5">BWC shows hands on wheel; contradicts Affidavit ¶ 5 claim of furtive console movement.</div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- ================================================================= -->
+            <!-- SIMULATED MODAL 1: SETTINGS & PROMPT GOVERNANCE                   -->
+            <!-- ================================================================= -->
+            <div id="web-sim-settings-modal" class="hidden absolute inset-0 z-30 bg-black/80 items-start justify-center p-2.5 sm:p-4 sm:pt-5 overflow-y-auto">
+              <div class="w-full max-w-5xl rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden text-xs my-auto sm:my-0">
+                <!-- Header -->
+                <div class="px-3.5 sm:px-5 py-2.5 sm:py-3 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-2">
+                  <div class="flex flex-wrap items-center gap-2 min-w-0">
+                    <span class="px-2 py-1 rounded bg-amber-500/15 border border-amber-500/35 text-amber-300 font-semibold shrink-0">⚖️ Settings</span>
+                    <span class="text-slate-400 text-[11px] sm:text-xs truncate">Repurposing coding agents for legal work via layered system prompts</span>
+                  </div>
+                  <button type="button" onclick="openSimulatedDialog('none')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 shrink-0">✕ Close</button>
+                </div>
+
+                <!-- Practitioner Profile Selector Bar -->
+                <div id="tour-settings-profile-bar" class="px-3.5 sm:px-5 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-semibold text-amber-300">Practitioner Profile:</span>
+                    <select class="max-w-full px-2.5 sm:px-3 py-1 rounded-lg bg-slate-950 border border-amber-500/40 text-slate-100 font-semibold text-[11px] sm:text-xs">
+                      <option>1. Vermont Criminal Defense Lawyer (Default)</option>
+                      <option>2. General Legal Practice (Civil, Contracts, Regulatory)</option>
+                      <option disabled>── More locales &amp; practice areas coming soon ──</option>
+                    </select>
+                  </div>
+                  <span class="text-[11px] text-slate-400">
+                    Supplies constitutional primacy, forum citation rules, and adversarial reviewer roles.
+                  </span>
+                </div>
+
+                <!-- Settings Body (Stacks vertically on mobile, 2-column on md+) -->
+                <div class="flex flex-col md:flex-row min-h-[250px]">
+                  <!-- Left Nav -->
+                  <div class="w-full md:w-56 bg-slate-950/70 border-b md:border-b-0 md:border-r border-slate-800 p-2.5 space-y-1.5">
+                    <div id="tour-settings-prompt-layers" class="grid grid-cols-2 md:grid-cols-1 gap-1">
+                      <button
+                        type="button"
+                        onclick="openSimulatedDialog('settings', 'layer1_core')"
+                        class="text-left px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold text-[11px] sm:text-xs"
+                      >
+                        1. Core Legal Principles
+                      </button>
+                      <div class="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-slate-400 text-[11px] sm:text-xs">
+                        2. Practice Task Presets
+                      </div>
+                      <div class="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-slate-400 text-[11px] sm:text-xs">
+                        3. Matter &amp; Forum Rules
+                      </div>
+                      <div class="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-slate-400 text-[11px] sm:text-xs">
+                        4. Reviewers &amp; Opposing Counsel
+                      </div>
+                    </div>
+                    <div class="pt-1.5 border-t border-slate-800 grid grid-cols-2 md:grid-cols-1 gap-1">
+                      <button
+                        id="web-settings-nav-mcp"
+                        type="button"
+                        onclick="openSimulatedDialog('settings', 'legal_mcp')"
+                        class="text-left px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-slate-400 hover:text-slate-200 text-[11px] sm:text-xs"
+                      >
+                        🔧 Legal Research (MCP)
+                      </button>
+                      <button
+                        id="web-settings-nav-privacy"
+                        type="button"
+                        onclick="openSimulatedDialog('settings', 'privacy_routing')"
+                        class="text-left px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg text-slate-400 hover:text-slate-200 text-[11px] sm:text-xs"
+                      >
+                        🛡️ Privacy &amp; Local Routing
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Right Content Area -->
+                  <div class="flex-1 p-3 sm:p-4 space-y-3">
+                    <div id="web-settings-pane-core" class="space-y-2">
+                      <div class="font-semibold text-slate-200">
+                        Layer 1–4 System Prompts (Converting Coding Agents into Legal Specialists)
+                      </div>
+                      <pre class="p-2.5 sm:p-3 rounded-xl bg-slate-950 border border-slate-800 font-mono text-[10.5px] sm:text-[11px] text-slate-300 whitespace-pre-wrap break-words leading-relaxed">MANDATORY LEGAL HARNESS DIRECTIVES (VERMONT CRIMINAL DEFENSE PROFILE):
+1. GROUNDING IN DISCOVERY RECORD: Anchor every factual claim to exact Bates stamps (e.g., STATE-0001, STATE-BWC-0009) and deposition page:line citations.
+2. STATE CONSTITUTIONAL PRIMACY: Assert Vt. Const. ch. I, art. 11 &amp; 10 independent of federal Fourth/Fifth Amendment floors (citing State v. Sprague, 2003 VT 20; State v. Bauder, 2007 VT 16).
+3. ADVERSARIAL SECOND-CHAIR GATE: Cure all Citation Auditor &amp; Deputy State's Attorney objections prior to delivery.</pre>
+                    </div>
+
+                    <div id="tour-settings-mcp-panel" class="hidden p-3 sm:p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                      <div class="flex flex-wrap items-center justify-between gap-1.5">
+                        <span class="font-semibold text-amber-300">CourtListener Legal Research MCP &amp; Custom Servers</span>
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px]">Active on OpenAI Codex &amp; Claude Code</span>
+                      </div>
+                      <p class="text-slate-400">
+                        Automatically configures <code class="text-sky-300">npx -y courtlistener-mcp</code> across your installed coding agents for live federal &amp; state caselaw verification.
+                      </p>
+                    </div>
+
+                    <div id="tour-settings-privacy-panel" class="hidden grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/40 space-y-1">
+                        <div class="font-semibold text-amber-300">Dynamic Smart Routing</div>
+                        <p class="text-[10.5px] text-slate-300">ONNX complexity triage + full local PII scrubbing before cloud dispatch.</p>
+                      </div>
+                      <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                        <div class="font-semibold text-indigo-300">Force Frontier Reasoning</div>
+                        <p class="text-[10.5px] text-slate-400">Routes every turn to top frontier models while masking client PII locally.</p>
+                      </div>
+                      <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                        <div class="font-semibold text-cyan-300">Strict Local-Only (Air-Gapped)</div>
+                        <p class="text-[10.5px] text-slate-400">Zero external network calls; runs 100% on-device.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ================================================================= -->
+            <!-- SIMULATED MODAL 2: CONNECT YOUR CODING AGENTS                     -->
+            <!-- ================================================================= -->
+            <div id="web-sim-agents-modal" class="hidden absolute inset-0 z-30 bg-black/80 items-start justify-center p-2.5 sm:p-4 sm:pt-6 overflow-y-auto">
+              <div class="w-full max-w-xl rounded-2xl bg-[#111113] border border-neutral-800 shadow-2xl p-4 sm:p-5 space-y-3 text-xs my-auto sm:my-0">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 class="text-base font-semibold text-white">Connect your agents</h3>
+                    <p class="text-neutral-400 text-[11.5px]">
+                      Connect a coding agent—LexHarness repurposes it for legal research, drafting, and peer review via your active Practitioner Profile.
+                    </p>
+                  </div>
+                  <button type="button" onclick="openSimulatedDialog('none')" class="px-2 py-1 rounded bg-neutral-800 text-neutral-300 shrink-0">✕</button>
+                </div>
+
+                <div id="tour-connect-agents-list" class="space-y-2">
+                  <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div class="font-semibold text-white">OpenAI Codex <span class="font-mono text-[10px] text-neutral-400">v0.116.0</span></div>
+                      <div class="text-[11px] text-neutral-400">Repurposed via CLI harness • Multi-account ChatGPT sign-in supported</div>
+                    </div>
+                    <span class="text-emerald-400 font-semibold shrink-0">✓ Ready</span>
+                  </div>
+                  <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div class="font-semibold text-white">Claude Code <span class="font-mono text-[10px] text-neutral-400">v2.1.0</span></div>
+                      <div class="text-[11px] text-neutral-400">Anthropic agent harness • One-click install &amp; OAuth sign-in</div>
+                    </div>
+                    <span class="self-start sm:self-auto px-2.5 py-1 rounded-lg bg-white text-neutral-950 font-semibold shrink-0">Sign in</span>
+                  </div>
+                  <div class="p-3 rounded-xl bg-[#17171a] border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div class="font-semibold text-white">Antigravity ACP <span class="font-mono text-[10px] text-neutral-400">v1.4.2</span></div>
+                      <div class="text-[11px] text-neutral-400">Gemini / Antigravity coding agent protocol</div>
+                    </div>
+                    <span class="text-emerald-400 font-semibold shrink-0">✓ Ready</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ================================================================= -->
+            <!-- GOLDEN SPOTLIGHT RING                                             -->
+            <!-- ================================================================= -->
+            <div
+              id="web-tour-spotlight"
+              class="absolute z-30 rounded-2xl border-2 border-amber-400 pointer-events-none"
+              style="top: 16px; left: 16px; width: 120px; height: 48px; box-shadow: 0 0 0 9999px rgba(9, 9, 11, 0.48), 0 0 28px rgba(245, 158, 11, 0.45);"
+            ></div>
+
           </div>
         </div>
       </div>
@@ -770,32 +1027,32 @@
   <!-- ===================================================================== -->
   <!-- COMPLETE 7-CARD TUTORIAL REFERENCE GUIDE (FOR READERS & MOBILE)       -->
   <!-- ===================================================================== -->
-  <section id="tour-guide" class="py-16 border-b border-slate-900 bg-slate-950">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+  <section id="tour-guide" class="py-12 sm:py-16 border-b border-slate-900 bg-slate-950">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10">
       <div class="text-center max-w-3xl mx-auto">
         <span class="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">Complete Walkthrough Reference</span>
-        <h2 class="text-3xl font-bold text-white tracking-tight mt-1">All 7 Tutorial Cards at a Glance</h2>
-        <p class="mt-3 text-slate-400 text-sm sm:text-base">
-          Prefer reading without clicking through? Here is the complete walkthrough included inside the LexHarness desktop app.
+        <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight mt-1">All 7 Tutorial Cards at a Glance</h2>
+        <p class="mt-2.5 sm:mt-3 text-slate-400 text-sm sm:text-base">
+          Prefer reading without clicking through? Here is the complete walkthrough included inside the LexHarness desktop app. Tap any card to jump directly to it in the live simulator above.
         </p>
       </div>
 
-      <div id="web-tour-static-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+      <div id="web-tour-static-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6"></div>
     </div>
   </section>
 
   <!-- Key Problems Solved -->
-  <section id="features" class="py-20 border-b border-slate-900 bg-slate-900/30">
+  <section id="features" class="py-14 sm:py-20 border-b border-slate-900 bg-slate-900/30">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-3xl font-bold text-white tracking-tight">Why Repurpose Coding Agents for Legal Practice?</h2>
-        <p class="mt-4 text-slate-400 text-base sm:text-lg">
+      <div class="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Why Repurpose Coding Agents for Legal Practice?</h2>
+        <p class="mt-3 sm:mt-4 text-slate-400 text-sm sm:text-lg">
           Consumer chatbots sound fluent, but they guess from memory. Software engineering coding agents are built to search files, verify line-by-line citations, and run multi-step verification tools—making them ideal for legal work once governed by legal system prompts.
         </p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div class="p-5 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">📄</div>
             <h3 class="text-lg font-semibold text-white mb-2">Bates Record Grounding</h3>
@@ -805,7 +1062,7 @@
           </div>
         </div>
 
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+        <div class="p-5 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">🔍</div>
             <h3 class="text-lg font-semibold text-white mb-2">Citation &amp; Record Auditor</h3>
@@ -815,7 +1072,7 @@
           </div>
         </div>
 
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+        <div class="p-5 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">⚔️</div>
             <h3 class="text-lg font-semibold text-white mb-2">Opposing Counsel Review</h3>
@@ -825,7 +1082,7 @@
           </div>
         </div>
 
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
+        <div class="p-5 sm:p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between hover:border-amber-500/40 transition">
           <div>
             <div class="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 text-xl">🔒</div>
             <h3 class="text-lg font-semibold text-white mb-2">Privileged PII Shield</h3>
@@ -838,17 +1095,93 @@
     </div>
   </section>
 
-  <!-- Comparison Table -->
-  <section id="comparison" class="py-20 border-b border-slate-900">
+  <!-- Comparison Table (Desktop Table + Mobile Adaptive Cards) -->
+  <section id="comparison" class="py-14 sm:py-20 border-b border-slate-900">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center max-w-3xl mx-auto mb-16">
-        <h2 class="text-3xl font-bold text-white tracking-tight">How LexHarness Compares to Consumer Chatbots</h2>
-        <p class="mt-4 text-slate-400 text-base sm:text-lg">
+      <div class="text-center max-w-3xl mx-auto mb-10 sm:mb-16">
+        <h2 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">How LexHarness Compares to Consumer Chatbots</h2>
+        <p class="mt-3 sm:mt-4 text-slate-400 text-sm sm:text-lg">
           Why repurposing multi-step coding agents inside a local legal workspace outperforms pasting confidential facts into a web chat tab.
         </p>
       </div>
 
-      <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
+      <!-- Mobile Stacked Comparison Cards (< md) -->
+      <div class="md:hidden space-y-3">
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400">Task Execution Architecture</div>
+          <div class="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-xs">
+            <span class="font-semibold text-rose-300 block">Consumer Chatbots</span>
+            <span class="text-slate-400">Single-shot conversational replies from memory</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+            <span class="font-semibold text-amber-300 block">LexHarness (Coding Agents for Law)</span>
+            <span class="text-slate-100">Multi-step coding agents (Codex, Claude Code, Antigravity) repurposed via 4-layer legal system prompts</span>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400">Factual Grounding</div>
+          <div class="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-xs">
+            <span class="font-semibold text-rose-300 block">Consumer Chatbots</span>
+            <span class="text-slate-400">Paraphrases or guesses without checking the record</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+            <span class="font-semibold text-amber-300 block">LexHarness (Coding Agents for Law)</span>
+            <span class="text-slate-100">Searches indexed discovery exhibits (.docx, .pdf, .xlsx, .csv, .rtf) with Bates numbers and folder auto-sync</span>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400">Citation &amp; Record Accuracy</div>
+          <div class="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-xs">
+            <span class="font-semibold text-rose-300 block">Consumer Chatbots</span>
+            <span class="text-slate-400">Prone to hallucinated authorities</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+            <span class="font-semibold text-amber-300 block">LexHarness (Coding Agents for Law)</span>
+            <span class="text-slate-100">Parallel Citation &amp; Record Auditor + Opposing Counsel review + CourtListener MCP verification</span>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400">Complex Motion Workflows</div>
+          <div class="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-xs">
+            <span class="font-semibold text-rose-300 block">Consumer Chatbots</span>
+            <span class="text-slate-400">One long, tangled chat thread</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+            <span class="font-semibold text-amber-300 block">LexHarness (Coding Agents for Law)</span>
+            <span class="text-slate-100">Branch focused Case Issues, incorporate findings, and Synthesize Master Briefs</span>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400">Reviewing &amp; Exporting Drafts</div>
+          <div class="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-xs">
+            <span class="font-semibold text-rose-300 block">Consumer Chatbots</span>
+            <span class="text-slate-400">Manual copy-pasting blocks of text</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+            <span class="font-semibold text-amber-300 block">LexHarness (Coding Agents for Law)</span>
+            <span class="text-slate-100">Side-by-side Redlines + native Word (.docx) export with Tracked Changes and margin comments</span>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+          <div class="text-xs font-mono uppercase tracking-wider text-slate-400">Client Confidentiality</div>
+          <div class="p-2.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-xs">
+            <span class="font-semibold text-rose-300 block">Consumer Chatbots</span>
+            <span class="text-slate-400">Stored in browser tabs and cloud accounts</span>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+            <span class="font-semibold text-amber-300 block">LexHarness (Coding Agents for Law)</span>
+            <span class="text-slate-100">Local SQLite storage + Privileged PII Shield local anonymization</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop/Tablet 3-Column Table (md+) -->
+      <div class="hidden md:block overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/50">
         <table class="w-full text-left text-sm text-slate-300">
           <thead class="bg-slate-900 text-slate-100 text-xs uppercase tracking-wider border-b border-slate-800">
             <tr>
@@ -900,13 +1233,13 @@
   </section>
 
   <!-- Community & CTA -->
-  <section class="py-20 text-center">
+  <section class="py-14 sm:py-20 text-center">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-      <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Help Build Profiles for Your Jurisdiction</h2>
-      <p class="mt-4 text-base sm:text-lg text-slate-300 max-w-2xl mx-auto">
+      <h2 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">Help Build Profiles for Your Jurisdiction</h2>
+      <p class="mt-3 sm:mt-4 text-sm sm:text-lg text-slate-300 max-w-2xl mx-auto">
         LexHarness currently ships with defaults for Vermont Criminal Defense and General Legal Practice. Join practitioners and contributors adding state-specific rules, citation styles, and practice-area profiles.
       </p>
-      <div class="mt-8 flex flex-wrap justify-center gap-4">
+      <div class="mt-6 sm:mt-8 flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4">
         <a href="https://github.com/bentito/free-legal-assist/discussions" class="px-6 py-3 rounded-xl bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 font-semibold text-sm transition">
           Join GitHub Discussions
         </a>
@@ -918,7 +1251,7 @@
   </section>
 
   <!-- Footer -->
-  <footer class="border-t border-slate-900 py-10 bg-slate-950 text-xs text-slate-500 text-center">
+  <footer class="border-t border-slate-900 py-8 sm:py-10 bg-slate-950 text-xs text-slate-500 text-center px-4">
     <p>LexHarness is free, open-source software released under the <a href="https://github.com/bentito/free-legal-assist/blob/main/LICENSE" class="underline hover:text-slate-400">Apache License 2.0</a>.</p>
     <p class="mt-2">Not legal advice. Intended as a drafting and review aid for licensed legal professionals.</p>
   </footer>
@@ -949,7 +1282,7 @@
             cardPlacement: 'bottom-corner-right',
           },
           {
-            text: 'Setting Up Your Coding Agents: Connect your OpenAI Codex, Claude Code, or Antigravity account here in one click—or use the built-in offline legal simulator to explore immediately.',
+            text: 'Setting Up Your Coding Agents: Connect your OpenAI Codex, Claude Code, or Antigravity account here in one click.',
             targetSelector: '#tour-connect-agents-list',
             openDialog: 'connect_agents',
             cardPlacement: 'bottom-right',
@@ -1150,7 +1483,7 @@
             cardPlacement: 'bottom-corner-right',
           },
           {
-            text: 'CourtListener & Legal MCP Tools: Equip your connected coding agents with live CourtListener caselaw verification and custom Model Context Protocol (MCP) research servers.',
+            text: 'MCP Setup & CourtListener Tools: Equip your chosen agents with live CourtListener caselaw verification and custom Model Context Protocol (MCP) servers, with automatic per-agent config verification.',
             targetSelector: '#tour-settings-mcp-panel',
             openDialog: 'settings',
             settingsTab: 'legal_mcp',
@@ -1169,6 +1502,12 @@
             openDialog: 'none',
             cardPlacement: 'center',
           },
+          {
+            text: 'In-App Version Updates & What’s New: Hover or click the update control in the bottom-left footer to preview release highlights and install new versions in one click.',
+            targetSelector: '#tour-update-button',
+            openDialog: 'none',
+            cardPlacement: 'center',
+          },
         ],
         keyHighlight: 'Tour Complete: Download LexHarness for macOS or Windows above to run the full sample matter or start your own casework.',
       },
@@ -1177,6 +1516,129 @@
     let webStepIdx = 0;
     let webPointIdx = 0;
     let webOverlayVisible = true;
+    let activeMobilePane = 'main'; // 'docket' | 'main' | 'inspector'
+    let mobileScaledDesktopMode = false;
+    let mobileCompactPoints = false;
+
+    function isMobileOrTabletViewport() {
+      return window.innerWidth < 1024;
+    }
+
+    function toggleMobileNav() {
+      const drawer = document.getElementById('mobile-nav-drawer');
+      const openIcon = document.getElementById('mobile-nav-icon-open');
+      const closeIcon = document.getElementById('mobile-nav-icon-close');
+      const btn = document.getElementById('mobile-nav-toggle');
+      const isHidden = drawer.classList.contains('hidden');
+      drawer.classList.toggle('hidden', !isHidden);
+      openIcon.classList.toggle('hidden', isHidden);
+      closeIcon.classList.toggle('hidden', !isHidden);
+      btn.setAttribute('aria-expanded', String(isHidden));
+    }
+
+    function closeMobileNav() {
+      const drawer = document.getElementById('mobile-nav-drawer');
+      if (drawer && !drawer.classList.contains('hidden')) {
+        toggleMobileNav();
+      }
+    }
+
+    function toggleMobileCompactPoints() {
+      mobileCompactPoints = !mobileCompactPoints;
+      const btn = document.getElementById('web-tour-compact-btn');
+      if (btn) {
+        btn.textContent = mobileCompactPoints ? 'Show All Points' : 'Focus Active';
+      }
+      renderWebTour();
+    }
+
+    function toggleMobileStageScaleMode() {
+      mobileScaledDesktopMode = !mobileScaledDesktopMode;
+      const btn = document.getElementById('web-mobile-layout-mode-btn');
+      const paneBar = document.getElementById('web-mobile-pane-bar');
+      if (btn) {
+        btn.textContent = mobileScaledDesktopMode
+          ? '📱 Switch to Adaptive Mobile Panes'
+          : '🖥️ Switch to 3-Pane Desktop Overview';
+      }
+      if (paneBar) {
+        paneBar.classList.toggle('hidden', mobileScaledDesktopMode);
+      }
+      applyResponsiveStageLayout();
+      setTimeout(updateWebSpotlight, 60);
+    }
+
+    function applyResponsiveStageLayout() {
+      const stage = document.getElementById('web-workspace-stage');
+      const viewport = document.getElementById('web-workspace-viewport');
+      if (!stage || !viewport) return;
+
+      if (isMobileOrTabletViewport() && mobileScaledDesktopMode) {
+        stage.classList.add('mobile-scaled-desktop');
+        const availWidth = Math.max(280, viewport.clientWidth);
+        const scale = Math.min(1, availWidth / 1140);
+        stage.style.transform = `scale(${scale})`;
+        viewport.style.height = `${Math.ceil(680 * scale)}px`;
+      } else {
+        stage.classList.remove('mobile-scaled-desktop');
+        stage.style.transform = '';
+        viewport.style.height = '';
+        switchMobileWorkspacePane(activeMobilePane, false);
+      }
+    }
+
+    function detectPaneForSelector(selector) {
+      const stage = document.getElementById('web-workspace-stage');
+      if (!stage || !selector) return 'main';
+      const el = stage.querySelector(selector);
+      if (!el) return 'main';
+      if (el.closest('#web-pane-docket')) return 'docket';
+      if (el.closest('#web-pane-inspector')) return 'inspector';
+      if (el.closest('#web-pane-main')) return 'main';
+      return activeMobilePane;
+    }
+
+    function switchMobileWorkspacePane(pane, manualClick) {
+      activeMobilePane = pane;
+      const docket = document.getElementById('web-pane-docket');
+      const main = document.getElementById('web-pane-main');
+      const inspector = document.getElementById('web-pane-inspector');
+
+      if (!docket || !main || !inspector) return;
+
+      const panes = [
+        { id: 'docket', el: docket, btn: document.getElementById('web-mobile-tab-docket') },
+        { id: 'main', el: main, btn: document.getElementById('web-mobile-tab-main') },
+        { id: 'inspector', el: inspector, btn: document.getElementById('web-mobile-tab-inspector') },
+      ];
+
+      const activeBtnCls = ['bg-amber-500/15', 'text-amber-300', 'border', 'border-amber-500/30'];
+
+      panes.forEach((p) => {
+        const isTarget = p.id === pane;
+        if (isTarget) {
+          p.el.classList.remove('hidden');
+          p.el.classList.add('flex');
+        } else {
+          p.el.classList.add('hidden');
+          p.el.classList.remove('flex');
+        }
+        if (p.btn) {
+          p.btn.classList.remove(...activeBtnCls);
+          p.btn.classList.remove('text-zinc-400');
+          if (isTarget) {
+            p.btn.classList.add(...activeBtnCls);
+          } else {
+            p.btn.classList.add('text-zinc-400');
+          }
+        }
+      });
+
+      if (manualClick) {
+        openSimulatedDialog('none');
+        setTimeout(updateWebSpotlight, 40);
+      }
+    }
 
     function switchSimulatedRightTab(tab) {
       const redlinePane = document.getElementById('tour-redline-pane');
@@ -1216,6 +1678,8 @@
         const corePane = document.getElementById('web-settings-pane-core');
         const mcpPane = document.getElementById('tour-settings-mcp-panel');
         const privPane = document.getElementById('tour-settings-privacy-panel');
+        const navMcp = document.getElementById('web-settings-nav-mcp');
+        const navPriv = document.getElementById('web-settings-nav-privacy');
 
         const showMcp = settingsTab === 'legal_mcp';
         const showPriv = settingsTab === 'privacy_routing';
@@ -1223,6 +1687,16 @@
         mcpPane.classList.toggle('hidden', !showMcp);
         privPane.classList.toggle('hidden', !showPriv);
         privPane.classList.toggle('grid', showPriv);
+
+        const activeNavCls = ['bg-amber-500/15', 'text-amber-300', 'border', 'border-amber-500/30', 'font-semibold'];
+        if (navMcp) {
+          navMcp.classList.remove(...activeNavCls);
+          if (showMcp) navMcp.classList.add(...activeNavCls);
+        }
+        if (navPriv) {
+          navPriv.classList.remove(...activeNavCls);
+          if (showPriv) navPriv.classList.add(...activeNavCls);
+        }
       }
     }
 
@@ -1233,21 +1707,22 @@
       drawer.classList.toggle('hidden', !isHidden);
       drawer.classList.toggle('grid', isHidden);
       chev.textContent = isHidden ? '▾' : '▸';
+      setTimeout(updateWebSpotlight, 40);
     }
 
-    function getPlacementClasses(placement) {
+    function getDesktopPlacementClasses(placement) {
       switch (placement) {
         case 'top-left':
-          return 'items-start justify-center pt-8';
+          return 'lg:items-start lg:justify-center lg:pt-8';
         case 'bottom-left':
-          return 'items-center justify-start pl-64';
+          return 'lg:items-center lg:justify-start lg:pl-64';
         case 'bottom-right':
-          return 'items-end justify-center pb-6';
+          return 'lg:items-end lg:justify-center lg:pb-6';
         case 'bottom-corner-right':
-          return 'items-end justify-end pr-6 pb-5';
+          return 'lg:items-end lg:justify-end lg:pr-6 lg:pb-5';
         case 'center':
         default:
-          return 'items-center justify-center';
+          return 'lg:items-center lg:justify-center';
       }
     }
 
@@ -1266,17 +1741,65 @@
         spotlight.style.opacity = '0';
         return;
       }
+
+      // Compute scale factor if stage is in mobile scaled-desktop mode
       const stageRect = stage.getBoundingClientRect();
       const rect = targetEl.getBoundingClientRect();
       if (rect.width === 0 && rect.height === 0) {
         spotlight.style.opacity = '0';
         return;
       }
+
+      const scaleX = stage.offsetWidth > 0 ? stageRect.width / stage.offsetWidth : 1;
+      const scaleY = stage.offsetHeight > 0 ? stageRect.height / stage.offsetHeight : 1;
+
+      const relTop = (rect.top - stageRect.top) / scaleY;
+      const relLeft = (rect.left - stageRect.left) / scaleX;
+      const relWidth = rect.width / scaleX;
+      const relHeight = rect.height / scaleY;
+
       spotlight.style.opacity = '1';
-      spotlight.style.top = Math.max(4, rect.top - stageRect.top - 5) + 'px';
-      spotlight.style.left = Math.max(4, rect.left - stageRect.left - 5) + 'px';
-      spotlight.style.width = (rect.width + 10) + 'px';
-      spotlight.style.height = (rect.height + 10) + 'px';
+      spotlight.style.top = Math.max(4, relTop - 5) + 'px';
+      spotlight.style.left = Math.max(4, relLeft - 5) + 'px';
+      spotlight.style.width = Math.min(stage.offsetWidth - 8, relWidth + 10) + 'px';
+      spotlight.style.height = (relHeight + 10) + 'px';
+
+      // On desktop (>= 1024px), if the floating card overlaps the spotlight target, shift the card clear of the target
+      const card = document.getElementById('web-tour-card');
+      if (card && !isMobileOrTabletViewport()) {
+        card.style.transform = '';
+        const cardRect = card.getBoundingClientRect();
+        const spotRect = spotlight.getBoundingClientRect();
+        const overlaps =
+          !(cardRect.right < spotRect.left ||
+            cardRect.left > spotRect.right ||
+            cardRect.bottom < spotRect.top ||
+            cardRect.top > spotRect.bottom);
+
+        if (overlaps) {
+          const spaceTop = spotRect.top - stageRect.top;
+          const spaceBottom = stageRect.bottom - spotRect.bottom;
+          const spaceLeft = spotRect.left - stageRect.left;
+          const spaceRight = stageRect.right - spotRect.right;
+
+          let dx = 0;
+          let dy = 0;
+          if (spaceBottom >= cardRect.height + 20) {
+            dy = (spotRect.bottom + 14) - cardRect.top;
+          } else if (spaceTop >= cardRect.height + 20) {
+            dy = (spotRect.top - 14) - cardRect.bottom;
+          } else if (spaceRight >= cardRect.width + 20) {
+            dx = (spotRect.right + 14) - cardRect.left;
+          } else if (spaceLeft >= cardRect.width + 20) {
+            dx = (spotRect.left - 14) - cardRect.right;
+          }
+          if (dx !== 0 || dy !== 0) {
+            card.style.transform = `translate(${Math.round(dx)}px, ${Math.round(dy)}px)`;
+          }
+        }
+      } else if (card) {
+        card.style.transform = '';
+      }
     }
 
     function renderWebTour() {
@@ -1288,6 +1811,29 @@
       }
       openSimulatedDialog(pt.openDialog || 'none', pt.settingsTab);
 
+      // Automatically switch mobile workspace pane to whichever pane holds the active target
+      const targetSelector = pt.targetSelector || step.targetSelector;
+      const activeDialog = pt.openDialog || 'none';
+      if (activeDialog === 'none') {
+        const requiredPane = detectPaneForSelector(targetSelector);
+        switchMobileWorkspacePane(requiredPane, false);
+      }
+
+      const mobilePaneBadge = document.getElementById('web-tour-mobile-pane-badge');
+      if (mobilePaneBadge) {
+        if (activeDialog === 'settings') {
+          mobilePaneBadge.textContent = '⚙️ Settings Modal';
+        } else if (activeDialog === 'connect_agents') {
+          mobilePaneBadge.textContent = '🔌 Connect Agents';
+        } else if (activeMobilePane === 'docket') {
+          mobilePaneBadge.textContent = '📁 1. Docket Pane';
+        } else if (activeMobilePane === 'inspector') {
+          mobilePaneBadge.textContent = '📑 3. Inspector Pane';
+        } else {
+          mobilePaneBadge.textContent = '⚖️ 2. Legal Stream';
+        }
+      }
+
       document.getElementById('web-tour-category').textContent = step.category;
       document.getElementById('web-tour-card-badge').textContent = `Card ${webStepIdx + 1} of ${WEB_TOUR_STEPS.length}`;
       document.getElementById('web-tour-point-badge').textContent = `Point ${webPointIdx + 1} of ${step.points.length}`;
@@ -1296,15 +1842,16 @@
       document.getElementById('web-tour-highlight').textContent = step.keyHighlight;
 
       const wrapper = document.getElementById('web-tour-card-wrapper');
-      wrapper.className = `absolute inset-0 z-40 flex p-4 pointer-events-none ${getPlacementClasses(pt.cardPlacement || 'center')}`;
+      wrapper.className = `w-full z-40 flex items-center justify-center lg:absolute lg:inset-0 lg:p-4 lg:pointer-events-none ${getDesktopPlacementClasses(pt.cardPlacement || 'center')}`;
       wrapper.style.display = webOverlayVisible ? 'flex' : 'none';
 
-      // Render points
+      // Render points (supports compact mobile view if toggled)
       const pointsContainer = document.getElementById('web-tour-points');
       pointsContainer.innerHTML = step.points
         .map((p, idx) => {
           const active = idx === webPointIdx;
-          return `<button type="button" onclick="selectWebPoint(${idx})" class="w-full text-left flex items-start gap-2 p-2 rounded-xl border transition cursor-pointer ${
+          const hiddenOnCompactMobile = mobileCompactPoints && !active ? 'hidden lg:flex' : 'flex';
+          return `<button type="button" id="web-tour-point-btn-${idx}" onclick="selectWebPoint(${idx})" class="w-full text-left ${hiddenOnCompactMobile} items-start gap-2 p-2 rounded-xl border transition cursor-pointer ${
             active
               ? 'bg-amber-500/15 border-amber-400/50 text-slate-100 shadow-sm'
               : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
@@ -1315,16 +1862,31 @@
         })
         .join('');
 
+      // Ensure active point is visible inside the points scroll area on smaller screens
+      const activePointBtn = document.getElementById(`web-tour-point-btn-${webPointIdx}`);
+      if (activePointBtn && pointsContainer.scrollHeight > pointsContainer.clientHeight) {
+        const targetScrollTop =
+          activePointBtn.offsetTop - pointsContainer.clientHeight / 2 + activePointBtn.clientHeight / 2;
+        pointsContainer.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+      }
+
       // Render top pills
       const pillsContainer = document.getElementById('web-tour-card-pills');
       pillsContainer.innerHTML = WEB_TOUR_STEPS.map((s, idx) => {
         const active = idx === webStepIdx;
-        return `<button type="button" onclick="jumpToWebCard(${idx})" class="px-2.5 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
+        return `<button type="button" id="web-tour-pill-${idx}" onclick="jumpToWebCard(${idx})" class="shrink-0 snap-start px-2.5 py-1.5 rounded-lg text-xs font-medium border transition cursor-pointer ${
           active
             ? 'bg-amber-500/20 border-amber-400/60 text-amber-300'
             : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
         }">${idx + 1}. ${s.category}</button>`;
       }).join('');
+
+      // Smoothly center active pill in the horizontal scroll strip without scrolling the page
+      const activePill = document.getElementById(`web-tour-pill-${webStepIdx}`);
+      if (activePill && pillsContainer.scrollWidth > pillsContainer.clientWidth) {
+        const scrollLeft = activePill.offsetLeft - pillsContainer.clientWidth / 2 + activePill.clientWidth / 2;
+        pillsContainer.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+      }
 
       // Render bottom dots
       const dotsContainer = document.getElementById('web-tour-dots');
@@ -1347,7 +1909,8 @@
             ? 'Next Card →'
             : `Next Point (${webPointIdx + 2}/${step.points.length}) →`;
 
-      setTimeout(updateWebSpotlight, 40);
+      applyResponsiveStageLayout();
+      setTimeout(updateWebSpotlight, 45);
     }
 
     function selectWebPoint(ptIdx) {
@@ -1356,12 +1919,16 @@
       renderWebTour();
     }
 
-    function jumpToWebCard(cardIdx) {
+    function jumpToWebCard(cardIdx, scrollToTour) {
       webStepIdx = cardIdx;
       webPointIdx = 0;
       webOverlayVisible = true;
       document.getElementById('web-tour-toggle-btn').textContent = 'Hide Tour Card (Explore UI Freely)';
       renderWebTour();
+      if (scrollToTour) {
+        const tourEl = document.getElementById('tour');
+        if (tourEl) tourEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
 
     function stepWebTour(delta) {
@@ -1411,19 +1978,67 @@
         const bullets = step.points
           .map((p) => `<li class="flex items-start gap-2"><span class="text-amber-400 font-bold">›</span><span>${p.text}</span></li>`)
           .join('');
-        return `<div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">${step.category}</span>
-            <span class="px-2 py-0.5 rounded bg-slate-800 text-[11px] font-mono text-slate-300">Card ${idx + 1} of ${WEB_TOUR_STEPS.length}</span>
+        return `<div class="p-5 sm:p-6 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-amber-500/35 transition space-y-3 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">${step.category}</span>
+              <span class="px-2 py-0.5 rounded bg-slate-800 text-[11px] font-mono text-slate-300 shrink-0">Card ${idx + 1} of ${WEB_TOUR_STEPS.length}</span>
+            </div>
+            <h3 class="text-base sm:text-lg font-bold text-white">${step.title}</h3>
+            <p class="text-xs font-medium text-amber-300/90">${step.subtitle}</p>
+            <ul class="space-y-2 text-xs text-slate-300 leading-relaxed pt-1">${bullets}</ul>
           </div>
-          <h3 class="text-lg font-bold text-white">${step.title}</h3>
-          <p class="text-xs font-medium text-amber-300/90">${step.subtitle}</p>
-          <ul class="space-y-2 text-xs text-slate-300 leading-relaxed pt-1">${bullets}</ul>
+          <div class="pt-3 border-t border-slate-800/80 flex justify-end">
+            <button
+              type="button"
+              onclick="jumpToWebCard(${idx}, true)"
+              class="text-xs font-semibold text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 cursor-pointer"
+            >
+              <span>Spotlight Card ${idx + 1} in Simulator</span>
+              <span>↑</span>
+            </button>
+          </div>
         </div>`;
       }).join('');
     }
 
-    window.addEventListener('resize', updateWebSpotlight);
+    // Touch swipe left / right support on the tour card for mobile devices
+    function setupTouchSwipeGestures() {
+      const card = document.getElementById('web-tour-card');
+      if (!card) return;
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      card.addEventListener('touchstart', (e) => {
+        if (!e.touches || e.touches.length !== 1) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      card.addEventListener('touchend', (e) => {
+        if (!e.changedTouches || e.changedTouches.length !== 1) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.6) {
+          if (dx < 0) {
+            stepWebTour(1);
+          } else {
+            stepWebTour(-1);
+          }
+        }
+      }, { passive: true });
+    }
+
+    window.addEventListener('resize', () => {
+      applyResponsiveStageLayout();
+      updateWebSpotlight();
+    });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        applyResponsiveStageLayout();
+        updateWebSpotlight();
+      }, 100);
+    });
     window.addEventListener('keydown', (e) => {
       if (!webOverlayVisible) return;
       if (e.key === 'ArrowRight') {
@@ -1435,7 +2050,16 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       renderStaticReferenceGrid();
+      setupTouchSwipeGestures();
       renderWebTour();
+
+      if (window.ResizeObserver) {
+        const stage = document.getElementById('web-workspace-stage');
+        if (stage) {
+          const ro = new ResizeObserver(() => updateWebSpotlight());
+          ro.observe(stage);
+        }
+      }
     });
   </script>
 </body>

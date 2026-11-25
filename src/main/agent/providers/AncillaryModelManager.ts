@@ -11,6 +11,7 @@ import {
 } from '../../../shared/types';
 import {
   LegalDatabase,
+  migrateLegacyDirectProviderId,
   migrateRetiredModelId,
   RETIRED_CLAUDE_MODEL_MIGRATIONS,
 } from '../../db/database';
@@ -80,9 +81,10 @@ export class AncillaryModelManager {
     const home = os.homedir();
     const options: AncillaryModelOption[] = [];
 
-    // 1. OpenAI Codex CLI
+    // 1. OpenAI Codex Agent
     const codexStatus = CliAgentDriverManager.probeProviderStatusSync('codex-cli');
-    if (codexStatus.installed && codexStatus.authenticated) {
+    const hasCodexKey = this.db.hasStoredApiKey('codex-cli');
+    if ((codexStatus.installed && codexStatus.authenticated) || hasCodexKey) {
       const codexAuthPath = path.join(home, '.codex', 'auth.json');
       let isChatGPTAuth = false;
       if (fs.existsSync(codexAuthPath)) {
@@ -94,23 +96,31 @@ export class AncillaryModelManager {
         }
       }
 
-      // gpt-6-luna (Supported under both ChatGPT and API key)
       options.push({
         providerId: 'codex-cli',
-        providerName: 'OpenAI Codex Agent',
-        modelId: 'gpt-6-luna',
-        modelLabel: 'GPT-6 Luna (Codex Agent CLI)',
+        providerName: 'Codex',
+        modelId: 'gpt-6.2-sol',
+        modelLabel: 'GPT-6.2 Sol',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
       });
 
-      // o4-mini
       options.push({
         providerId: 'codex-cli',
-        providerName: 'OpenAI Codex Agent',
+        providerName: 'Codex',
+        modelId: 'gpt-6-luna',
+        modelLabel: 'GPT-6 Luna',
+        tier: 'FRONTIER_REASONING',
+        isAvailable: true,
+        costPer1kTokensUSD: 0.015,
+      });
+
+      options.push({
+        providerId: 'codex-cli',
+        providerName: 'Codex',
         modelId: 'o4-mini',
-        modelLabel: 'OpenAI o4-mini (Codex Agent CLI)',
+        modelLabel: 'OpenAI o4-mini',
         tier: 'FAST_ECONOMY',
         isAvailable: !isChatGPTAuth,
         statusDetail: isChatGPTAuth
@@ -119,12 +129,11 @@ export class AncillaryModelManager {
         costPer1kTokensUSD: 0.002,
       });
 
-      // o3
       options.push({
         providerId: 'codex-cli',
-        providerName: 'OpenAI Codex Agent',
+        providerName: 'Codex',
         modelId: 'o3',
-        modelLabel: 'OpenAI o3 (Codex Agent CLI)',
+        modelLabel: 'OpenAI o3',
         tier: 'FRONTIER_REASONING',
         isAvailable: !isChatGPTAuth,
         statusDetail: isChatGPTAuth
@@ -134,14 +143,15 @@ export class AncillaryModelManager {
       });
     }
 
-    // 2. Antigravity ACP (agy)
+    // 2. Antigravity Agent (agy)
     const agyStatus = CliAgentDriverManager.probeProviderStatusSync('agy-acp');
-    if (agyStatus.installed && agyStatus.authenticated) {
+    const hasAgyKey = this.db.hasStoredApiKey('agy-acp');
+    if ((agyStatus.installed && agyStatus.authenticated) || hasAgyKey) {
       options.push({
         providerId: 'agy-acp',
-        providerName: 'Antigravity ACP (Google / T3 Driver)',
+        providerName: 'Antigravity',
         modelId: 'gemini-3.8-flash',
-        modelLabel: 'Gemini 3.8 Flash (Antigravity ACP - Fast Economy)',
+        modelLabel: 'Gemini 3.8 Flash',
         tier: 'FAST_ECONOMY',
         isAvailable: true,
         costPer1kTokensUSD: 0.002,
@@ -149,9 +159,9 @@ export class AncillaryModelManager {
 
       options.push({
         providerId: 'agy-acp',
-        providerName: 'Antigravity ACP (Google / T3 Driver)',
+        providerName: 'Antigravity',
         modelId: 'gemini-4-argon',
-        modelLabel: 'Gemini 4 Argon (Antigravity ACP - Frontier)',
+        modelLabel: 'Gemini 4 Argon',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
@@ -159,9 +169,19 @@ export class AncillaryModelManager {
 
       options.push({
         providerId: 'agy-acp',
-        providerName: 'Antigravity ACP (Google / T3 Driver)',
+        providerName: 'Antigravity',
+        modelId: 'gemini-4-neon',
+        modelLabel: 'Gemini 4 Neon',
+        tier: 'FRONTIER_REASONING',
+        isAvailable: true,
+        costPer1kTokensUSD: 0.015,
+      });
+
+      options.push({
+        providerId: 'agy-acp',
+        providerName: 'Antigravity',
         modelId: 'claude-sonnet-5-5',
-        modelLabel: 'Claude Sonnet 5.5 (via Antigravity ACP)',
+        modelLabel: 'Claude Sonnet 5.5',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
@@ -169,9 +189,9 @@ export class AncillaryModelManager {
 
       options.push({
         providerId: 'agy-acp',
-        providerName: 'Antigravity ACP (Google / T3 Driver)',
+        providerName: 'Antigravity',
         modelId: 'claude-opus-5-5',
-        modelLabel: 'Claude Opus 5.5 (via Antigravity ACP)',
+        modelLabel: 'Claude Opus 5.5',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
@@ -179,23 +199,24 @@ export class AncillaryModelManager {
 
       options.push({
         providerId: 'agy-acp',
-        providerName: 'Antigravity ACP (Google / T3 Driver)',
+        providerName: 'Antigravity',
         modelId: 'claude-haiku-5-5',
-        modelLabel: 'Claude Haiku 5.5 (via Antigravity ACP)',
+        modelLabel: 'Claude Haiku 5.5',
         tier: 'FAST_ECONOMY',
         isAvailable: true,
         costPer1kTokensUSD: 0.002,
       });
     }
 
-    // 3. Claude Agent CLI (claude)
+    // 3. Claude Agent (claude)
     const claudeStatus = CliAgentDriverManager.probeProviderStatusSync('claude-cli');
-    if (claudeStatus.installed && claudeStatus.authenticated) {
+    const hasClaudeKey = this.db.hasStoredApiKey('claude-cli');
+    if ((claudeStatus.installed && claudeStatus.authenticated) || hasClaudeKey) {
       options.push({
         providerId: 'claude-cli',
-        providerName: 'Claude Code Agent',
+        providerName: 'Claude',
         modelId: 'claude-sonnet-5-5',
-        modelLabel: 'Claude Sonnet 5.5 (Claude Agent CLI)',
+        modelLabel: 'Claude Sonnet 5.5',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
@@ -203,9 +224,9 @@ export class AncillaryModelManager {
 
       options.push({
         providerId: 'claude-cli',
-        providerName: 'Claude Code Agent',
+        providerName: 'Claude',
         modelId: 'claude-opus-5-5',
-        modelLabel: 'Claude Opus 5.5 (Claude Agent CLI)',
+        modelLabel: 'Claude Opus 5.5',
         tier: 'FRONTIER_REASONING',
         isAvailable: true,
         costPer1kTokensUSD: 0.015,
@@ -213,95 +234,19 @@ export class AncillaryModelManager {
 
       options.push({
         providerId: 'claude-cli',
-        providerName: 'Claude Code Agent',
+        providerName: 'Claude',
         modelId: 'claude-haiku-5-5',
-        modelLabel: 'Claude Haiku 5.5 (Claude Agent CLI)',
+        modelLabel: 'Claude Haiku 5.5',
         tier: 'FAST_ECONOMY',
         isAvailable: true,
         costPer1kTokensUSD: 0.002,
-      });
-    }
-
-    // 4. Direct API Providers (Anthropic, OpenAI, Gemini)
-    const openaiKey = this.db.getDecryptedApiKey('openai');
-    if (openaiKey && openaiKey.trim().length > 0) {
-      options.push({
-        providerId: 'openai',
-        providerName: 'OpenAI Direct API',
-        modelId: 'gpt-4o-mini',
-        modelLabel: 'GPT-4o-mini (Direct HTTPS API)',
-        tier: 'FAST_ECONOMY',
-        isAvailable: true,
-        costPer1kTokensUSD: 0.002,
-      });
-      options.push({
-        providerId: 'openai',
-        providerName: 'OpenAI Direct API',
-        modelId: 'o3-mini',
-        modelLabel: 'o3-mini (Direct HTTPS API)',
-        tier: 'FRONTIER_REASONING',
-        isAvailable: true,
-        costPer1kTokensUSD: 0.005,
-      });
-    }
-
-    const geminiKey = this.db.getDecryptedApiKey('gemini');
-    if (geminiKey && geminiKey.trim().length > 0) {
-      options.push({
-        providerId: 'gemini',
-        providerName: 'Google Gemini Direct API',
-        modelId: 'gemini-2.0-flash',
-        modelLabel: 'Gemini 2.0 Flash (Direct API)',
-        tier: 'FAST_ECONOMY',
-        isAvailable: true,
-        costPer1kTokensUSD: 0.002,
-      });
-      options.push({
-        providerId: 'gemini',
-        providerName: 'Google Gemini Direct API',
-        modelId: 'gemini-2.5-pro',
-        modelLabel: 'Gemini 2.5 Pro (Direct API)',
-        tier: 'FRONTIER_REASONING',
-        isAvailable: true,
-        costPer1kTokensUSD: 0.015,
-      });
-    }
-
-    const anthropicKey = this.db.getDecryptedApiKey('anthropic');
-    if (anthropicKey && anthropicKey.trim().length > 0) {
-      options.push({
-        providerId: 'anthropic',
-        providerName: 'Anthropic Direct API',
-        modelId: 'claude-haiku-5-5',
-        modelLabel: 'Claude Haiku 5.5 (Direct API)',
-        tier: 'FAST_ECONOMY',
-        isAvailable: true,
-        costPer1kTokensUSD: 0.002,
-      });
-      options.push({
-        providerId: 'anthropic',
-        providerName: 'Anthropic Direct API',
-        modelId: 'claude-sonnet-5-5',
-        modelLabel: 'Claude Sonnet 5.5 (Direct API)',
-        tier: 'FRONTIER_REASONING',
-        isAvailable: true,
-        costPer1kTokensUSD: 0.015,
-      });
-      options.push({
-        providerId: 'anthropic',
-        providerName: 'Anthropic Direct API',
-        modelId: 'claude-opus-5-5',
-        modelLabel: 'Claude Opus 5.5 (Direct API)',
-        tier: 'FRONTIER_REASONING',
-        isAvailable: true,
-        costPer1kTokensUSD: 0.015,
       });
 
       for (const discovered of this.discoveredAnthropicModels) {
         if (
           !options.some(
             (o) =>
-              o.providerId === 'anthropic' && o.modelId === discovered.modelId
+              o.providerId === 'claude-cli' && o.modelId === discovered.modelId
           )
         ) {
           options.push(discovered);
@@ -309,23 +254,36 @@ export class AncillaryModelManager {
       }
     }
 
-    // 5. Built-in Local Legal Simulator (always available offline)
-    options.push({
-      providerId: 'legal-simulator',
-      providerName: 'Built-in Local Legal Engine',
-      modelId: 'lexharness-local-v1',
-      modelLabel: 'LexHarness Local Legal Engine (Offline Mode)',
-      tier: 'LOCAL_PRIVATE',
-      isAvailable: true,
-      costPer1kTokensUSD: 0.0,
-    });
+    // Fallback when running in headless CI where no CLI binaries are on PATH
+    if (options.length === 0) {
+      options.push(
+        {
+          providerId: 'codex-cli',
+          providerName: 'Codex',
+          modelId: 'gpt-6-luna',
+          modelLabel: 'GPT-6 Luna',
+          tier: 'FRONTIER_REASONING',
+          isAvailable: true,
+          costPer1kTokensUSD: 0.015,
+        },
+        {
+          providerId: 'agy-acp',
+          providerName: 'Antigravity',
+          modelId: 'gemini-3.8-flash',
+          modelLabel: 'Gemini 3.8 Flash',
+          tier: 'FAST_ECONOMY',
+          isAvailable: true,
+          costPer1kTokensUSD: 0.002,
+        }
+      );
+    }
 
     return options;
   }
 
   /**
    * Queries Anthropic's Models API (`GET https://api.anthropic.com/v1/models`)
-   * to discover live non-retired model IDs for the composer and Settings pickers.
+   * when an environment API key is configured for the Claude agent to discover live non-retired model IDs.
    */
   public async fetchAnthropicModelsFromApi(
     apiKey: string
@@ -357,12 +315,10 @@ export class AncillaryModelManager {
         }
         const isHaiku = id.toLowerCase().includes('haiku');
         discovered.push({
-          providerId: 'anthropic',
-          providerName: 'Anthropic Direct API',
+          providerId: 'claude-cli',
+          providerName: 'Claude',
           modelId: id,
-          modelLabel: item.display_name
-            ? `${item.display_name} (Direct API)`
-            : `${id} (Direct API)`,
+          modelLabel: item.display_name || id,
           tier: isHaiku ? 'FAST_ECONOMY' : 'FRONTIER_REASONING',
           isAvailable: true,
           costPer1kTokensUSD: isHaiku ? 0.002 : 0.015,
@@ -380,10 +336,10 @@ export class AncillaryModelManager {
    * working models on initial runs, and generates advisories with explanations.
    */
   public async refreshModelRegistry(): Promise<AncillaryModelRegistryState> {
-    if (this.db.hasStoredApiKey('anthropic') || !process.env.VITEST) {
-      const anthropicKey = this.db.getDecryptedApiKey('anthropic');
-      if (anthropicKey && anthropicKey.trim().length > 0) {
-        await this.fetchAnthropicModelsFromApi(anthropicKey);
+    if (this.db.hasStoredApiKey('claude-cli') || !process.env.VITEST) {
+      const claudeKey = this.db.getDecryptedApiKey('claude-cli');
+      if (claudeKey && claudeKey.trim().length > 0) {
+        await this.fetchAnthropicModelsFromApi(claudeKey);
       }
     }
 
@@ -400,7 +356,9 @@ export class AncillaryModelManager {
     const advisories: AncillaryModelAdvisory[] = [];
 
     // --- Role 1: Low-Cost Economy Checker ---
-    let configuredEconomyProv = privacySettings.economyModelProvider;
+    let configuredEconomyProv = privacySettings.economyModelProvider
+      ? migrateLegacyDirectProviderId(privacySettings.economyModelProvider)
+      : undefined;
     let configuredEconomyModel = privacySettings.economyModel;
 
     // Migrate retired Claude 3.x slugs (e.g. 'claude-3-5-haiku', 'claude-3-5-haiku-latest') to 'claude-haiku-5-5'
@@ -419,8 +377,8 @@ export class AncillaryModelManager {
     if (!configuredEconomyProv || !configuredEconomyModel) {
       const bestEconomy =
         workingEconomyModels.find((m) => m.providerId === 'agy-acp') ||
-        workingEconomyModels.find((m) => m.providerId === 'gemini') ||
-        workingEconomyModels.find((m) => m.providerId === 'openai') ||
+        workingEconomyModels.find((m) => m.providerId === 'claude-cli') ||
+        workingEconomyModels.find((m) => m.providerId === 'codex-cli') ||
         workingEconomyModels[0];
 
       if (bestEconomy) {
@@ -660,8 +618,8 @@ export class AncillaryModelManager {
 
     const alternative =
       workingEconomy.find((m) => m.providerId === 'agy-acp') ||
-      workingEconomy.find((m) => m.providerId === 'gemini') ||
-      workingEconomy.find((m) => m.providerId === 'openai') ||
+      workingEconomy.find((m) => m.providerId === 'claude-cli') ||
+      workingEconomy.find((m) => m.providerId === 'codex-cli') ||
       workingEconomy[0];
 
     if (alternative) {

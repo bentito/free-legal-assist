@@ -6,7 +6,8 @@ export type LLMProviderId =
   | 'openai'
   | 'gemini'
   | 'openrouter'
-  | 'legal-simulator';
+  | 'legal-simulator'
+  | (string & {});
 
 export type ProviderDriverKind =
   | 'antigravity-acp'
@@ -14,6 +15,24 @@ export type ProviderDriverKind =
   | 'claude-agent-cli'
   | 'http-api'
   | 'local-simulator';
+
+export type AntigravityAuthMethod =
+  | 'oauth-personal'
+  | 'oauth-business'
+  | 'gemini-api-key'
+  | 'agent-platform';
+
+export type ClaudeIdleCompactionMode =
+  | 'default'
+  | 'onReturn'
+  | 'beforeCacheExpires'
+  | 'off';
+
+export interface ProviderEnvironmentVariable {
+  name: string;
+  value: string;
+  sensitive?: boolean;
+}
 
 export type PractitionerProfileId =
   | 'vt-criminal-defense'
@@ -42,6 +61,11 @@ export interface ProviderRuntimeStatus {
   resolvedBinaryPath: string;
   authLabel: string;
   statusDetail: string;
+  statusState?: 'ready' | 'warning' | 'error' | 'disabled';
+  statusHeadline?: string;
+  configProblems?: string[];
+  checkedAt?: string;
+  accountEmail?: string | null;
 }
 
 export interface ProviderConfig {
@@ -49,15 +73,28 @@ export interface ProviderConfig {
   driverKind: ProviderDriverKind;
   name: string;
   description: string;
+  accentColor?: string;
+  isDefaultInstance?: boolean;
+  isDirty?: boolean;
   hasApiKey: boolean;
   maskedApiKey: string;
   baseUrl?: string;
   binaryPath?: string;
+  homePath?: string;
+  shadowHomePath?: string;
   customArgs?: string;
+  autoCompactWindow?: string;
+  idleCompaction?: ClaudeIdleCompactionMode;
+  authMethod?: AntigravityAuthMethod;
+  gcpProject?: string;
+  gcpLocation?: string;
+  environmentVars?: ProviderEnvironmentVariable[];
+  favoriteModels?: string[];
+  hiddenModels?: string[];
   reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
   defaultModel: string;
-  availableModels: { id: string; label: string }[];
+  availableModels: { id: string; label: string; isCustom?: boolean; capabilities?: string[] }[];
   enabled: boolean;
   runtimeStatus?: ProviderRuntimeStatus;
 }
@@ -326,11 +363,26 @@ export interface AgentConnectionInstance {
   isAdditionalAccount?: boolean;
 }
 
+export interface AgentMcpSyncStatus {
+  instanceId: string;
+  displayName: string;
+  driver: 'codex' | 'claudeAgent' | 'antigravity';
+  enabled: boolean;
+  isChosenForRole: boolean;
+  roles: string[];
+  configPath: string;
+  courtListenerConfigured: boolean;
+  customServersConfigured: string[];
+  missingServers: string[];
+  inSync: boolean;
+}
+
 export interface CourtListenerMcpAssuranceState {
   hasInstalledAgent: boolean;
   configuredAgentDisplayName: string | null;
   configuredAgentDriver: 'codex' | 'claudeAgent' | 'antigravity' | null;
   installedDrivers?: ('codex' | 'claudeAgent' | 'antigravity')[];
+  agentSyncStatuses?: AgentMcpSyncStatus[];
   hasAuthToken: boolean;
   maskedAuthToken: string | null;
   signupUrl: string;
@@ -545,6 +597,59 @@ export interface ExportDocxPayload {
     date?: string;
   }>;
 }
+
+export type DesktopUpdateStatus =
+  | 'disabled'
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'up-to-date'
+  | 'error';
+
+export type DesktopRuntimeArch = 'arm64' | 'x64' | 'other';
+
+export interface DesktopUpdateReleaseNote {
+  version: string;
+  items: string[];
+  totalItems: number;
+  releasedAt?: string;
+  intro?: string;
+  stats?: string;
+  footer?: string;
+}
+
+export interface DesktopUpdateState {
+  enabled: boolean;
+  status: DesktopUpdateStatus;
+  currentVersion: string;
+  hostArch: DesktopRuntimeArch;
+  appArch: DesktopRuntimeArch;
+  runningUnderArm64Translation: boolean;
+  availableVersion: string | null;
+  downloadedVersion: string | null;
+  releaseNotes: DesktopUpdateReleaseNote[];
+  omittedReleaseCount: number;
+  downloadPercent: number | null;
+  checkedAt: string | null;
+  message: string | null;
+  errorContext: 'check' | 'download' | 'install' | null;
+  canRetry: boolean;
+  notAppliedVersion?: string;
+}
+
+export interface DesktopUpdateCheckResult {
+  checked: boolean;
+  state: DesktopUpdateState;
+}
+
+export interface DesktopUpdateActionResult {
+  accepted: boolean;
+  completed: boolean;
+  state: DesktopUpdateState;
+}
+
 
 
 

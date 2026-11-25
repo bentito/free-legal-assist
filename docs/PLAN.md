@@ -4,7 +4,7 @@
 
 **LexHarness** is a cross-platform (**macOS and Windows**) desktop application that provides lawyers with a dedicated **Agent Harness Control Surface**—an autonomous, multi-step workspace for legal research, record investigation, citation verification, and work-product drafting:
 
-1. **Local Client Agent Loop**: Runs natively on the lawyer's Mac or Windows machine inside the Electron main process, maintaining matter state and legal message history directly in a local SQLite database (`sql.js`), executing local matter evidence tools (`search_matter_corpus`, `verify_citation_lookup`, `read_document_pages`, `propose_document_redline`, `record_chronology_fact`), and calling LLM provider APIs or T3-style CLI/ACP agent harnesses directly from the client.
+1. **Local Client Agent Loop**: Runs natively on the lawyer's Mac or Windows machine inside the Electron main process, maintaining matter state and legal message history directly in a local SQLite database (`sql.js`), executing local matter evidence tools (`search_matter_corpus`, `verify_citation_lookup`, `read_document_pages`, `propose_document_redline`, `record_chronology_fact`), and dispatching turns to T3-style CLI/ACP agents (`Codex`, `Claude`, `Antigravity`).
 2. **Practitioner Profiles & User-Governed Legal System Prompts**: All system prompts, task presets, default jurisdictions, and critic instructions are organized into selectable **Practitioner Profiles** and exposed directly in the application's **Prompt Governance Studio** (Settings).
    - **1st in Pick List (Default Profile)**: **`Vermont Criminal Defense Lawyer`** — Pre-configured for Vermont Superior Court, Criminal Division practice, grounding analysis in the Vermont Constitution (specifically **Chapter I, Article 11** search-and-seizure protections, which are broader than the federal Fourth Amendment, and **Article 10** trial/due process rights), the **Vermont Rules of Criminal Procedure (V.R.Cr.P.)**, **Vermont Rules of Evidence (V.R.E.)**, **Title 13 (`13 V.S.A.`)** and **Title 23 (`23 V.S.A.`)**, and Vermont Supreme Court precedent.
    - **2nd in Pick List**: **`General Legal Practice`** — A versatile civil, transactional, and regulatory profile with general practice presets.
@@ -52,10 +52,9 @@ flowchart TB
         OnnxNER["Contextual Legal PII Scrubber (legal-ner-scrubber.onnx - 65MB INT8)"]
     end
 
-    subgraph Providers["Local On-Device SLM + Multi-LLM Frontier Providers & Legal MCP Endpoints"]
+    subgraph Providers["Connected Agents & Local On-Device Engine"]
         LocalSLM["Optional On-Device Local Model (Ollama: Qwen-2.5-3B / Llama-3.2-3B / Phi-4)"]
-        CLI["T3 CLI Agent Harnesses: Antigravity ACP (agy), Codex CLI (codex exec), Claude Code (claude --mcp-config)"]
-        CloudAPIs["Direct HTTPS APIs: Anthropic Claude, Google Gemini, OpenAI, OpenRouter"]
+        CLI["T3-Style Connected Agents: Antigravity ACP (agy), Codex (codex exec), Claude (claude)"]
         Sim["Built-In Local Legal Harness Engine (Zero-Key Mac/Win Test Mode)"]
     end
 
@@ -74,7 +73,6 @@ flowchart TB
     AdversarialEngine <--> RouterGateway
     LLMClient <--> CliDrivers
     CliDrivers <--> CLI
-    LLMClient <--> CloudAPIs
     LLMClient <--> Sim
 ```
 
@@ -193,7 +191,7 @@ A core architectural principle in LexHarness is the clean **Separation of Concer
 ### 6.1 MCP is a Function of the Agents, Not the Harness
 - **Agent-Native Discovery & Lifecycle**: Model Context Protocol (MCP) tooling (such as CourtListener legal search, SEC EDGAR, or state bar citators) belongs to the agents themselves (`claude`, `codex`, `agy` ACP). Each agent runtime maintains its own configuration file, discovery mechanism, and transport bindings (e.g. `claude mcp add`, `~/.codex/config.toml` or `codex mcp`, and Antigravity tool descriptors).
 - **No Harness Proxying or Central Re-Implementation**: The harness does not interpose, proxy, or centrally host MCP servers on behalf of agents. Attempting to manage or inject agent-internal MCP tooling from the outer harness creates redundant configuration drift, credential duplication, and brittle runtime dependencies.
-- **Agent Autonomy**: When agents are launched (via CLI harness, ACP, or direct API), they independently execute their own configured MCP tools with full agentic autonomy.
+- **Agent Autonomy**: When agents are launched (via CLI or ACP), they independently execute their own configured MCP tools with full agentic autonomy.
 
 ### 6.2 The Harness Role: Local Matter Evidence Grounding & Adversarial Governance
 LexHarness focuses exclusively on the governance layer that agents cannot provide themselves:
@@ -384,7 +382,7 @@ free-legal-assist/
 ├── vite.config.ts                                # Vite React renderer config (port 5173, outDir: dist)
 ├── tailwind.config.js                            # Tailwind CSS config with dark slate/amber legal theme
 ├── postcss.config.js                             # PostCSS config
-├── electron-builder.yml                          # Packaging config for macOS (.dmg/.zip) and Windows (nsis/.zip)
+├── electron-builder.yml                          # Packaging & GitHub Release publish config for macOS (.dmg/.zip) and Windows (nsis/.zip)
 ├── index.html                                    # Renderer HTML entry point
 ├── README.md                                     # Launch & test instructions
 ├── resources/
@@ -395,11 +393,15 @@ free-legal-assist/
 │   └── PLAN.md                                   # Architectural & implementation specification (mirrors this document)
 └── src/
     ├── shared/
-    │   └── types.ts                              # Shared domain & IPC contracts (PractitionerProfile, RoutingDecisionLog, etc.)
+    │   └── types.ts                              # Shared domain & IPC contracts (PractitionerProfile, RoutingDecisionLog, DesktopUpdateState, etc.)
     ├── preload/
-    │   └── index.ts                              # Electron contextBridge exposing window.lexharness
+    │   └── index.ts                              # Electron contextBridge exposing window.lexharness (including update state & actions)
     ├── main/
     │   ├── index.ts                              # Electron main process, BrowserWindow, safeStorage & IPC handlers
+    │   ├── updates/                              # [Section 12] T3-Style In-App Auto-Updater & Release Notes Engine
+    │   │   ├── DesktopUpdaterService.ts          # electron-updater / GitHub Releases orchestrator, 15s startup delay, 4h poll & install record
+    │   │   ├── releaseNotesParser.ts             # Markdown release-note normalizer (Lead-in bolding, footer summary, stats & PR cleanup)
+    │   │   └── updateMachine.ts                  # Pure reducer state machine for update lifecycle transitions & retry handling
     │   ├── db/
     │   │   ├── defaultLegalData.ts               # Built-in Practitioner Profiles (1. VT Criminal Defense, 2. General Practice) & seeded matters
     │   │   └── database.ts                       # SQLite (sql.js) persistence, profiles, updateMatter, deleteMatter, CLI state & routing logs
@@ -414,12 +416,12 @@ free-legal-assist/
     │   │   │   ├── PiiScrubberVault.ts           # Deterministic regex + matter roster + pseudonym vault + safeStorage re-hydration
     │   │   │   └── RoutingDebugLogger.ts         # Structured JSONL & SQLite decision logger with diagnostic stream
     │   │   └── providers/
-    │   │       ├── CliAgentDriverManager.ts      # T3-style CLI/ACP agent driver for Antigravity ACP, Codex CLI & Claude Code CLI 
-    │   │       └── MultiLLMClient.ts             # Dispatches to CLI Agent Harnesses, direct HTTPS APIs, or Local Legal Engine
+    │   │       ├── CliAgentDriverManager.ts      # T3-style CLI/ACP agent driver for Antigravity, Codex & Claude
+    │   │       └── MultiLLMClient.ts             # Dispatches to Connected Agents or Local Legal Engine
     │   ├── tools/
     │   │   └── LegalToolExecutor.ts              # Local legal evidence tools operating against Matter corpus
     │   └── __tests__/
-    │       └── legalHarness.test.ts              # Vitest suite verifying profiles, Matter Settings, deletion, CLI drivers, agent onboarding & loop
+    │       └── legalHarness.test.ts              # Vitest suite verifying profiles, Matter Settings, deletion, CLI drivers, agent onboarding, loop & updater
     └── renderer/
         ├── main.tsx                              # React DOM root mount
         ├── styles.css                            # Tailwind directives + macOS -webkit-app-region drag rules
@@ -428,6 +430,7 @@ free-legal-assist/
         │   └── bridge.ts                         # Typed renderer wrapper around window.lexharness
         └── components/
             ├── ConnectAgentsModal.tsx            # T3-style "Connect your agents" onboarding, multi-account ChatGPT & auth terminal modal
+            ├── DesktopUpdateButton.tsx           # [Section 12] Compact 32x32 status button, progress ring & "What's New" hover popover card
             ├── PromptGovernanceModal.tsx         # Practitioner Profile selector + 7-tab modal (Layers 1–4, CLI Agents & Preview)
             ├── RoutingDebugDrawer.tsx            # [Phase 2] Expandable real-time decision telemetry & PII audit inspector drawer
             └── RightWorkspacePane.tsx            # 3-tab right pane: Work-Product Redline, Matter Corpus & Chronology
@@ -475,4 +478,211 @@ To support day-to-day casework document intake and filing preparation without ma
 
 3. **Unified In-Composer & Exhibits Pane Document Intake**:
    - Both the bottom composer import button and the right-pane Exhibits & Authorities dropzone ingest supported files directly into the matter's SQLite corpus so subsequent drafts and peer reviews are immediately grounded in the uploaded record.
+
+---
+
+## 12. T3-Style In-App Auto-Updater & Compact Release Notes Popover (`DesktopUpdaterService` & `DesktopUpdateButton`)
+
+To give attorneys seamless, one-click application updates with a calm, compact "What's New" preview modeled directly on T3 Code's desktop update architecture (`src/updates/DesktopUpdates.ts`, `src/updates/updateMachine.ts`, and `desktopUpdate.logic.ts`), LexHarness implements an end-to-end **In-App Version Update & Release Notes Subsystem**:
+
+### 12.1 Architecture & Update Lifecycle Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as DesktopUpdateButton (Sidebar Footer)
+    participant Bridge as window.lexharness IPC Bridge
+    participant Service as DesktopUpdaterService (Main Process)
+    participant Parser as releaseNotesParser
+    participant Updater as electron-updater + GitHub Releases API (bentito/free-legal-assist)
+
+    Note over Service: 15s after app launch (and every 4 hours)
+    Service->>Updater: checkForUpdates() + fetch fullChangelog / GitHub Releases
+    Updater-->>Service: UpdateInfo (version, releaseNotes, releaseDate)
+    Service->>Parser: normalizeDesktopUpdateReleaseNotes(releaseNotes, version)
+    Parser-->>Service: Structured ReleaseNotes (items, totalItems, footer, stats)
+    Service-->>UI: Broadcast legal:update-state (status: "available" -> "downloading")
+    Updater-->>Service: download-progress (throttled to 10% milestones)
+    Service-->>UI: Broadcast downloadPercent (0%..100% SVG progress ring)
+    Updater-->>Service: update-downloaded
+    Service-->>UI: Broadcast legal:update-state (status: "downloaded", canRetry: true)
+    UI->>UI: Render Refresh-with-Checkmark badge & enable hover Release Notes Popover
+    Note over UI: Attorney hovers button -> sees compact "What's New" card
+    UI->>Bridge: Attorney clicks button -> confirm dialog -> installUpdate()
+    Bridge->>Service: Write desktop-update-install.json ({ fromVersion, targetVersion })
+    Service->>Updater: quitAndInstall(false, true)
+```
+
+### 12.2 Packaging & Update Feed Configuration (`electron-builder.yml` & `package.json`)
+
+1. **Dependencies & Build Feed (`app-update.yml`)**:
+   - Adds `electron-updater` to `package.json` `dependencies`.
+   - Configures the `publish` block in `electron-builder.yml` so `electron-builder` automatically emits `resources/app-update.yml` in packaged macOS (`.dmg` + `-mac.zip` with `.blockmap`) and Windows (`nsis` `.exe` + `.blockmap`) builds:
+     ```yaml
+     publish:
+       - provider: github
+         owner: bentito
+         repo: free-legal-assist
+         releaseType: release
+     ```
+   - Preserves `verifyUpdateCodeSignature: false` on Windows and custom `build/installer.nsh` recovery macros so in-place upgrades over unsigned or self-signed builds succeed cleanly on both macOS (`arm64`) and Windows (`x64`/`arm64`).
+2. **Graceful Dev / Unpackaged Fallback & Direct GitHub Release Preview**:
+   - Following T3 Code's `getAutoUpdateDisabledReason`, when running in unpackaged development mode (`!app.isPackaged`) or if `LEXHARNESS_DISABLE_AUTO_UPDATE=1` is set, the updater reports a clean disabled/read-only state (`"Automatic updates are only available in packaged production builds."`) while also supporting a **GitHub Release API fallback** (`https://api.github.com/repos/bentito/free-legal-assist/releases`) and `LEXHARNESS_MOCK_UPDATES=1` so the compact release-notes popover can be inspected and tested in development and CI.
+
+### 12.3 Main-Process Update State Machine (`src/main/updates/updateMachine.ts` & `DesktopUpdaterService.ts`)
+
+Replicates T3 Code's deterministic reducer state machine (`DesktopUpdateState`) and operational safeguards:
+
+1. **Typed Update State Contract (`DesktopUpdateState` in `src/shared/types.ts`)**:
+   ```typescript
+   export type DesktopUpdateStatus =
+     | 'disabled'
+     | 'idle'
+     | 'checking'
+     | 'available'
+     | 'downloading'
+     | 'downloaded'
+     | 'up-to-date'
+     | 'error';
+
+   export interface DesktopUpdateReleaseNote {
+     version: string;
+     items: string[];         // Up to 4 highlighted bullets in "**Lead-in.** Description." format
+     totalItems: number;      // Total bullets before truncation
+     releasedAt?: string;     // ISO date (YYYY-MM-DD) for relative age badge ("today", "2d ago")
+     intro?: string;          // Optional summary lead paragraph
+     footer?: string;         // Summary line, e.g., "Plus 59 more bug fixes." or "Plus 6 more improvements."
+     stats?: string;          // Contributor/change line, e.g., "67 changes from 25 contributors"
+   }
+
+   export interface DesktopUpdateState {
+     enabled: boolean;
+     status: DesktopUpdateStatus;
+     currentVersion: string;
+     hostArch: 'arm64' | 'x64' | 'other';
+     appArch: 'arm64' | 'x64' | 'other';
+     runningUnderArm64Translation: boolean;
+     availableVersion: string | null;
+     downloadedVersion: string | null;
+     releaseNotes: DesktopUpdateReleaseNote[];
+     omittedReleaseCount: number;
+     downloadPercent: number | null;
+     checkedAt: string | null;
+     message: string | null;
+     errorContext: 'check' | 'download' | 'install' | null;
+     canRetry: boolean;
+     notAppliedVersion?: string;
+   }
+   ```
+2. **Polling Schedule & Throttled Progress Broadcasts**:
+   - **Startup Delay**: Waits `15 seconds` (`AUTO_UPDATE_STARTUP_DELAY`) after window readiness before performing the initial background check so app startup and SQLite initialization remain instantaneous.
+   - **Periodic Poll**: Re-checks every `4 hours` (`AUTO_UPDATE_POLL_INTERVAL`).
+   - **10% Milestone Progress Throttling**: Replicates T3 Code's `shouldBroadcastDownloadProgress`—only broadcasts `download-progress` IPC events when `Math.floor(nextPercent / 10)` crosses a 10% boundary or reaches `100%`, preventing IPC thrashing during background downloads.
+   - **Preserving Downloaded Updates Across Re-Checks**: If an update is already in `downloaded` status and a subsequent check fails or returns no newer version, `reduceDesktopUpdateStateOnCheckFailure` and `reduceDesktopUpdateStateOnNoUpdate` preserve the `downloaded` status and cached `releaseNotes` so the attorney never loses the ready-to-install prompt.
+3. **Install Verification Record (`desktop-update-install.json`)**:
+   - Before invoking `autoUpdater.quitAndInstall()`, writes `<userData>/lexharness-data/desktop-update-install.json` containing `{ fromVersion, targetVersion }`.
+   - On next launch, `resolveNotAppliedInstallVersion` checks whether `fromVersion === appVersion && targetVersion !== appVersion`. If an install failed to apply, it sets `notAppliedVersion: targetVersion` and surfaces `"Update {version} did not apply. Click to retry."`
+4. **Apple Silicon Rosetta Translation Detection**:
+   - Detects `app.runningUnderARM64Translation` (`hostArch === 'arm64' && appArch === 'x64'`) and warns the user if an Intel build is running under Rosetta on Apple Silicon.
+
+### 12.4 Release Notes Parser & Normalizer (`src/main/updates/releaseNotesParser.ts`)
+
+Replicates T3 Code's `extractReleaseNoteSummary`, `extractReleaseNoteItems`, and `normalizeDesktopUpdateReleaseNotes` so GitHub Release notes render into the exact compact card format shown in T3 Code:
+
+1. **Multi-Release Aggregation (`fullChangelog: true`)**:
+   - Configures `autoUpdater.fullChangelog = true` so if a user upgrades across multiple versions (e.g., `0.8.2` -> `0.9.1`), release notes for up to `MAX_RELEASE_NOTE_GROUPS = 3` intermediate releases are grouped newest-first, with any older releases summarized as `"{count} older releases on GitHub"`.
+2. **Structured Markdown & HTML Extraction**:
+   - Splits at `<details><summary>Full changelog</summary>` when present, parsing the curated summary block above it (`extractReleaseNoteSummary`), or falls back to bullet extraction (`extractReleaseNoteItems`).
+   - **HTML & Link Stripping with Bold Preservation (`stripMarkup(note, keepBold = true)`)**: Converts `<strong>`/`<b>` tags to `**bold**`, strips HTML tags and Markdown link URLs (`[text](url)` -> `text`), and strips trailing PR reference noise like `(#14, #15)` from bullet endings.
+   - **Lead-In Title Bolding**: Preserves leading bold phrases (`**Review drafts.** Pending pull request comments...` or `**Motion exports.** Word redline exports now preserve...`) so the UI renders a scannable bold topic lead-in followed by a concise 1–2 line explanation (capped at `MAX_RELEASE_NOTE_ITEM_LENGTH = 220` chars and `MAX_RELEASE_NOTE_ITEMS_PER_GROUP = 4` bullets).
+   - **Footer Summary Line (`### Plus N more ...`)**: Parses `### Plus 59 more bug fixes.` (or auto-computes `"Plus {totalItems - items.length} more improvements."` when a release has more than 4 bullet items) into the `footer` field.
+   - **Change & Contributor Stats (`vX.Y.Z · N changes from M contributors`)**: Extracts the stats line (or computes `"{count} more changes on GitHub"` / `"View release on GitHub"`) for the bottom external link.
+3. **LexHarness Release Note Authoring Convention (`.AGENTS.md` & Release Template)**:
+   - Standardizes LexHarness GitHub Release bodies on this compact structure so every release automatically populates the in-app card with practitioner-friendly highlights:
+     ```markdown
+     v0.9.0 · 14 changes from 2 contributors
+
+     - **Responsive guided tour.** Tutorial spotlight cards now adapt cleanly across compact laptop windows, tablets, and mobile browsers.
+     - **Complete draft safeguards.** Long motion and brief drafts are automatically verified for completeness before peer review.
+     - **Formatted Word exports.** Exported `.docx` pleadings now preserve headings, blockquotes, and bullet lists alongside tracked changes.
+     - **Elapsed turn timing.** Completed research and drafting turns now display total elapsed time in the workspace stream.
+
+     ### Plus 10 more bug fixes and improvements.
+
+     <details>
+     <summary>Full changelog</summary>
+     ...
+     </details>
+     ```
+
+### 12.5 Compact Bottom-Left Status Button & Hover Release Notes Popover UX (`src/renderer/components/DesktopUpdateButton.tsx`)
+
+Matches T3 Code's compact bottom-of-sidebar icon button and dark floating release notes popover card:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Update 0.9.0 downloaded. Click to restart and install.                  │
+│                                                                         │
+│ • Responsive guided tour. Tutorial spotlight cards now adapt cleanly    │
+│   across compact laptop windows, tablets, and mobile browsers.          │
+│                                                                         │
+│ • Complete draft safeguards. Long motion and brief drafts are           │
+│   automatically verified for completeness before peer review.           │
+│                                                                         │
+│ • Formatted Word exports. Exported .docx pleadings now preserve         │
+│   headings, blockquotes, and bullet lists alongside tracked changes.    │
+│                                                                         │
+│ • Elapsed turn timing. Completed research and drafting turns now        │
+│   display total elapsed time in the workspace stream.                   │
+│                                                                         │
+│ Plus 10 more bug fixes and improvements.                                │
+│                                                                         │
+│ 14 changes from 2 contributors ↗                                        │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  ╭───╮
+                                  │ ↻✓│  <-- 32x32 Circular Sidebar Button
+                                  ╰───╯
+```
+
+1. **32x32 Circular Sidebar Footer Control (`size-8 rounded-full`)**:
+   - Anchored at the bottom-left footer of the Left Sidebar (Matters pane) alongside workspace status controls.
+   - **Visual States & Iconography**:
+     - **`idle` / `up-to-date`**: Subtle circular refresh icon (`RefreshCw`, `size-4`); clicking triggers a manual `checkForUpdate()`.
+     - **`checking`**: Smoothly rotating refresh icon (`animate-spin`, respecting `prefers-reduced-motion`).
+     - **`available`**: Download arrow icon with high-contrast surface background (`bg-slate-800 text-amber-400`); clicking starts `downloadUpdate()`.
+     - **`downloading`**: Download icon encircled by an animated 32x32 SVG circular progress ring (`<svg viewBox="0 0 32 32">` with `strokeDasharray` / `strokeDashoffset` driven by `downloadPercent`).
+     - **`downloaded` (Ready to Install)**: Refresh/restart icon (`RotateCw`, `size-4`) with a crisp bottom-right circular checkmark badge (`absolute -right-1 -bottom-1 size-2.5 rounded-full bg-slate-100 text-slate-950 ring-2 ring-slate-950`), matching T3 Code's exact `bH()` downloaded icon.
+2. **Hover & Focus-Visible Release Notes Popover Card (`max-w-[24rem]`)**:
+   - Opens automatically on pointer hover (`openOnHover`, `closeDelay: 150ms`) or keyboard `:focus-visible` when `releaseNotes.length > 0` and an update is `available`, `downloading`, or `downloaded` (and can also be opened on demand via **"What's New in vX.Y.Z"** in the footer/Settings).
+   - **Header Banner**:
+     - When `status === 'downloaded'`: **`Update {version} downloaded. Click to restart and install.`** (`text-sm leading-5 font-medium text-slate-100`).
+     - When `status === 'available'`: **`Update ready to download`** with subheader `{version} · {today | Nd ago}`.
+     - When `status === 'downloading'`: **`Downloading update ({percent}%)`**.
+   - **Bullet List (`ul.space-y-1.5.pl-4.text-xs.leading-5`)**:
+     - Renders each parsed release note item as a `list-disc` bullet where the leading `**Topic.**` segment is rendered in bold (`<strong className="font-semibold text-slate-100">`) and the description follows in `text-slate-300`.
+   - **Bold Summary Footer (`p.mt-2.text-xs.leading-5.font-semibold`)**:
+     - Renders the summary count line, e.g., **`Plus 59 more bug fixes.`**
+   - **External GitHub Release Link (`a.mt-1.inline-flex.items-center.gap-1.text-xs.text-slate-400`)**:
+     - Renders `{stats}` (e.g., `67 changes from 25 contributors`) or `{count} more changes on GitHub` with a `size-3` `ExternalLink` (`↗`) icon that opens `https://github.com/bentito/free-legal-assist/releases/tag/v{version}` in the system browser via `shell.openExternal`.
+3. **Safe Restart Confirmation Dialog**:
+   - Clicking the button when `status === 'downloaded'` opens a practitioner-friendly confirmation prompt before quitting:
+     > **Install update {version} and restart LexHarness?**
+     > Any active drafting or peer review in progress will be interrupted. Make sure your current turn has finished before continuing.
+   - Upon confirmation, invokes `window.lexharness.installUpdate()`, which records `desktop-update-install.json` and calls `autoUpdater.quitAndInstall(false, true)`.
+
+### 12.6 IPC Contracts, Guided Tour Parity & Verification Tests
+
+1. **Typed Preload & IPC Channels (`src/preload/index.ts` & `src/main/index.ts`)**:
+   - `legal:get-update-state` -> `Promise<DesktopUpdateState>`
+   - `legal:check-for-update` -> `Promise<{ checked: boolean; state: DesktopUpdateState }>`
+   - `legal:download-update` -> `Promise<{ accepted: boolean; completed: boolean; state: DesktopUpdateState }>`
+   - `legal:install-update` -> `Promise<{ accepted: boolean; completed: boolean; state: DesktopUpdateState }>`
+   - `legal:open-release-notes-url` -> `Promise<boolean>` (validates `https://github.com/bentito/free-legal-assist/releases...` before calling `shell.openExternal`)
+   - `legal:update-state-changed` -> IPC event subscription (`onUpdateState(callback)`) pushing live state transitions to the renderer.
+2. **Desktop & Web Guided Tour Parity (`TutorialOverlay.tsx` & `docs/index.html`)**:
+   - In accordance with `.AGENTS.md` Section 2, both the desktop Guided Tour (`TutorialOverlay.tsx`) and the GitHub Pages Interactive Web Simulator (`docs/index.html`) include the `#tour-update-button` spotlight target and simulated "What's New" release notes popover so attorneys can preview how LexHarness delivers non-disruptive updates.
+3. **Unit & Integration Test Suite (`src/main/__tests__/legalHarness.test.ts`)**:
+   - Tests `releaseNotesParser.ts` against T3-style GitHub release bodies (bold lead-ins, `### Plus N more bug fixes.`, `vX.Y.Z · N changes from M contributors`, `<details><summary>Full changelog</summary>`, PR number stripping, and multi-version `fullChangelog` grouping).
+   - Tests `updateMachine.ts` state transitions (`idle` -> `checking` -> `available` -> `downloading` -> `downloaded`, 10% progress throttling, preservation of downloaded state across offline check failures, and `resolveNotAppliedInstallVersion` recovery).
+
 

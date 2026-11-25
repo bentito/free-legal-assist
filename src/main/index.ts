@@ -13,6 +13,10 @@ import {
 } from './tools/DocxParser';
 import { MatterFolderWatcher } from './tools/MatterFolderWatcher';
 import {
+  DesktopUpdaterService,
+  GITHUB_RELEASES_REPO,
+} from './updates/DesktopUpdaterService';
+import {
   AdversarialConfig,
   AdversarialReviewMode,
   AncillaryCheckerRole,
@@ -38,6 +42,7 @@ let mainWindow: BrowserWindow | null = null;
 let db: LegalDatabase;
 let agentLoop: LegalAgentLoop;
 let folderWatcher: MatterFolderWatcher;
+let updaterService: DesktopUpdaterService;
 let activeMatterId = '';
 
 function createSafeStorageEncryptor(): SecretEncryptor {
@@ -115,12 +120,28 @@ function buildBootstrapState(): AppBootstrapState {
       };
 
   const onboardingSaved = db.getAgentOnboardingSavedState();
+  const customMcpServers = db.listCustomMcpServers();
+  const privacyRoutingSettings = db.getPrivacyRoutingSettings();
+  const ancillaryModelRegistry = AncillaryModelManager.getInstance(db).getState();
+  const economyProviderId =
+    privacyRoutingSettings.economyModelProvider ||
+    ancillaryModelRegistry.roles.low_cost_economy?.providerId ||
+    'agy-acp';
+
   const agentOnboarding = CliAgentDriverManager.buildAgentOnboardingState({
     completedAt: onboardingSaved.completedAt,
     setupModes: onboardingSaved.setupModes,
     additionalCodexAccounts: onboardingSaved.additionalCodexAccounts,
     cliOverrides: db.getCliOverrides(),
     courtListenerToken: db.getCourtListenerToken(),
+    providers,
+    roleProviderIds: {
+      leadCounsel: adversarialConfig.primaryProvider,
+      economyChecker: economyProviderId,
+      citationAuditor: adversarialConfig.citationAuditorProvider,
+      opposingCritic: adversarialConfig.opposingCounselProvider,
+    },
+    customMcpServers,
   });
 
   return {
@@ -138,10 +159,10 @@ function buildBootstrapState(): AppBootstrapState {
     providers,
     assembledPromptPreview,
     agentOnboarding,
-    customMcpServers: db.listCustomMcpServers(),
-    privacyRoutingSettings: db.getPrivacyRoutingSettings(),
+    customMcpServers,
+    privacyRoutingSettings,
     recentRoutingLogs: db.listRoutingDebugLogs(activeMatterId || undefined, 20),
-    ancillaryModelRegistry: AncillaryModelManager.getInstance(db).getState(),
+    ancillaryModelRegistry,
   };
 }
 
@@ -567,16 +588,66 @@ function registerIpcHandlers(): void {
       _event,
       payload: {
         providerId: LLMProviderId;
+        enabled?: boolean;
+        name?: string;
+        accentColor?: string;
         apiKey?: string;
         baseUrl?: string;
         defaultModel?: string;
         binaryPath?: string;
+        homePath?: string;
+        shadowHomePath?: string;
         customArgs?: string;
+        autoCompactWindow?: string;
+        idleCompaction?: 'default' | 'onReturn' | 'beforeCacheExpires' | 'off';
+        authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+        gcpProject?: string;
+        gcpLocation?: string;
+        environmentVars?: { name: string; value: string; sensitive?: boolean }[];
+        favoriteModels?: string[];
+        hiddenModels?: string[];
+        customModels?: { id: string; label: string }[];
         reasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
         runtimeMode?: 'read-only' | 'approval-required' | 'auto-accept-edits' | 'full-access';
       }
     ) => {
       db.saveProviderCredential(payload);
+      await AncillaryModelManager.getInstance(db).refreshModelRegistry();
+      return buildBootstrapState();
+    }
+  );
+
+  ipcMain.handle(
+    'legal:add-provider-instance',
+    async (
+      _event,
+      payload: {
+        driverKind: 'codex-cli' | 'claude-agent-cli' | 'antigravity-acp';
+        name: string;
+        instanceId?: string;
+        accentColor?: string;
+        binaryPath?: string;
+        homePath?: string;
+        shadowHomePath?: string;
+        customArgs?: string;
+        authMethod?: 'oauth-personal' | 'oauth-business' | 'gemini-api-key' | 'agent-platform';
+        gcpProject?: string;
+        gcpLocation?: string;
+      }
+    ) => {
+      const res = db.addProviderInstance(payload);
+      await AncillaryModelManager.getInstance(db).refreshModelRegistry();
+      return {
+        state: buildBootstrapState(),
+        createdId: res.createdId,
+      };
+    }
+  );
+
+  ipcMain.handle(
+    'legal:delete-provider-instance',
+    async (_event, payload: { providerId: LLMProviderId }) => {
+      db.deleteOrResetProviderInstance(payload.providerId);
       await AncillaryModelManager.getInstance(db).refreshModelRegistry();
       return buildBootstrapState();
     }
@@ -989,6 +1060,36 @@ function registerIpcHandlers(): void {
       return buildBootstrapState();
     }
   );
+
+  // --- Section 12: T3-Style In-App Auto-Updater & Release Notes IPC ---
+  ipcMain.handle('legal:get-update-state', async () => {
+    return updaterService.getState();
+  });
+
+  ipcMain.handle('legal:check-for-update', async () => {
+    return updaterService.checkForUpdates();
+  });
+
+  ipcMain.handle('legal:download-update', async () => {
+    return updaterService.downloadUpdate();
+  });
+
+  ipcMain.handle('legal:install-update', async () => {
+    return updaterService.installUpdate();
+  });
+
+  ipcMain.handle(
+    'legal:open-release-notes-url',
+    async (_event, payload: { url: string }) => {
+      const target = (payload?.url || '').trim();
+      const allowedPrefix = `https://github.com/${GITHUB_RELEASES_REPO}/releases`;
+      if (target.startsWith(allowedPrefix)) {
+        await shell.openExternal(target);
+        return true;
+      }
+      return false;
+    }
+  );
 }
 
 function resolveAppIconPath(): string | undefined {
@@ -1090,9 +1191,23 @@ app.whenReady().then(async () => {
   await AncillaryModelManager.getInstance(db).initialize();
   agentLoop = new LegalAgentLoop(db);
   folderWatcher = new MatterFolderWatcher(db);
+  updaterService = new DesktopUpdaterService({
+    userDataDir,
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    isDevelopment: process.env.NODE_ENV === 'development',
+    resourcesPath: process.resourcesPath,
+    runningUnderArm64Translation: Boolean(app.runningUnderARM64Translation),
+    onStateChange: (nextUpdateState) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('legal:update-state-changed', nextUpdateState);
+      }
+    },
+  });
 
   registerIpcHandlers();
   await createWindow();
+  updaterService.startBackgroundPolling();
 
   app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {

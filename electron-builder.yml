@@ -27,4 +27,10 @@ win:
         - arm64
 nsis:
   include: build/installer.nsh
+publish:
+  - provider: github
+    owner: bentito
+    repo: free-legal-assist
+    releaseType: release
+
 
